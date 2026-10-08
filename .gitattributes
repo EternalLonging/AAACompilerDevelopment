@@ -1,0 +1,8 @@
+# 文本统一使用 LF，Windows 检出/提交时避免无意义换行差异。
+* text=auto
+*.hpp text eol=lf
+*.cpp text eol=lf
+*.py text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.txt text eol=lf

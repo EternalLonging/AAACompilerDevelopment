@@ -1,0 +1,26 @@
+# 本地过程文件和独立上传副本
+.document-work/
+.zcode/
+.github-upload/
+ir_demo_out.txt
+
+# 构建目录与编译产物
+build/
+cmake-build*/
+.vs/
+*.exe
+*.dll
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.pdb
+
+# Python 缓存及编辑器/办公软件临时文件
+__pycache__/
+*.pyc
+.pytest_cache/
+.~lock.*
+~$*
+.DS_Store

@@ -1,0 +1,577 @@
+{
+  "version": "1.0",
+  "numeric_profile": "C89-final",
+  "alphabet": "UTF-8 bytes; each regular-expression transition consumes one byte",
+  "selection": "最长匹配；长度相同按 rules 中先后顺序优先",
+  "regex_dialect": "拼接、|、()、字符类/否定字符类、*、+、?、转义和 {NAME} 宏；不使用环视、回溯引用、懒惰量词或锚点",
+  "identifier_keyword_lookup": true,
+  "eof_token": "END_OF_FILE",
+  "definitions": {
+    "DIGIT": "[0-9]",
+    "LETTER": "[A-Za-z_]",
+    "ID_CONTINUE": "[A-Za-z0-9_]",
+    "HEX_DIGIT": "[0-9A-Fa-f]",
+    "EXPONENT": "[eE][+-]?{DIGIT}+",
+    "INT_SUFFIX": "([uU][lL]?|[lL][uU]?)?",
+    "DECIMAL_INT": "[1-9]{DIGIT}*",
+    "OCTAL_INT": "0[0-7]*",
+    "HEX_INT": "0[xX]{HEX_DIGIT}+",
+    "SIMPLE_ESCAPE": "\\\\[abfnrtv\\\\'\"?]",
+    "OCTAL_ESCAPE": "\\\\[0-7][0-7]?[0-7]?",
+    "HEX_ESCAPE": "\\\\x{HEX_DIGIT}+",
+    "ESCAPE": "{SIMPLE_ESCAPE}|{OCTAL_ESCAPE}|{HEX_ESCAPE}",
+    "STRING_CHAR": "[^\"\\\\\\r\\n]",
+    "CHAR_CHAR": "[^'\\\\\\r\\n]"
+  },
+  "keywords": {
+    "int": "KW_INT",
+    "float": "KW_FLOAT",
+    "char": "KW_CHAR",
+    "return": "KW_RETURN",
+    "if": "KW_IF",
+    "else": "KW_ELSE",
+    "while": "KW_WHILE",
+    "for": "KW_FOR",
+    "void": "KW_VOID",
+    "struct": "KW_STRUCT",
+    "break": "KW_BREAK",
+    "continue": "KW_CONTINUE",
+    "switch": "KW_SWITCH",
+    "case": "KW_CASE",
+    "default": "KW_DEFAULT",
+    "do": "KW_DO",
+    "typedef": "KW_TYPEDEF",
+    "union": "KW_UNION",
+    "enum": "KW_ENUM",
+    "double": "KW_DOUBLE",
+    "long": "KW_LONG",
+    "short": "KW_SHORT",
+    "unsigned": "KW_UNSIGNED",
+    "signed": "KW_SIGNED",
+    "static": "KW_STATIC",
+    "extern": "KW_EXTERN",
+    "auto": "KW_AUTO",
+    "register": "KW_REGISTER",
+    "const": "KW_CONST",
+    "volatile": "KW_VOLATILE",
+    "sizeof": "KW_SIZEOF",
+    "goto": "KW_GOTO"
+  },
+  "rules": [
+    {
+      "name": "WHITESPACE",
+      "regex": "[ \\t\\v\\f]+",
+      "action": "skip",
+      "description": "空格、制表及其他横向空白，更新位置但不输出 Token"
+    },
+    {
+      "name": "NEWLINE",
+      "regex": "\\r\\n|\\r|\\n",
+      "action": "skip",
+      "description": "CRLF、CR 或 LF；每次换行都更新行列"
+    },
+    {
+      "name": "LINE_COMMENT",
+      "regex": "//[^\\r\\n]*",
+      "action": "skip",
+      "description": "单行注释，不包含末尾换行"
+    },
+    {
+      "name": "BLOCK_COMMENT",
+      "regex": "/\\*([^*]|\\*+[^*/])*\\*+/",
+      "action": "skip",
+      "description": "块注释，可跨行，在第一个 */ 结束，不嵌套"
+    },
+    {
+      "name": "FLOAT_LITERAL",
+      "regex": "(({DIGIT}+\\.{DIGIT}*|\\.{DIGIT}+){EXPONENT}?|{DIGIT}+{EXPONENT})[fFlL]?",
+      "action": "token",
+      "token": "FLOAT_LITERAL",
+      "description": "C89 浮点常量：带小数点或指数，允许 f/F/l/L 后缀；原文交语义判断精度"
+    },
+    {
+      "name": "INT_LITERAL",
+      "regex": "({HEX_INT}|{OCTAL_INT}|{DECIMAL_INT}){INT_SUFFIX}",
+      "action": "token",
+      "token": "INT_LITERAL",
+      "description": "C89 整数常量：十六/八/十进制，允许 U/L 后缀及两者任意顺序组合"
+    },
+    {
+      "name": "STRING_LITERAL",
+      "regex": "L?\"({STRING_CHAR}|{ESCAPE})*\"",
+      "action": "token",
+      "token": "STRING_LITERAL",
+      "description": "C89 普通/宽字符串，允许空内容及简单、八进制、十六进制转义"
+    },
+    {
+      "name": "CHAR_LITERAL",
+      "regex": "L?'({CHAR_CHAR}|{ESCAPE})+'",
+      "action": "token",
+      "token": "CHAR_LITERAL",
+      "description": "C89 普通/宽字符常量；非空，可有多个字符，其值和宽度由语义/目标模型处理"
+    },
+    {
+      "name": "ID",
+      "regex": "{LETTER}{ID_CONTINUE}*",
+      "action": "token",
+      "token": "ID",
+      "description": "识别完整名字后查 keywords；关键字不另造独立模式"
+    },
+    {
+      "name": "INVALID_NUMBER",
+      "regex": "({DIGIT}|\\.{DIGIT})([eEpP][+-]|[A-Za-z0-9_.])*",
+      "action": "error",
+      "code": "LEX_INVALID_NUMBER",
+      "description": "宽松数字候选串；合法数值同长优先，捕获非法八进制、后缀、残缺指数和未支持的 C99 十六进制浮点"
+    },
+    {
+      "name": "INVALID_STRING",
+      "regex": "L?\"({STRING_CHAR}|\\\\[^\\r\\n])*\"",
+      "action": "error",
+      "code": "LEX_INVALID_STRING",
+      "description": "闭合字符串含非法转义；合法字符串同长优先"
+    },
+    {
+      "name": "INVALID_CHAR_LITERAL",
+      "regex": "L?'({CHAR_CHAR}|\\\\[^\\r\\n])*'",
+      "action": "error",
+      "code": "LEX_INVALID_CHAR_LITERAL",
+      "description": "字符常量内容为空或含非法转义；合法字符常量同长优先"
+    },
+    {
+      "name": "UNTERMINATED_STRING",
+      "regex": "L?\"({STRING_CHAR}|\\\\[^\\r\\n])*(\\\\)?",
+      "action": "error",
+      "code": "LEX_UNTERMINATED_STRING",
+      "description": "普通/宽字符串未闭合；消费到换行前或 EOF，不产生伪造 Token"
+    },
+    {
+      "name": "UNTERMINATED_CHAR",
+      "regex": "L?'({CHAR_CHAR}|\\\\[^\\r\\n])*(\\\\)?",
+      "action": "error",
+      "code": "LEX_UNTERMINATED_CHAR",
+      "description": "普通/宽字符常量未闭合；消费到换行前或 EOF"
+    },
+    {
+      "name": "UNTERMINATED_COMMENT",
+      "regex": "/\\*([^*]|\\*+[^*/])*\\**",
+      "action": "error",
+      "code": "LEX_UNTERMINATED_COMMENT",
+      "description": "块注释未闭合；消费到 EOF，不退回为除号和乘号"
+    },
+    {
+      "name": "SHIFT_LEFT_ASSIGN",
+      "regex": "<<=",
+      "action": "token",
+      "token": "SHIFT_LEFT_ASSIGN",
+      "literal": "<<=",
+      "description": "固定符号 <<=；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "SHIFT_RIGHT_ASSIGN",
+      "regex": ">>=",
+      "action": "token",
+      "token": "SHIFT_RIGHT_ASSIGN",
+      "literal": ">>=",
+      "description": "固定符号 >>=；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "ELLIPSIS",
+      "regex": "\\.\\.\\.",
+      "action": "token",
+      "token": "ELLIPSIS",
+      "literal": "...",
+      "description": "固定符号 ...；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "PLUS_PLUS",
+      "regex": "\\+\\+",
+      "action": "token",
+      "token": "PLUS_PLUS",
+      "literal": "++",
+      "description": "固定符号 ++；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "MINUS_MINUS",
+      "regex": "--",
+      "action": "token",
+      "token": "MINUS_MINUS",
+      "literal": "--",
+      "description": "固定符号 --；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "PLUS_ASSIGN",
+      "regex": "\\+=",
+      "action": "token",
+      "token": "PLUS_ASSIGN",
+      "literal": "+=",
+      "description": "固定符号 +=；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "MINUS_ASSIGN",
+      "regex": "-=",
+      "action": "token",
+      "token": "MINUS_ASSIGN",
+      "literal": "-=",
+      "description": "固定符号 -=；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "STAR_ASSIGN",
+      "regex": "\\*=",
+      "action": "token",
+      "token": "STAR_ASSIGN",
+      "literal": "*=",
+      "description": "固定符号 *=；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "SLASH_ASSIGN",
+      "regex": "/=",
+      "action": "token",
+      "token": "SLASH_ASSIGN",
+      "literal": "/=",
+      "description": "固定符号 /=；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "PERCENT_ASSIGN",
+      "regex": "%=",
+      "action": "token",
+      "token": "PERCENT_ASSIGN",
+      "literal": "%=",
+      "description": "固定符号 %=；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "AND_ASSIGN",
+      "regex": "&=",
+      "action": "token",
+      "token": "AND_ASSIGN",
+      "literal": "&=",
+      "description": "固定符号 &=；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "OR_ASSIGN",
+      "regex": "\\|=",
+      "action": "token",
+      "token": "OR_ASSIGN",
+      "literal": "|=",
+      "description": "固定符号 |=；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "XOR_ASSIGN",
+      "regex": "\\^=",
+      "action": "token",
+      "token": "XOR_ASSIGN",
+      "literal": "^=",
+      "description": "固定符号 ^=；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "SHIFT_LEFT",
+      "regex": "<<",
+      "action": "token",
+      "token": "SHIFT_LEFT",
+      "literal": "<<",
+      "description": "固定符号 <<；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "SHIFT_RIGHT",
+      "regex": ">>",
+      "action": "token",
+      "token": "SHIFT_RIGHT",
+      "literal": ">>",
+      "description": "固定符号 >>；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "LE",
+      "regex": "<=",
+      "action": "token",
+      "token": "LE",
+      "literal": "<=",
+      "description": "固定符号 <=；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "GE",
+      "regex": ">=",
+      "action": "token",
+      "token": "GE",
+      "literal": ">=",
+      "description": "固定符号 >=；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "EQ",
+      "regex": "==",
+      "action": "token",
+      "token": "EQ",
+      "literal": "==",
+      "description": "固定符号 ==；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "NE",
+      "regex": "!=",
+      "action": "token",
+      "token": "NE",
+      "literal": "!=",
+      "description": "固定符号 !=；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "AND",
+      "regex": "&&",
+      "action": "token",
+      "token": "AND",
+      "literal": "&&",
+      "description": "固定符号 &&；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "OR",
+      "regex": "\\|\\|",
+      "action": "token",
+      "token": "OR",
+      "literal": "||",
+      "description": "固定符号 ||；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "ARROW",
+      "regex": "->",
+      "action": "token",
+      "token": "ARROW",
+      "literal": "->",
+      "description": "固定符号 ->；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "HASH_HASH",
+      "regex": "##",
+      "action": "token",
+      "token": "HASH_HASH",
+      "literal": "##",
+      "description": "固定符号 ##；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "PLUS",
+      "regex": "\\+",
+      "action": "token",
+      "token": "PLUS",
+      "literal": "+",
+      "description": "固定符号 +；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "MINUS",
+      "regex": "-",
+      "action": "token",
+      "token": "MINUS",
+      "literal": "-",
+      "description": "固定符号 -；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "STAR",
+      "regex": "\\*",
+      "action": "token",
+      "token": "STAR",
+      "literal": "*",
+      "description": "固定符号 *；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "SLASH",
+      "regex": "/",
+      "action": "token",
+      "token": "SLASH",
+      "literal": "/",
+      "description": "固定符号 /；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "PERCENT",
+      "regex": "%",
+      "action": "token",
+      "token": "PERCENT",
+      "literal": "%",
+      "description": "固定符号 %；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "ASSIGN",
+      "regex": "=",
+      "action": "token",
+      "token": "ASSIGN",
+      "literal": "=",
+      "description": "固定符号 =；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "LT",
+      "regex": "<",
+      "action": "token",
+      "token": "LT",
+      "literal": "<",
+      "description": "固定符号 <；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "GT",
+      "regex": ">",
+      "action": "token",
+      "token": "GT",
+      "literal": ">",
+      "description": "固定符号 >；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "NOT",
+      "regex": "!",
+      "action": "token",
+      "token": "NOT",
+      "literal": "!",
+      "description": "固定符号 !；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "AMP",
+      "regex": "&",
+      "action": "token",
+      "token": "AMP",
+      "literal": "&",
+      "description": "固定符号 &；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "BIT_OR",
+      "regex": "\\|",
+      "action": "token",
+      "token": "BIT_OR",
+      "literal": "|",
+      "description": "固定符号 |；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "BIT_XOR",
+      "regex": "\\^",
+      "action": "token",
+      "token": "BIT_XOR",
+      "literal": "^",
+      "description": "固定符号 ^；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "BIT_NOT",
+      "regex": "~",
+      "action": "token",
+      "token": "BIT_NOT",
+      "literal": "~",
+      "description": "固定符号 ~；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "LPAREN",
+      "regex": "\\(",
+      "action": "token",
+      "token": "LPAREN",
+      "literal": "(",
+      "description": "固定符号 (；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "RPAREN",
+      "regex": "\\)",
+      "action": "token",
+      "token": "RPAREN",
+      "literal": ")",
+      "description": "固定符号 )；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "LBRACE",
+      "regex": "\\{",
+      "action": "token",
+      "token": "LBRACE",
+      "literal": "{",
+      "description": "固定符号 {；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "RBRACE",
+      "regex": "\\}",
+      "action": "token",
+      "token": "RBRACE",
+      "literal": "}",
+      "description": "固定符号 }；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "LBRACKET",
+      "regex": "\\[",
+      "action": "token",
+      "token": "LBRACKET",
+      "literal": "[",
+      "description": "固定符号 [；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "RBRACKET",
+      "regex": "\\]",
+      "action": "token",
+      "token": "RBRACKET",
+      "literal": "]",
+      "description": "固定符号 ]；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "SEMI",
+      "regex": ";",
+      "action": "token",
+      "token": "SEMI",
+      "literal": ";",
+      "description": "固定符号 ;；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "COMMA",
+      "regex": ",",
+      "action": "token",
+      "token": "COMMA",
+      "literal": ",",
+      "description": "固定符号 ,；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "DOT",
+      "regex": "\\.",
+      "action": "token",
+      "token": "DOT",
+      "literal": ".",
+      "description": "固定符号 .；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "QUESTION",
+      "regex": "\\?",
+      "action": "token",
+      "token": "QUESTION",
+      "literal": "?",
+      "description": "固定符号 ?；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "COLON",
+      "regex": ":",
+      "action": "token",
+      "token": "COLON",
+      "literal": ":",
+      "description": "固定符号 :；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "HASH",
+      "regex": "#",
+      "action": "token",
+      "token": "HASH",
+      "literal": "#",
+      "description": "固定符号 #；词法识别不代表当前里程碑支持其语法"
+    },
+    {
+      "name": "INVALID_BYTE",
+      "regex": "[\\x00-\\xFF]",
+      "action": "error",
+      "code": "LEX_INVALID_CHAR",
+      "description": "单字节兜底规则，必须最后；合法单字节规则同长时优先"
+    }
+  ],
+  "language_scope": "完整 C89 词法种别；保留本项目 // 单行注释扩展；预处理后的文本使用本规则",
+  "preprocessing": {
+    "required_order": [
+      "规范源字符与 C89 三字符组，并保留原文位置映射",
+      "移除反斜杠-换行续行，并保留原文位置映射",
+      "按预处理上下文识别指令、头文件名和宏；本文件规则用于普通单词识别"
+    ],
+    "note": "头文件名不是普通字符串或 < / > 的简单全局规则；宏粘贴后必须重新验证产生一个完整合法预处理单词。",
+    "header_rules": [
+      {
+        "name": "HEADER_NAME_ANGLE",
+        "regex": "<[^>\\r\\n]+>",
+        "action": "header_name",
+        "description": "#include 头文件上下文专用；保留尖括号，不进入普通 TokenType"
+      },
+      {
+        "name": "HEADER_NAME_QUOTED",
+        "regex": "\"[^\"\\r\\n]+\"",
+        "action": "header_name",
+        "description": "#include 头文件上下文专用；反斜杠不是字符串转义，保留原文"
+      }
+    ]
+  }
+}
