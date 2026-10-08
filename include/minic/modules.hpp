@@ -1,7 +1,8 @@
 #pragma once
 
-// 模块接口统一入口；只使用数据结构时可以单独包含 minic/interface.hpp。
+// 模块接口统一入口。
 #include "minic/compiler.hpp"
+#include "minic/constant_pool.hpp"
 #include "minic/diagnostic.hpp"
 #include "minic/display.hpp"
 #include "minic/interpreter.hpp"

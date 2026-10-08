@@ -1,10 +1,12 @@
-# 公共数据结构与模块交接约定 v1.1
+# 公共数据结构与模块交接约定 v1.2
 
 日期：2026-10-08。依据：README 和 `需求分析/00–05` 文档。
 
-本文件是本组编译器的公共接口基线；可编译定义在 `include/minic/interface.hpp`，全部位于 `minic` 命名空间。后续模块引用该头文件，不再各自定义同名结构体。这里确定的是数据合同和模块入口，词法、语法、语义、符号表及解释器的实现仍需开发。
+本文件是本组编译器的公共接口基线；可编译定义在 `include/minic/interface.hpp`，全部位于 `minic` 命名空间。后续模块引用该头文件，不再各自定义同名结构体。常量池、符号表管理、统一诊断及基础类型规则已有实现；词法、语法、完整语义遍历、IR 及解释器入口仍需开发。
 
 v1.1 补齐模块函数合同，见 [modules.md](modules.md)。数据头文件只保留结构体；函数入口分别位于各模块头文件，可统一包含 `minic/modules.hpp`。
+
+v1.2 增加程序共享的常量池：数据定义位于 interface.hpp，登记接口位于 constant_pool.hpp，登记/去重实现位于 src/constant_pool.cpp。详细规则见 [constant-pool.md](constant-pool.md)。IRProgram 现在拥有 constants，正式 IR 的值常量统一使用 `%c<ID>` 引用。
 
 需求文档中曾提到“已冻结”的 interface.md，但项目此前没有该文件。本版首次落地这些定义，并明确解决旧资料中的歧义。新增枚举代表预留表达能力，不代表已支持该语法；M1/M2/M3/M4 的功能范围仍以 README 为准。C89/C99 的最终验收口径另行统一。
 
@@ -22,6 +24,7 @@ v1.1 补齐模块函数合同，见 [modules.md](modules.md)。数据头文件�
 | ScopeEntry / SymbolTableData | 符号表模块 | 语义、IR、补全和导出 | 各作用域映射、全部符号、活动作用域栈 |
 | Quadruple | IR 生成 | 解释器、优化、IR 展示 | op、arg1、arg2、result 四个字符串 |
 | Place | IR 表达式生成 | IR 父节点 | 一个表达式的结果放在哪里，以及结果类型 |
+| ConstantEntry / ConstantPoolData | IR 调用 ConstantPool 登记 | IR、解释器、优化、展示 | 常量编号、类型、值、首次拼写和位置 |
 | IRFunction / IRProgram | IR 生成 | 解释器、优化和展示 | 函数分组、形参、临时量、入口及全局初始化 |
 | LexResult / ParseResult / SemanticResult / IRResult | 对应阶段 | 编译驱动 | 阶段产物与诊断，一致的 ok() 查询 |
 
@@ -193,10 +196,12 @@ prefix_query 应从当前作用域向外收集可见普通符号，按名字去�
 | `%s3` | SymbolId=3 的对象或函数；同名变量靠 ID 区分 |
 | `%t2` | 当前函数的临时变量，类型见 temporaries |
 | `%L4` | 当前函数的跳转标号 |
-| `1` / `1.0` / `"%d"` | 字面量操作数；字符串必须带引号并正确转义 |
+| `%c0` | ConstantId=0 的值常量，类型和值取自 IRProgram.constants |
 | `-` | 没有操作数，不能当成数值或名字 |
 
 `Place{name, type, is_const}` 是 gen_expr 的返回值，表示结果所在位置；它不是运行时计算结果。凡是通过成员/数组等间接地址读出的值，必须先生成 load 再作为普通 Place 返回；赋值目标则由 IR 内部另行生成地址。函数和临时量都不能用用户原名作为内部身份。
+
+v1.2 的数值、字符串及折叠结果统一入常量池；Place.name 使用 `%c<ID>` 且 is_const=true。源码原文留在 AST，解释器不再重新解析四元式中的字面量。call 的实参数量、memberaddr 的字节偏移属于指令元数据，仍写十进制文本，不用 `%c`。旧演示及历史四元式表中的直接字面量仅供阅读，不作为新版可执行 IR 格式。
 
 M1 指令合同：
 
@@ -222,9 +227,9 @@ M1 指令合同：
 
 M2/M3 地址访问预留 `load(addr,-,value)`、`store(value,-,addr)`、`indexaddr(base,index,address)`、`memberaddr(base,byte_offset,address)`；元素步长取地址基类型，成员字节偏移取 MemberEntry。这些属于待实现扩展，不能仅靠字符串 opcode 推断类型或布局。
 
-`IRFunction` 按函数保存 symbol_id、形参 SymbolId、临时量类型、四元式和逐指令源码范围。locations.size() 必须等于 quads.size()。`IRProgram` 保存全局对象、全局初始化序列及其位置/临时量、函数集合、入口 main 的 SymbolId。入口未找到时可以查看 IR，执行时必须诊断。
+`IRFunction` 按函数保存 symbol_id、形参 SymbolId、临时量类型、四元式和逐指令源码范围。locations.size() 必须等于 quads.size()。`IRProgram` 保存共享常量池、全局对象、全局初始化序列及其位置/临时量、函数集合、入口 main 的 SymbolId。入口未找到时可以查看 IR，执行时必须诊断。
 
-展示层可把 `%sID` 渲染成人名，同时附编号/作用域；导出可执行 IR 时必须保留唯一名字、符号/类型表、函数分组及参数信息，单独一张人类可读四元式表不等于完整执行数据。
+展示层可把 `%sID` 渲染成人名，同时附编号/作用域；导出可执行 IR 时必须保留唯一名字、常量池、符号/类型表、函数分组及参数信息，单独一张人类可读四元式表不等于完整执行数据。
 
 ## 8. 阶段结果与入口
 
@@ -267,7 +272,7 @@ IR 生成接收 const AST 与 const 符号表，不登记新源程序符号，�
 `examples/interface_demo.cpp` 演示用真实结构体组装 Token、AST、符号表、结构体成员与函数 IR；它不调用尚未实现的编译器入口，也不冒充完整编译测试。
 
 ```powershell
-g++ -std=c++17 -Wall -Wextra -Wpedantic -I include examples/interface_demo.cpp -o interface_demo.exe
+g++ -std=c++17 -Wall -Wextra -Wpedantic -I include examples/interface_demo.cpp src/constant_pool.cpp -o interface_demo.exe
 .\interface_demo.exe
 ```
 
@@ -275,5 +280,6 @@ g++ -std=c++17 -Wall -Wextra -Wpedantic -I include examples/interface_demo.cpp -
 
 ## 变更记录
 
+- v1.2（2026-10-08）：增加 ConstantId、ConstantEntry、ConstantPoolData 及 IRProgram.constants；实现类型和值去重；正式四元式值常量改用 `%c<ID>`。
 - v1.1（2026-10-08）：补齐独立模块头文件与函数接口说明；已有四个入口迁入各自模块头文件，数据成员保持不变；新增执行和编译总控结果。
 - v1.0（2026-10-08）：首次建立公共数据定义、AST 孩子合同、持久作用域、类型表示、四元式交接和模块结果。

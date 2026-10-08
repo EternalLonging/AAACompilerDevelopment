@@ -6,7 +6,7 @@
 
 使用 **C++17** 实现可展示内部过程的 C 语言编译器：词法分析 → 语法分析 → 语义分析 → 四元式生成 → 解释器执行。符号表与统一诊断服务各阶段，最终词法规则采用 **C89** 范围，并保留项目要求的 `//` 注释扩展。
 
-本次上传已完成的公共结构体、模块接口、最终词法正则及配套文档和示例。**当前是接口与规则基线，尚未实现完整编译器；NFA/DFA 生成器、正式扫描器和其余模块函数体仍待开发。**
+已完成公共结构体、模块接口、最终词法正则，并实现常量池、符号表管理、统一诊断和基础类型规则。**这些支持模块可以独立运行和测试；完整 C 源程序编译流程尚未实现，NFA/DFA 生成器、正式扫描器、语法分析、完整语义遍历、IR 和解释器入口仍待开发。**
 
 | 已完成内容 | 入口 |
 |---|---|
@@ -19,6 +19,12 @@
 | 正则验证工具，17 组检查 | [tools/check_lexer_patterns.py](tools/check_lexer_patterns.py) |
 | 可运行的结构体组装示例 | [examples/interface_demo.cpp](examples/interface_demo.cpp) |
 | 模块实现后的总控调用示例，目前只能编译检查 | [examples/compile_and_run.cpp](examples/compile_and_run.cpp) |
+| 常量池：按类型和值去重、稳定编号与四元式常量操作数 | [src/constant_pool.cpp](src/constant_pool.cpp)、[docs/constant-pool.md](docs/constant-pool.md) |
+| 符号表：作用域、普通名字、标签、成员、函数声明、内建函数与补全 | [src/symbol_table.cpp](src/symbol_table.cpp)、[docs/symbol-table.md](docs/symbol-table.md) |
+| 统一诊断：中文消息、行列、关联位置、错误数量限制 | [src/diagnostic.cpp](src/diagnostic.cpp) |
+| 类型规则：类型比较、M1 算术提升及赋值兼容 | [src/type_rules.cpp](src/type_rules.cpp) |
+| 符号表运行示例与行为测试 | [examples/symbol_table_demo.cpp](examples/symbol_table_demo.cpp)、[tests/symbol_table_test.cpp](tests/symbol_table_test.cpp) |
+| 常量池行为测试 | [tests/constant_pool_test.cpp](tests/constant_pool_test.cpp) |
 | 原有四元式教学演示，不使用本次公共接口 | [ir_demo.cpp](ir_demo.cpp) |
 
 ## 验证方式
@@ -28,11 +34,20 @@
 ```powershell
 python tools/check_lexer_patterns.py
 g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -I include -fsyntax-only examples/compile_and_run.cpp
-g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -I include examples/interface_demo.cpp -o interface_demo.exe
-.\interface_demo.exe
+New-Item -ItemType Directory -Force build | Out-Null
+g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -I include examples/interface_demo.cpp src/constant_pool.cpp -o build/interface_demo.exe
+& build/interface_demo.exe
+g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -I include tests/constant_pool_test.cpp src/constant_pool.cpp -o build/constant_pool_test.exe
+& build/constant_pool_test.exe
+g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -I include tests/symbol_table_test.cpp src/symbol_table.cpp src/diagnostic.cpp src/type_rules.cpp -o build/symbol_table_test.exe
+& build/symbol_table_test.exe
+g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -I include examples/symbol_table_demo.cpp src/symbol_table.cpp src/diagnostic.cpp src/type_rules.cpp -o build/symbol_table_demo.exe
+& build/symbol_table_demo.exe
 ```
 
-接口声明尚无实现，不应将 compile_and_run.cpp 链接为已完成的编译器。interface_demo.cpp 可以独立编译运行；其输出演示数据组装，不代表完成了编译流程。
+compile_and_run.cpp 调用的完整编译入口尚无实现，目前只做声明层编译检查。interface_demo.cpp 需链接常量池实现，其输出演示数据组装；symbol_table_demo.cpp 展示作用域遮蔽、前缀查询及重复声明报错。
+
+两个行为测试分别验证常量池和符号表/诊断/类型规则。类型转换目前限 M1 的有符号 char、int、float；结构体布局由语义模块计算后交给符号表校验；补全目前按单源文件字节位置处理。详细范围见上述模块文档。头文件和实现中的说明采用简短中文注释。
 
 ## 语言目标与协作
 
@@ -40,4 +55,4 @@ M1：基本类型、函数、控制流与 scanf/printf；M2：数组、struct �
 
 采用 Git Flow：main 为稳定分支，dev 为集成分支，feature/模块名用于开发；提交信息使用“类型(模块): 描述”。接口字段或合同变化应更新文档及版本，经组内评审后合入。
 
-教师资料、早期 Word/PPT、需求分析原稿与过程渲染产物保留在本地，本次仓库上传上述已完成的软件定义及配套说明。
+教师资料、早期 Word/PPT、需求分析原稿与过程渲染产物保留在本地，仓库保存上述已完成的代码、接口、规则、测试及配套说明。

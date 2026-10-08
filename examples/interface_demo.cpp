@@ -1,4 +1,5 @@
 #include "minic/interface.hpp"
+#include "minic/constant_pool.hpp"
 
 #include <iostream>
 #include <utility>
@@ -169,14 +170,25 @@ int main() {
     std::cout << "tokens including EOF: " << lexed.tokens.size() << '\n';
 
     IRResult ir;
+    // 常量按类型和值去重，数值和格式串均通过 %c<ID> 在四元式中引用。
+    ConstantPool pool;
+    const auto five = pool.intern(int_type, std::int64_t{5}, "5");
+    const auto format = pool.intern(derived(TypeKind::Array, char_type, 3),
+                                    std::string("%d"), "\"%d\"");
+    const auto zero = pool.intern(int_type, std::int64_t{0}, "0");
+    ir.program.constants = std::move(pool).release();
+    // 展示常量池编号与首次拼写，核对四元式 %c<ID> 所指向的条目。
+    for (const auto& constant : ir.program.constants.entries) {
+        std::cout << constant_operand(constant.id) << " = " << constant.spelling << '\n';
+    }
     ir.program.entry_function = 1;
     IRFunction main_ir;
     main_ir.symbol_id = 1;
-    main_ir.quads = {{"=", "5", "-", "%s2"},
-                     {"arg", "\"%d\"", "-", "-"},
+    main_ir.quads = {{"=", constant_operand(five), "-", "%s2"},
+                     {"arg", constant_operand(format), "-", "-"},
                      {"arg", "%s2", "-", "-"},
                      {"call", "%s0", "2", "-"},
-                     {"ret", "0", "-", "-"}};
+                     {"ret", constant_operand(zero), "-", "-"}};
     main_ir.locations.resize(main_ir.quads.size());
     ir.program.functions.push_back(std::move(main_ir));
     for (const auto& quad : ir.program.functions[0].quads) {

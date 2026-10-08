@@ -1,8 +1,8 @@
-# 模块函数接口 v1.1
+# 模块函数接口 v1.2
 
 日期：2026-10-08。结构体及其字段约定见 [interface.md](interface.md)。本文件定义“各模块怎样调用”，全部函数声明位于 `include/minic/`，均附中文注释。
 
-当前交付是接口定义：头文件可以编译，函数体需要各模块负责人实现。不要添加返回空结果或无条件成功的占位实现，否则会把“未实现”伪装成“编译成功”。主程序统一包含 `minic/modules.hpp`；某模块可以只包含自己需要的头文件。
+当前已实现常量池、符号表管理、统一诊断和三个类型规则函数；编译阶段入口仍只有声明，需要各模块负责人实现。不要添加返回空结果或无条件成功的占位实现，否则会把“未实现”伪装成“编译成功”。主程序统一包含 `minic/modules.hpp`；某模块可以只包含自己需要的头文件。
 
 ## 1. 文件与分工
 
@@ -10,15 +10,16 @@
 |---|---|---|---|
 | 词法分析 | lexer.hpp | src/lexer.cpp | lex |
 | 语法分析 | parser.hpp | src/parser.cpp | parse |
-| 符号表管理 | symbol_table.hpp | src/symbol_table.cpp | SymbolTable、register_builtins |
-| 统一出错处理 | diagnostic.hpp | src/diagnostic.cpp | DiagnosticEngine |
-| 语义分析 | semantic.hpp | src/semantic.cpp | analyze、same_type、arithmetic_result、can_assign |
+| 符号表管理 | symbol_table.hpp | src/symbol_table.cpp | SymbolTable、register_builtins（已实现） |
+| 统一出错处理 | diagnostic.hpp | src/diagnostic.cpp | DiagnosticEngine（已实现） |
+| 语义分析 | semantic.hpp | src/semantic.cpp（待实现）、src/type_rules.cpp | analyze（待实现）、same_type / arithmetic_result / can_assign（已实现） |
 | 中间代码生成 | ir.hpp | src/ir.cpp | generate |
+| 常量池（IR 公共支持） | constant_pool.hpp | src/constant_pool.cpp | ConstantPool、constant_operand（已实现） |
 | 四元式解释器 | interpreter.hpp | src/interpreter.cpp | run |
 | 主流程整合 | compiler.hpp | src/compiler.cpp | compile、CompilationResult::ok |
 | 文本展示与导出 | display.hpp | src/display.cpp | print_tokens / ast / symbols / ir / diagnostics |
 
-`src/` 文件名是后续实现位置，本次没有生成这些函数体。没有要求模块继承抽象基类；四个编译阶段用普通函数返回明确的结果，符号表和诊断收集器通过类封装自己的状态。
+词法、语法、完整语义遍历、IR、解释器、总控和展示函数体仍待开发。已实现部分的运行与测试说明见 [symbol-table.md](symbol-table.md) 和 [constant-pool.md](constant-pool.md)。没有要求模块继承抽象基类；四个编译阶段用普通函数返回明确的结果，符号表、常量池和诊断收集器通过类封装自己的状态。
 
 ## 2. 五个模块怎样交接
 
@@ -82,6 +83,8 @@ declare_record 查当前层，外层同名标签不会阻止新标签遮蔽；�
 
 complete_record 的 definition.id/tag/kind/scope 必须与旧条目一致。语义模块先检查成员类型并计算布局，填写 size/alignment 和所有成员 offset；符号表校验身份、重复成员及布局完整性后提交定义。失败不能把条目标为完整；枚举项的普通符号登记仍通过 insert，不能只填 enumerators 后假定其名字已经可见。
 
+当前实现检查非零大小、2 的幂对齐、总大小满足对齐、成员类型可存储、偏移未越过对象大小，联合体成员偏移为 0；不计算目标机器的 sizeof、填充或成员区间。枚举完成时还检查每项已绑定本层对应的 EnumConstant。正确布局及成员类型的完整 C 约束由语义遍历负责。
+
 symbol()/record() 返回的元素指针可能因后续插入引起的 vector 扩容而失效；跨修改保存 **编号**，需要时重新取得指针。IR 使用释放后的固定数据时仍不得重新排序容器。
 
 光标补全需要传入源码字节位置，排除该位置之后才首次声明的名字，再执行遮蔽去重。例如内层 x 尚未到声明位置时，外层 x 仍应出现在结果中。内建函数一直可见；原型/定义复用条目保留首次声明位置。M1/M2 为单源文件；M3 多文件预处理需要额外定义光标到展开源码的位置映射，不能直接比较不同文件的 offset。
@@ -115,7 +118,11 @@ diagnostics.report(Level::Error, node.range,
 
 这三个函数不打印、不登记符号、不收集诊断，也不检查左值属性；调用者结合 AST 的 category 和 const 限定符诊断。Error 子表达式向父节点传播时应抑制重复报错。比较与逻辑表达式结果类型为 int，不能把结果类型当成两个操作数的公共算术类型。M1 以外的转换按后续语言规格统一扩展。
 
+实现位于 src/type_rules.cpp。same_type 对 Unknown、Error、未解析 Named 及缺失记录编号返回 false；这是严格的结构相等判断，尚未实现完整 C 的函数类型兼容与形参限定符归一化。算术和赋值只处理 M1 的有符号 char / int / float，忽略顶层 const / volatile；unsigned、short、long、double、指针和数组转换暂不支持。
+
 ## 6. 四元式执行接口
+
+IR 的数值、窄字符串和折叠结果通过 ConstantPool.intern 登记为 `%c<ID>`，generate 结束时将池移入 IRProgram.constants。解释器通过同次编译的池读取已解码值。常量池接口、精度和字符串存储规则见 [constant-pool.md](constant-pool.md)。
 
 ```cpp
 RunResult run(const IRProgram& program, const SymbolTableData& symbols,
@@ -170,4 +177,4 @@ g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -I include -fsyntax-only example
 
 这验证头文件、函数参数、返回类型和流程调用是否兼容，不验证编译器行为，也不链接尚未实现的函数。数据组装示例 interface_demo.cpp 仍可独立编译运行。
 
-v1.1 将四个已有入口原样迁入各模块头文件，结构体成员不变。原来只含 interface.hpp 的调用代码如需调用模块函数，改含对应头文件或 modules.hpp。
+v1.1 将四个已有入口迁入各模块头文件；v1.2 新增常量池并在 IRProgram 中保存数据。原来只含 interface.hpp 的调用代码如需调用模块函数，改含对应头文件或 modules.hpp；interface_demo.cpp 从 v1.2 起需同时链接 src/constant_pool.cpp。
