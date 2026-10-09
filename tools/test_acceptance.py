@@ -1,0 +1,144 @@
+"""验收正式命令行：展示各阶段、执行真实程序、检查失败与文件路径。"""
+
+import argparse
+import json
+from pathlib import Path
+import subprocess
+import tempfile
+
+
+# 这些程序遵守项目语法，并且不依赖动态内存或系统头文件。
+PROGRAMS = [
+    ("linked_list", """struct N { int v; struct N *next; };
+int sum(struct N *p) { int s=0; while(p!=0) { s+=p->v; p=p->next; } return s; }
+int main(void) { struct N a={2,0},b={3,0},c={5,0};
+a.next=&b; b.next=&c; printf("list = %d\\n",sum(&a)); return 0; }
+""", "list = 10\n", ""),
+    ("bubble_sort", """void sort(int a[],int n) { int i,j,t;
+for(i=0;i<n;i++) { for(j=0;j<n-1-i;j++) {
+if(a[j]>a[j+1]) { t=a[j]; a[j]=a[j+1]; a[j+1]=t; } } } }
+int main(void) { int a[5]={5,1,4,2,3}; sort(a,5);
+printf("sort = %d %d %d %d %d\\n",a[0],a[1],a[2],a[3],a[4]); return 0; }
+""", "sort = 1 2 3 4 5\n", ""),
+    ("pointer_return", """int *pick(int *p) { return p+1; }
+int main(void) { int a[2]={3,7}; printf("pick = %d\\n",*pick(a)); return 0; }
+""", "pick = 7\n", ""),
+    ("record_scope", """struct S { int x; };
+int main(void) { struct S a={3};
+{ struct S { int y; int z; }; struct S b={4,5}; a.x+=b.z; }
+printf("shadow = %d\\n",a.x); return 0; }
+""", "shadow = 8\n", ""),
+    ("array_pointer", """int main(void) { int a[2][2]={{1,2},{3,4}}; int (*p)[2]=a;
+printf("matrix = %d\\n",p[1][1]); return 0; }
+""", "matrix = 4\n", ""),
+    ("double_pointer", """void set(int **p) { **p=9; }
+int main(void) { int x=3; int *p=&x; set(&p);
+printf("indirect = %d\\n",x); return 0; }
+""", "indirect = 9\n", ""),
+    ("qualifiers", """int main(void) { volatile int x=1; const volatile int *p=&x;
+x+=2; printf("qualified = %d\\n",*p); return 0; }
+""", "qualified = 3\n", ""),
+    ("input", """int main(void) { int a,b; scanf("%d%d",&a,&b);
+printf("input = %d\\n",a+b); return 0; }
+""", "input = 12\n", "5 7\n"),
+]
+
+
+def invoke(command, data=""):
+    result = subprocess.run(command, input=data.encode("utf-8"), capture_output=True, timeout=20)
+    # 只统一 Windows 换行，不掩盖乱码、额外输出或空格差异。
+    return result.returncode, result.stdout.decode("utf-8").replace("\r\n", "\n"), result.stderr.decode("utf-8").replace("\r\n", "\n")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("compiler", type=Path, help="正式 minic 可执行文件")
+    parser.add_argument("--reference-gcc", help="可选：以 C89 编译并运行上述正常程序")
+    parser.add_argument("--report", type=Path, help="保存本次逐项验收结果")
+    args = parser.parse_args()
+    compiler = str(args.compiler.resolve())
+    results = []
+
+    def check(name, command, *, data="", code=0, output=None, contains=(), errors=(), empty_output=False):
+        try:
+            actual_code, out, err = invoke(command, data)
+            assert actual_code == code, f"退出码 {actual_code}，预期 {code}"
+            if output is not None:
+                assert out == output, f"输出 {out!r}，预期 {output!r}"
+            if empty_output:
+                assert not out, f"失败后不应有程序输出：{out!r}"
+            for text in contains:
+                assert text in out, f"输出缺少 {text!r}"
+            for text in errors:
+                assert text in err, f"诊断缺少 {text!r}；实际 {err!r}"
+            if code == 0:
+                assert not err, f"成功时不应有诊断：{err!r}"
+            results.append({"name": name, "passed": True})
+        except (AssertionError, OSError, UnicodeError, subprocess.TimeoutExpired) as error:
+            results.append({"name": name, "passed": False, "error": str(error)})
+        print(("PASS " if results[-1]["passed"] else "FAIL ") + name)
+        if not results[-1]["passed"]:
+            print(results[-1]["error"])
+
+    with tempfile.TemporaryDirectory(prefix="minic-acceptance-") as temporary:
+        folder = Path(temporary)
+        basic = folder / "circle.c"
+        basic.write_text('int main(void) { float r=1; printf("c = %f\\n",2*3.14159*r); return 0; }\n', encoding="utf-8")
+        check("help", [compiler, "--help"], contains=("tokens|parse|symbols|check|ir|run",))
+        for mode, texts in [
+            ("tokens", ("KW_INT", "END_OF_FILE")),
+            ("parse", ("Program", "FunctionDef", "Call")),
+            ("symbols", ("符号编号", "main", "printf", "作用域")),
+            ("check", ("语义检查通过",)),
+            ("ir", ("常量池", "函数", "call", "ret")),
+        ]:
+            check("display_" + mode, [compiler, mode, str(basic)], contains=texts)
+        check("run_circle", [compiler, "run", str(basic)], output="c = 6.283180\n")
+        check("missing_arguments", [compiler], code=1, errors=("用法",), empty_output=True)
+        check("unknown_command", [compiler, "unknown", str(basic)], code=1, errors=("用法",), empty_output=True)
+        check("missing_file", [compiler, "run", str(folder / "missing.c")], code=1, errors=("无法打开",), empty_output=True)
+        # 用真实非 ASCII 文件名验收；不能把问号替代的路径当成中文路径测试。
+        unicode_file = folder / "验收 中文文件.c"
+        unicode_file.write_bytes(basic.read_bytes())
+        check("unicode_path", [compiler, "run", str(unicode_file)], output="c = 6.283180\n")
+
+        for name, source, expected, data in PROGRAMS:
+            file = folder / (name + ".c")
+            file.write_text(source, encoding="utf-8")
+            check(name, [compiler, "run", str(file)], output=expected, data=data)
+            if args.reference_gcc:
+                executable = folder / (name + ".exe")
+                built, _, err = invoke([args.reference_gcc, "-x", "c", "-std=c89", "-include", "stdio.h", str(file), "-o", str(executable)])
+                if built:
+                    results.append({"name": "reference_" + name, "passed": False, "error": err})
+                else:
+                    check("reference_" + name, [str(executable)], output=expected, data=data)
+
+        for name, source, phase, message in [
+            ("lexer_stop", 'int main(void) { @ printf("SHOULD_NOT_RUN"); return 0; }', "词法", "LEX_"),
+            ("parser_stop", 'int main(void) { int x=; printf("SHOULD_NOT_RUN"); return 0; }', "语法", "PARSE_"),
+            ("semantic_stop", 'int main(void) { x=1; printf("SHOULD_NOT_RUN"); return 0; }', "语义", "SEM_UNDECLARED"),
+            ("runtime_zero", 'int main(void) { int x=0; x=1/x; printf("SHOULD_NOT_RUN"); return 0; }', "运行", "除零"),
+            ("runtime_bounds", 'int main(void) { int a[2]={1,2}; int i=2; a[i]=3; printf("SHOULD_NOT_RUN"); return 0; }', "运行", "越界"),
+        ]:
+            file = folder / (name + ".c")
+            file.write_text(source + "\n", encoding="utf-8")
+            check(name, [compiler, "run", str(file)], code=1, errors=("[" + phase + "/", message), empty_output=True)
+        file = folder / "exit_code.c"
+        file.write_text("int main(void) { return 7; }\n", encoding="utf-8")
+        check("main_exit_code", [compiler, "run", str(file)], code=7, output="")
+        file = folder / "recover.c"
+        file.write_text("int main(void) {\n x=;\n y=;\n return 0;\n}\n", encoding="utf-8")
+        check("multiple_diagnostics", [compiler, "check", str(file)], code=1,
+              errors=("recover.c:2:", "recover.c:3:", "[语法/错误]"), empty_output=True)
+
+    passed = sum(item["passed"] for item in results)
+    print(f"acceptance: {passed}/{len(results)} checks passed")
+    if args.report:
+        args.report.parent.mkdir(parents=True, exist_ok=True)
+        args.report.write_text(json.dumps({"passed": passed, "total": len(results), "checks": results}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return 0 if passed == len(results) else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
