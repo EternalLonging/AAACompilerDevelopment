@@ -13,6 +13,7 @@ namespace {
 
 class Generator {
     const SymbolTableData& symbols_; // 本次语义分析的符号信息。
+    IRGenerationOptions options_; // 本次是否启用常量折叠。
     DiagnosticEngine diagnostics_{Phase::IR};
     ConstantPool constants_; // 所有函数共用的常量池。
     IRProgram program_;
@@ -137,8 +138,8 @@ class Generator {
             node.scope_id >= symbols_.scopes.size()) throw std::runtime_error("表达式尚未通过语义检查");
         std::string result;
         // 仅折叠无副作用且不会溢出/除零的数值常量表达式。
-        if (node.kind == NodeType::BinaryOp || node.kind == NodeType::UnaryOp ||
-            node.kind == NodeType::ImplicitCast || node.kind == NodeType::Cast) {
+        if (options_.constant_folding && (node.kind == NodeType::BinaryOp || node.kind == NodeType::UnaryOp ||
+            node.kind == NodeType::ImplicitCast || node.kind == NodeType::Cast)) {
             if (const auto value = detail::folded_value(node)) {
                 --depth_;
                 return constant_operand(constants_.intern(node.type, *value, "<折叠常量>", node.range));
@@ -438,7 +439,7 @@ class Generator {
     }
 
 public:
-    explicit Generator(const SymbolTableData& symbols) : symbols_(symbols) {}
+    Generator(const SymbolTableData& symbols, IRGenerationOptions options) : symbols_(symbols), options_(options) {}
 
     IRResult generate(const Program& root) {
         try {
@@ -499,7 +500,11 @@ public:
 }
 
 IRResult generate(const Program& program, const SymbolTableData& symbols) {
-    return Generator(symbols).generate(program);
+    return generate(program, symbols, {});
+}
+
+IRResult generate(const Program& program, const SymbolTableData& symbols, const IRGenerationOptions& options) {
+    return Generator(symbols, options).generate(program);
 }
 
 }

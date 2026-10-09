@@ -169,6 +169,10 @@ ParseResult 拥有 AST，SemanticResult 拥有符号表，IRResult 拥有中间�
 
 ## 8. 展示和导出
 
+新增图形工作台读取 workbench_driver 的真实 JSON 产物，节点类型、Token 种别与类型描述通过 ast_node_name、token_type_name、describe_type 与文本展示共用；操作方法见 [workbench.md](workbench.md)。generate 新增带 IRGenerationOptions 的重载，constant_folding=false 可生成未折叠四元式，原重载保持默认折叠行为。
+
+complete(source,cursor) 接收原始源码和字节光标，返回前缀替换范围、带类型候选和恢复标记；visible_symbols 对保存后的 SymbolTableData 提供相同的作用域、声明顺序与遮蔽查询。补全的修补仅用于候选分析，不作为正式编译结果，也不宣称完整 LL(1) 预测补全。
+
 print_tokens、print_ast、print_symbols、print_ir、print_diagnostics 均向调用者提供的 ostream 输出，只读产物。打印函数不会重新编译，也不会关闭流。输出流失败由调用者检查流状态；文本展示不把文件 I/O 问题当成用户 C 程序诊断。
 
 IR 显示可用符号表补充用户名字，但同时保留 `%sID`，保证同名变量可区分。文本格式服务课堂演示；正式 JSON 导出及序列化格式后续另行冻结，当前不承诺文本能直接反序列化为可执行 IR。

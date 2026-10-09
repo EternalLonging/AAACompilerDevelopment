@@ -115,6 +115,10 @@ void print_tokens(const std::vector<Token>& tokens, std::ostream& output) {
 
 void print_ast(const Program& program, std::ostream& output) { ast(program, output, 0); }
 
+std::string token_type_name(TokenType type) { return token_name(type); }
+std::string ast_node_name(NodeType type) { return node_name(type); }
+std::string describe_type(const TypePtr& type) { return type_text(type); }
+
 void print_symbols(const SymbolTableData& symbols, std::ostream& output) {
     output << "符号编号\t名字\t类别\t类型\t作用域\t位置\n";
     static const char* kinds[] = {"变量", "形参", "数组", "函数", "类型别名", "枚举常量"};

@@ -3,6 +3,10 @@
 
 namespace minic {
 
+// 从已保存的表按作用域和光标位置查找可见名字，用于编辑器补全。
+std::vector<SymbolId> visible_symbols(const SymbolTableData& data, const std::string& prefix,
+                                      ScopeId scope, const SourceLocation& cursor);
+
 // 符号表管理类，详细规则见 docs/modules.md。
 class SymbolTable {
 public:
