@@ -6,10 +6,13 @@
 
 使用 **C++17** 实现可展示内部过程的类 C89 项目语言编译器：词法分析 → 语法分析 → 语义分析 → 四元式生成 → 解释器执行。符号表与统一诊断服务各阶段，最终词法规则采用 **C89** 范围，并保留项目要求的 `//` 注释扩展。
 
+用户已决定暂不扩展系统头文件和完整标准库，当前优先验证已有功能与准备课堂演示。内建 printf/scanf 和本地头文件继续可用；一键演示与答辩说明见 [演示准备](docs/showcase.md)。
+
 已完成公共结构体、模块接口、最终词法正则、常量池、符号表、统一诊断、M1/M2 后续流程，以及对象指针、数组传参、typedef、enum、goto、位运算、静态存储和安全常量折叠。本轮进一步实现 union、short/long/unsigned/double、函数指针回调、extern 对象声明、聚合函数传值与返回、字符串指针输入输出，以及独立预处理和总控入口。**正式词法与语法现已接入，可以直接完成“源码 → Token → AST → 语义 → 四元式 → 执行”，并可通过 compile_preprocessed 使用宏和头文件。** 前端采用项目语言范围，C89 仅作参考；控制体必须有花括号，具体范围见 [词法与语法实现](docs/frontend.md)。 完整 C89、跨文件链接、动态内存和完整标准库仍未完成，见 [本轮交付范围](docs/backend-completion.md)。
 
 | 已完成内容 | 入口 |
 |---|---|
+| 课堂演示、阶段结果保存和答辩说明 | [docs/showcase.md](docs/showcase.md)、[examples/showcase](examples/showcase)、[tools/run_showcase.py](tools/run_showcase.py) |
 | 命令行自动预处理、本地头文件与原始源码模式 | [docs/command-line.md](docs/command-line.md)、[tools/test_cli_preprocessing.py](tools/test_cli_preprocessing.py) |
 | 整体验收结果、命令行与综合程序复验 | [docs/acceptance.md](docs/acceptance.md)、[tools/test_acceptance.py](tools/test_acceptance.py) |
 | 词法 DFA 扫描器、递归下降解析器及真实源码测试 | [src/lexer.cpp](src/lexer.cpp)、[src/parser.cpp](src/parser.cpp)、[docs/frontend.md](docs/frontend.md)、[tests/frontend_test.cpp](tests/frontend_test.cpp) |
@@ -86,7 +89,7 @@ cmake --build build/cmake
 ctest --test-dir build/cmake --output-on-failure
 ```
 
-验证使用严格 g++ 脚本；CMake/CTest 加入命令行预处理验收后共 16 项测试。minic 命令行和 compile_and_run 已建立并实际运行。前端测试覆盖真实源码编译执行，词法对照验证 3396 组输入及起止位置。Windows 中文路径建议使用 `cmake -S . -B build/frontend -G Ninja`，具体命令见 [frontend.md](docs/frontend.md)。当前支持范围、限制、节点顺序、目标布局、指针边界和新四元式见 [后续模块交接说明](docs/backend-extensions.md) 和 [本轮交付](docs/backend-completion.md)。原公共字段保持不变，新预处理结果及总控接口采用增量扩展。
+验证使用严格 g++ 脚本；CMake/CTest 加入演示回归后共 17 项测试。命令行验收包含 34 项，演示回归包含 11 项。minic 命令行和 compile_and_run 已建立并实际运行。前端测试覆盖真实源码编译执行，词法对照验证 3396 组输入及起止位置。Windows 中文路径建议使用 `cmake -S . -B build/frontend -G Ninja`，具体命令见 [frontend.md](docs/frontend.md)。当前支持范围、限制、节点顺序、目标布局、指针边界和新四元式见 [后续模块交接说明](docs/backend-extensions.md) 和 [本轮交付](docs/backend-completion.md)。原公共字段保持不变，新预处理结果及总控接口采用增量扩展。
 
 ## 语言目标与协作
 

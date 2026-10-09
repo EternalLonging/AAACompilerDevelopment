@@ -91,6 +91,8 @@ if(BUILD_TESTING)
                      $<TARGET_FILE:minic>)
             add_test(NAME cli_preprocessing COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_cli_preprocessing.py
                      $<TARGET_FILE:minic>)
+            add_test(NAME showcase COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/run_showcase.py
+                     --compiler $<TARGET_FILE:minic> --output ${CMAKE_CURRENT_BINARY_DIR}/showcase)
         endif()
     endif()
 endif()
