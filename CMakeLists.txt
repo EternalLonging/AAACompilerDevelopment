@@ -84,6 +84,8 @@ if(BUILD_TESTING)
             endif()
             add_test(NAME source_integration COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_integration.py
                      --compiler $<TARGET_FILE:integration_driver>)
+            add_test(NAME cli_acceptance COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_acceptance.py
+                     $<TARGET_FILE:minic>)
         endif()
     endif()
 endif()

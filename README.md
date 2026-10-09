@@ -10,6 +10,7 @@
 
 | 已完成内容 | 入口 |
 |---|---|
+| 整体验收结果、命令行与综合程序复验 | [docs/acceptance.md](docs/acceptance.md)、[tools/test_acceptance.py](tools/test_acceptance.py) |
 | 词法 DFA 扫描器、递归下降解析器及真实源码测试 | [src/lexer.cpp](src/lexer.cpp)、[src/parser.cpp](src/parser.cpp)、[docs/frontend.md](docs/frontend.md)、[tests/frontend_test.cpp](tests/frontend_test.cpp) |
 | 公共结构体，全部成员附中文注释 | [include/minic/interface.hpp](include/minic/interface.hpp) |
 | 五模块、符号表、诊断、解释器、总控及展示接口 | [include/minic/modules.hpp](include/minic/modules.hpp) |
@@ -19,7 +20,7 @@
 | 正则中文说明、最长匹配及预处理约定 | [docs/lexer-regex.md](docs/lexer-regex.md) |
 | 正则验证工具，17 组检查 | [tools/check_lexer_patterns.py](tools/check_lexer_patterns.py) |
 | 可运行的结构体组装示例 | [examples/interface_demo.cpp](examples/interface_demo.cpp) |
-| 模块实现后的总控调用示例，目前只能编译检查 | [examples/compile_and_run.cpp](examples/compile_and_run.cpp) |
+| 可运行的真实源码总控示例 | [examples/compile_and_run.cpp](examples/compile_and_run.cpp) |
 | 常量池：按类型和值去重、稳定编号与四元式常量操作数 | [src/constant_pool.cpp](src/constant_pool.cpp)、[docs/constant-pool.md](docs/constant-pool.md) |
 | 符号表：作用域、普通名字、标签、成员、函数声明、内建函数与补全 | [src/symbol_table.cpp](src/symbol_table.cpp)、[docs/symbol-table.md](docs/symbol-table.md) |
 | 统一诊断：中文消息、行列、关联位置、错误数量限制 | [src/diagnostic.cpp](src/diagnostic.cpp) |
@@ -84,7 +85,7 @@ cmake --build build/cmake
 ctest --test-dir build/cmake --output-on-failure
 ```
 
-验证使用严格 g++ 脚本及 CMake/CTest 的 14 项测试。minic 命令行和 compile_and_run 已建立并实际运行。前端测试覆盖真实源码编译执行，词法对照验证 3396 组输入及起止位置。Windows 中文路径建议使用 `cmake -S . -B build/frontend -G Ninja`，具体命令见 [frontend.md](docs/frontend.md)。当前支持范围、限制、节点顺序、目标布局、指针边界和新四元式见 [后续模块交接说明](docs/backend-extensions.md) 和 [本轮交付](docs/backend-completion.md)。原公共字段保持不变，新预处理结果及总控接口采用增量扩展。
+验证使用严格 g++ 脚本；CMake/CTest 加入命令行验收后共 15 项测试。minic 命令行和 compile_and_run 已建立并实际运行。前端测试覆盖真实源码编译执行，词法对照验证 3396 组输入及起止位置。Windows 中文路径建议使用 `cmake -S . -B build/frontend -G Ninja`，具体命令见 [frontend.md](docs/frontend.md)。当前支持范围、限制、节点顺序、目标布局、指针边界和新四元式见 [后续模块交接说明](docs/backend-extensions.md) 和 [本轮交付](docs/backend-completion.md)。原公共字段保持不变，新预处理结果及总控接口采用增量扩展。
 
 ## 语言目标与协作
 
