@@ -40,6 +40,8 @@
 | 支持范围、构建方法与给同学的 AST 交接说明 | [docs/m1-backend.md](docs/m1-backend.md) |
 | 构建配置与独立测试脚本 | [CMakeLists.txt](CMakeLists.txt)、[tools/test_backend.ps1](tools/test_backend.ps1) |
 | 原有四元式教学演示，不使用本次公共接口 | [ir_demo.cpp](ir_demo.cpp) |
+| 32 个真实 C 联调样例、输入输出预期和错误阶段 | [tests/integration/README.md](tests/integration/README.md)、[tests/integration/manifest.json](tests/integration/manifest.json) |
+| AST 对照、接入顺序与自动验收入口 | [docs/integration-handoff.md](docs/integration-handoff.md)、[tools/test_integration.py](tools/test_integration.py) |
 
 ## 验证方式
 
@@ -84,6 +86,8 @@ ctest --test-dir build/cmake --output-on-failure
 验证使用严格 g++ 脚本及 CMake/CTest 的 9 项回归测试。`src/lexer.cpp`、`src/parser.cpp` 交付后重新配置 CMake，即可建立完整 minic 命令行和 compile_and_run 示例。当前支持范围、限制、节点顺序、目标布局、指针边界和新四元式见 [后续模块交接说明](docs/backend-extensions.md) 和 [本轮交付](docs/backend-completion.md)。原公共字段保持不变，新预处理结果及总控接口采用增量扩展。
 
 ## 语言目标与协作
+
+联调准备新增 integration_preparation，CMake/CTest 当前共 10 项检查。32 个夹具已检查预处理和词法规则，16 个正常程序的预期输出通过 GCC 参考执行核实。正式 lexer.cpp/parser.cpp 到位后，重新配置会自动启用 source_integration；准备检查通过不代表本项目真实源码全链路通过。
 
 M1：基本类型、函数、控制流与 scanf/printf；M2：数组、struct 和更多控制语句；M3：指针、预处理及扩展类型；M4：完整 C89 核心、存储类别、限定符和标准库对接。词法规则可先识别完整种别，语法与执行能力按里程碑实现。原需求中的 C89/C99 验收口径需组内统一，此仓库最终词法规范明确使用 C89。
 
