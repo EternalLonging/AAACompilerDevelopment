@@ -1,8 +1,8 @@
-# 模块函数接口 v1.2
+# 模块函数接口 v1.3
 
-日期：2026-10-08。结构体及其字段约定见 [interface.md](interface.md)。本文件定义“各模块怎样调用”，全部函数声明位于 `include/minic/`，均附中文注释。
+日期：2026-10-09。结构体及其字段约定见 [interface.md](interface.md)。本文件定义“各模块怎样调用”，全部函数声明位于 `include/minic/`，均附中文注释。
 
-当前已实现常量池、符号表管理、统一诊断、M1 语义检查、IR 生成、解释执行、文本展示及总控。词法和语法入口由其他同学提供；其完成前可以用手动 AST 验证全部后续模块。不要添加返回空结果或无条件成功的占位实现，否则会把“未实现”伪装成“编译成功”。主程序统一包含 `minic/modules.hpp`；某模块可以只包含自己需要的头文件。
+当前已实现常量池、符号表、统一诊断、M1/M2 后续流程、对象指针等扩展、文本展示及总控。词法和语法入口由其他同学提供；其完成前可以用手动 AST 验证后续模块。支持范围及限制见 [backend-extensions.md](backend-extensions.md)。主程序统一包含 `minic/modules.hpp`；某模块可以只包含自己需要的头文件。
 
 ## 1. 文件与分工
 
@@ -12,14 +12,14 @@
 | 语法分析 | parser.hpp | src/parser.cpp | parse |
 | 符号表管理 | symbol_table.hpp | src/symbol_table.cpp | SymbolTable、register_builtins（已实现） |
 | 统一出错处理 | diagnostic.hpp | src/diagnostic.cpp | DiagnosticEngine（已实现） |
-| 语义分析 | semantic.hpp | src/semantic.cpp、src/type_rules.cpp | analyze、same_type / arithmetic_result / can_assign（M1 已实现） |
-| 中间代码生成 | ir.hpp | src/ir.cpp | generate（M1 已实现） |
+| 语义分析 | semantic.hpp | src/semantic.cpp、src/type_rules.cpp | analyze（M1/M2 及指针等扩展）；共用类型规则 |
+| 中间代码生成 | ir.hpp | src/ir.cpp | generate（M1/M2 及指针等扩展） |
 | 常量池（IR 公共支持） | constant_pool.hpp | src/constant_pool.cpp | ConstantPool、constant_operand（已实现） |
-| 四元式解释器 | interpreter.hpp | src/interpreter.cpp | run（M1 已实现） |
+| 四元式解释器 | interpreter.hpp | src/interpreter.cpp | run（M1/M2 及指针等扩展） |
 | 主流程整合 | compiler.hpp | src/compiler.cpp、src/compilation_result.cpp | compile、CompilationResult::ok（已实现，compile 等待词法/语法链接） |
 | 文本展示与导出 | display.hpp | src/display.cpp | print_tokens / ast / symbols / ir / diagnostics（已实现） |
 
-词法、语法函数体仍待同学交付；M2–M4 的数组、记录寻址、通用指针及完整 C 规则仍待扩展。M1 支持范围及联调说明见 [m1-backend.md](m1-backend.md)，基础支持模块见 [symbol-table.md](symbol-table.md) 和 [constant-pool.md](constant-pool.md)。没有要求模块继承抽象基类；四个编译阶段用普通函数返回明确的结果，符号表、常量池和诊断收集器通过类封装自己的状态。
+词法、语法函数体仍待同学交付；union、扩展数值类型、函数指针、外部对象链接、预处理和标准库等完整 C 功能仍待扩展。基础支持模块见 [symbol-table.md](symbol-table.md) 和 [constant-pool.md](constant-pool.md)。四个编译阶段用普通函数返回明确结果，符号表、常量池和诊断收集器通过类封装状态。
 
 ## 2. 五个模块怎样交接
 
@@ -119,6 +119,8 @@ diagnostics.report(Level::Error, node.range,
 这三个函数不打印、不登记符号、不收集诊断，也不检查左值属性；调用者结合 AST 的 category 和 const 限定符诊断。Error 子表达式向父节点传播时应抑制重复报错。比较与逻辑表达式结果类型为 int，不能把结果类型当成两个操作数的公共算术类型。M1 以外的转换按后续语言规格统一扩展。
 
 实现位于 src/type_rules.cpp。same_type 对 Unknown、Error、未解析 Named 及缺失记录编号返回 false；这是严格的结构相等判断，尚未实现完整 C 的函数类型兼容与形参限定符归一化。算术和赋值只处理 M1 的有符号 char / int / float，忽略顶层 const / volatile；unsigned、short、long、double、指针和数组转换暂不支持。
+
+上述 can_assign 保留基础数值类型判断。analyze 另外按 AST 检查兼容对象指针、整型零空指针常量、结构体同型拷贝和数组退化；generate/run 使用私有类型辅助函数保持一致。这些规则不能只根据来源 TypeKind 判断，例如 int 类型的普通变量并不自动成为空指针常量。
 
 ## 6. 四元式执行接口
 

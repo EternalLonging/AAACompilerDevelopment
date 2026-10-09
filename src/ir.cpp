@@ -5,6 +5,7 @@
 #include "internal.hpp"
 
 #include <utility>
+#include <unordered_map>
 
 namespace minic {
 namespace {
@@ -20,6 +21,7 @@ class Generator {
     std::vector<std::pair<std::string, std::string>> loops_; // 循环结束和继续标号。
     std::size_t next_label_ = 0;
     std::size_t depth_ = 0;
+    std::vector<std::unordered_map<const ASTNode*, std::string>> switches_; // case 节点对应的标号。
     SourceRange current_range_; // 生成失败时的源码位置。
 
     const ASTNode& child(const ASTNode& node, std::size_t index) const {
@@ -66,13 +68,95 @@ class Generator {
         return value;
     }
 
+    // 左值求地址，赋值不提前读取尚未初始化的目标。
+    std::string address(const ASTNode& node, std::size_t depth = 0) {
+        if (depth > 128 || !node.type) throw std::runtime_error("地址表达式类型无效或过深");
+        const auto result = temporary(detail::pointer(node.type));
+        if (node.kind == NodeType::Identifier) {
+            binding(node); emit("addr", detail::symbol_name(node.symbol_id), "-", result, node.range);
+        } else if (node.kind == NodeType::UnaryOp && node.name == "*") {
+            count(node, 1, 1);
+            emit("=", expression(child(node, 0)), "-", result, node.range);
+        } else if (node.kind == NodeType::ArrayAccess) {
+            count(node, 2, 2);
+            const bool pointer = child(node, 0).type->kind == TypeKind::Pointer;
+            const auto base = pointer ? snapshot(expression(child(node, 0)), child(node, 0).type, node.range) : address(child(node, 0), depth + 1);
+            const auto index = expression(child(node, 1));
+            emit(pointer ? "ptradd" : "indexaddr", base, index, result, node.range);
+        } else if (node.kind == NodeType::MemberAccess) {
+            count(node, 1, 1);
+            if (node.record_id >= symbols_.records.size() || !node.member_index ||
+                *node.member_index >= symbols_.records[node.record_id].members.size()) throw std::runtime_error("成员绑定无效");
+            const auto& member = symbols_.records[node.record_id].members[*node.member_index];
+            if (member.name != node.name || !member.offset) throw std::runtime_error("成员名字或布局无效");
+            const auto base = address(child(node, 0), depth + 1);
+            emit("memberaddr", base, std::to_string(*member.offset), result, node.range);
+        } else throw std::runtime_error("此表达式不能求对象地址");
+        return result;
+    }
+
+    void initialize(const std::string& destination, const TypePtr& target, const ASTNode& init) {
+        if (init.kind == NodeType::InitList) {
+            for (std::size_t i = 0; i < init.children.size(); ++i) {
+                if (detail::numeric(target) || target->kind == TypeKind::Pointer) { initialize(destination, target, child(init, i)); continue; }
+                TypePtr element;
+                std::string selected;
+                if (target->kind == TypeKind::Array) {
+                    element = target->base;
+                    selected = temporary(detail::pointer(element));
+                    emit("indexaddr", destination, integer(static_cast<std::int64_t>(i)), selected, init.range);
+                } else {
+                    const auto& member = symbols_.records.at(target->record_id).members.at(i);
+                    element = member.type;
+                    selected = temporary(detail::pointer(element));
+                    emit("memberaddr", destination, std::to_string(*member.offset), selected, init.range);
+                }
+                initialize(selected, element, child(init, i));
+            }
+        } else if (target->kind == TypeKind::Array && init.kind == NodeType::StringLiteral) {
+            const auto& text = std::get<std::string>(init.value);
+            for (std::size_t i = 0; i < text.size(); ++i) {
+                const auto selected = temporary(detail::pointer(target->base));
+                emit("indexaddr", destination, integer(static_cast<std::int64_t>(i)), selected, init.range);
+                const auto byte = static_cast<unsigned char>(text[i]);
+                const auto character = byte <= 127 ? static_cast<std::int64_t>(byte) : static_cast<std::int64_t>(byte) - 256;
+                const auto byte_value = constant_operand(constants_.intern(detail::type(TypeKind::Char), character, std::to_string(character), init.range));
+                emit("store", byte_value, "-", selected, init.range);
+            }
+        } else emit("store", expression(init), "-", destination, init.range);
+    }
+
     std::string expression(const ASTNode& node) {
         current_range_ = node.range;
         if (++depth_ > 512) throw std::runtime_error("语法树嵌套过深");
         if (!node.type || node.type->kind == TypeKind::Unknown || node.type->kind == TypeKind::Error ||
             node.scope_id >= symbols_.scopes.size()) throw std::runtime_error("表达式尚未通过语义检查");
         std::string result;
+        // 仅折叠无副作用且不会溢出/除零的数值常量表达式。
+        if (node.kind == NodeType::BinaryOp || node.kind == NodeType::UnaryOp ||
+            node.kind == NodeType::ImplicitCast || node.kind == NodeType::Cast) {
+            if (const auto value = detail::folded_value(node)) {
+                --depth_;
+                return constant_operand(constants_.intern(node.type, *value, "<折叠常量>", node.range));
+            }
+        }
         switch (node.kind) {
+        case NodeType::ArrayAccess: case NodeType::MemberAccess:
+            result = temporary(node.type);
+            emit("load", address(node), "-", result, node.range);
+            break;
+        case NodeType::Conditional: {
+            count(node, 3, 3);
+            const auto no = label(), end = label();
+            result = temporary(node.type);
+            emit("jz", expression(child(node, 0)), "-", no, node.range);
+            emit("=", expression(child(node, 1)), "-", result, node.range);
+            emit("jmp", "-", "-", end, node.range);
+            mark(no, node.range);
+            emit("=", expression(child(node, 2)), "-", result, node.range);
+            mark(end, node.range);
+            break;
+        }
         case NodeType::Identifier:
             count(node, 0, 0);
             binding(node);
@@ -85,6 +169,9 @@ class Generator {
             break;
         case NodeType::ImplicitCast: case NodeType::Cast: {
             count(node, 1, 1);
+            if (child(node, 0).type->kind == TypeKind::Array && child(node, 0).kind != NodeType::StringLiteral && node.type->kind == TypeKind::Pointer) {
+                result = temporary(node.type); emit("decay", address(child(node, 0)), "-", result, node.range); break;
+            }
             const auto source = expression(child(node, 0));
             result = temporary(node.type);
             const bool i2f = node.type->kind == TypeKind::Float && child(node, 0).type->kind == TypeKind::Int;
@@ -94,6 +181,7 @@ class Generator {
         case NodeType::BinaryOp: {
             count(node, 2, 2);
             const auto left = expression(child(node, 0));
+            if (node.name == ",") { result = expression(child(node, 1)); break; }
             result = temporary(node.type);
             if (node.name == "&&" || node.name == "||") {
                 const auto branch = label();
@@ -110,48 +198,64 @@ class Generator {
             } else {
                 const auto saved = snapshot(left, child(node, 0).type, node.range);
                 const auto right = expression(child(node, 1));
-                emit(node.name, saved, right, result, node.range);
+                if ((node.name == "+" || node.name == "-") && node.type->kind == TypeKind::Pointer) {
+                    const bool first_pointer = child(node, 0).type->kind == TypeKind::Pointer;
+                    emit(node.name == "+" ? "ptradd" : "ptrsub", first_pointer ? saved : right, first_pointer ? right : saved, result, node.range);
+                } else if (node.name == "-" && child(node, 0).type->kind == TypeKind::Pointer)
+                    emit("ptrdiff", saved, right, result, node.range);
+                else emit(node.name, saved, right, result, node.range);
             }
             break;
         }
         case NodeType::Assign: {
             count(node, 2, 2);
             const auto& target = child(node, 0);
-            if (target.kind != NodeType::Identifier || target.category != ValueCategory::LValue)
-                throw std::runtime_error("M1 赋值目标必须绑定普通变量");
-            binding(target);
-            const auto destination = detail::symbol_name(target.symbol_id);
+            if (target.category != ValueCategory::LValue) throw std::runtime_error("赋值目标必须是左值");
+            const auto destination = address(target);
             std::string original;
-            if (node.name != "=") original = snapshot(destination, target.type, node.range);
+            if (node.name != "=") {
+                original = temporary(target.type);
+                emit("load", destination, "-", original, node.range);
+            }
             const auto source = expression(child(node, 1));
-            if (node.name == "=") emit("=", source, "-", destination, node.range);
+            if (node.name == "=") emit("store", source, "-", destination, node.range);
             else {
-                if (node.name != "+=" && node.name != "-=" && node.name != "*=" && node.name != "/=")
+                if (node.name != "+=" && node.name != "-=" && node.name != "*=" && node.name != "/=" && node.name != "%=" &&
+                    node.name != "&=" && node.name != "|=" && node.name != "^=" && node.name != "<<=" && node.name != ">>=")
                     throw std::runtime_error("不支持的复合赋值");
                 const auto value = temporary(node.type);
-                emit(node.name.substr(0, 1), original, source, value, node.range);
-                emit("=", value, "-", destination, node.range);
+                emit(node.type->kind == TypeKind::Pointer ? (node.name == "+=" ? "ptradd" : "ptrsub") : node.name.substr(0, node.name.size() - 1), original, source, value, node.range);
+                emit("store", value, "-", destination, node.range);
             }
-            result = snapshot(destination, node.type, node.range);
+            result = temporary(node.type);
+            emit("load", destination, "-", result, node.range);
             break;
         }
         case NodeType::UnaryOp: {
             count(node, 1, 1);
             const auto& operand = child(node, 0);
+            if (node.name == "*") {
+                result = temporary(node.type); emit("load", address(node), "-", result, node.range); break;
+            }
+            if (node.name == "&") { result = address(operand); break; }
+            const bool update = node.name == "pre++" || node.name == "post++" || node.name == "pre--" || node.name == "post--";
+            if (update) {
+                const auto destination = address(operand);
+                const auto original = temporary(operand.type);
+                emit("load", destination, "-", original, node.range);
+                const auto updated = temporary(node.type);
+                const bool increment = node.name.find("++") != std::string::npos;
+                emit(node.type->kind == TypeKind::Pointer ? (increment ? "ptradd" : "ptrsub") : (increment ? "+" : "-"), original, integer(1), updated, node.range);
+                emit("store", updated, "-", destination, node.range);
+                result = node.name.compare(0, 4, "post") == 0 ? original : updated;
+                break;
+            }
             const auto source = expression(operand);
             if (node.name == "+") { result = source; break; }
             result = temporary(node.type);
-            if (node.name == "&") emit("addr", source, "-", result, node.range);
-            else if (node.name == "-" || node.name == "!")
-                emit(node.name == "-" ? "neg" : "not", source, "-", result, node.range);
-            else if (node.name == "pre++" || node.name == "post++" || node.name == "pre--" || node.name == "post--") {
-                if (operand.kind != NodeType::Identifier) throw std::runtime_error("自增自减目标必须是变量");
-                if (node.name.compare(0, 4, "post") == 0) emit("=", source, "-", result, node.range);
-                const auto updated = temporary(node.type);
-                emit(node.name.find("++") != std::string::npos ? "+" : "-", source, integer(1), updated, node.range);
-                emit("=", updated, "-", source, node.range);
-                if (node.name.compare(0, 3, "pre") == 0) emit("=", source, "-", result, node.range);
-            } else throw std::runtime_error("不支持的一元运算");
+            if (node.name == "-" || node.name == "!" || node.name == "~")
+                emit(node.name == "-" ? "neg" : node.name == "!" ? "not" : "bnot", source, "-", result, node.range);
+            else throw std::runtime_error("不支持的一元运算");
             break;
         }
         case NodeType::Call: {
@@ -181,6 +285,46 @@ class Generator {
         if (++depth_ > 512) throw std::runtime_error("语法树嵌套过深");
         if (node.scope_id >= symbols_.scopes.size()) throw std::runtime_error("语句缺少作用域标注");
         switch (node.kind) {
+        case NodeType::DoWhile: {
+            count(node, 2, 2);
+            const auto start = label(), condition = label(), end = label();
+            mark(start, node.range);
+            loops_.push_back({end, condition}); statement(child(node, 0)); loops_.pop_back();
+            mark(condition, node.range);
+            emit("jnz", expression(child(node, 1)), "-", start, node.range);
+            mark(end, node.range);
+            break;
+        }
+        case NodeType::Switch: {
+            count(node, 2, 2);
+            const auto value = snapshot(expression(child(node, 0)), child(node, 0).type, node.range);
+            const auto end = label();
+            std::unordered_map<const ASTNode*, std::string> labels;
+            collect_cases(child(node, 1), labels);
+            std::string default_label = end;
+            for (const auto& item : labels) {
+                if (item.first->kind == NodeType::Default) default_label = item.second;
+                else {
+                    const auto constant = std::get_if<std::int64_t>(&item.first->value);
+                    if (!constant) throw std::runtime_error("case 缺少整型常量标注");
+                    const auto match = temporary(detail::type(TypeKind::Int));
+                    emit("==", value, integer(*constant), match, item.first->range);
+                    emit("jnz", match, "-", item.second, item.first->range);
+                }
+            }
+            emit("jmp", "-", "-", default_label, node.range);
+            switches_.push_back(std::move(labels)); loops_.push_back({end, ""});
+            statement(child(node, 1));
+            switches_.pop_back(); loops_.pop_back();
+            mark(end, node.range);
+            break;
+        }
+        case NodeType::Case: case NodeType::Default:
+            count(node, node.kind == NodeType::Case ? 2 : 1, node.kind == NodeType::Case ? 2 : 1);
+            if (switches_.empty() || !switches_.back().count(&node)) throw std::runtime_error("case/default 缺少 switch 绑定");
+            mark(switches_.back().at(&node), node.range);
+            statement(*node.children.back());
+            break;
         case NodeType::Block:
             count(node, 0, invalid_id);
             for (const auto& value : node.children) statement(*value);
@@ -189,10 +333,28 @@ class Generator {
             count(node, 0, 1);
             const auto& entry = binding(node);
             const auto destination = detail::symbol_name(entry.id);
-            if (entry.scope != 0) emit("local", "-", "-", destination, node.range);
-            if (!node.children.empty()) emit("=", expression(child(node, 0)), "-", destination, node.range);
+            auto* saved_quads = quads_; auto* saved_locations = locations_; auto* saved_temporaries = temporaries_;
+            const bool local_static = entry.scope != 0 && entry.storage == StorageClass::Static;
+            if (local_static) {
+                program_.globals.push_back(entry.id);
+                quads_ = &program_.global_initializers; locations_ = &program_.global_locations; temporaries_ = &program_.global_temporaries;
+            } else if (entry.scope != 0) emit("local", "-", "-", destination, node.range);
+            if (!node.children.empty()) {
+                const auto selected = temporary(detail::pointer(node.type));
+                emit("addr", destination, "-", selected, node.range);
+                if (detail::aggregate(node.type) && (child(node, 0).kind == NodeType::InitList || child(node, 0).kind == NodeType::StringLiteral))
+                    emit("zero", "-", "-", destination, node.range);
+                initialize(selected, node.type, child(node, 0));
+            }
+            quads_ = saved_quads; locations_ = saved_locations; temporaries_ = saved_temporaries;
             break;
         }
+        case NodeType::StructDef: case NodeType::EnumDef: case NodeType::TypedefDecl: break;
+        case NodeType::Label:
+            count(node, 1, 1);
+            mark("user_" + node.name, node.range); statement(child(node, 0)); break;
+        case NodeType::Goto:
+            count(node, 0, 0); emit("jmp", "-", "-", "user_" + node.name, node.range); break;
         case NodeType::ExprStmt:
             count(node, 1, 1); expression(child(node, 0)); break;
         case NodeType::Return:
@@ -233,7 +395,13 @@ class Generator {
         case NodeType::Break: case NodeType::Continue:
             count(node, 0, 0);
             if (loops_.empty()) throw std::runtime_error("循环跳转缺少循环上下文");
-            emit("jmp", "-", "-", node.kind == NodeType::Break ? loops_.back().first : loops_.back().second, node.range);
+            if (node.kind == NodeType::Break) emit("jmp", "-", "-", loops_.back().first, node.range);
+            else {
+                auto found = loops_.rbegin();
+                while (found != loops_.rend() && found->second.empty()) ++found;
+                if (found == loops_.rend()) throw std::runtime_error("continue 缺少循环上下文");
+                emit("jmp", "-", "-", found->second, node.range);
+            }
             break;
         case NodeType::Empty: count(node, 0, 0); break;
         default: throw std::runtime_error("此语句不能生成 M1 四元式");
@@ -245,6 +413,16 @@ class Generator {
         if (node.kind == NodeType::Empty || node.kind == NodeType::ExprStmt || node.kind == NodeType::VarDecl)
             statement(node);
         else expression(node);
+    }
+
+    void collect_cases(const ASTNode& node, std::unordered_map<const ASTNode*, std::string>& labels, std::size_t depth = 0) {
+        if (depth > 512) throw std::runtime_error("switch 嵌套过深");
+        if (node.kind == NodeType::Switch) return;
+        if (node.kind == NodeType::Case || node.kind == NodeType::Default) labels.emplace(&node, label());
+        for (const auto& child : node.children) {
+            if (!child) throw std::runtime_error("switch 孩子为空");
+            collect_cases(*child, labels, depth + 1);
+        }
     }
 
 public:
@@ -263,6 +441,10 @@ public:
                     if (binding(node).scope != 0) throw std::runtime_error("顶层变量不属于全局作用域");
                     program_.globals.push_back(node.symbol_id);
                     statement(node);
+                } else if (node.kind == NodeType::TypedefDecl) {
+                    if (node.symbol_id >= symbols_.symbols.size()) throw std::runtime_error("类型别名缺少符号绑定");
+                } else if (node.kind == NodeType::StructDef || node.kind == NodeType::EnumDef) {
+                    if (node.record_id >= symbols_.records.size()) throw std::runtime_error("结构体缺少记录绑定");
                 } else if (node.kind == NodeType::FunctionDecl) {
                     if (binding(node).kind != SymbolKind::Function) throw std::runtime_error("函数声明绑定无效");
                 } else if (node.kind == NodeType::FunctionDef) {

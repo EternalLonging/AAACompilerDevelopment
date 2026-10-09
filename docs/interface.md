@@ -1,12 +1,14 @@
-# 公共数据结构与模块交接约定 v1.2
+# 公共数据结构与模块交接约定 v1.3
 
-日期：2026-10-08。依据：README 和 `需求分析/00–05` 文档。
+日期：2026-10-09。依据：README 和 `需求分析/00–05` 文档。
 
-本文件是本组编译器的公共接口基线；可编译定义在 `include/minic/interface.hpp`，全部位于 `minic` 命名空间。后续模块引用该头文件，不再各自定义同名结构体。常量池、符号表、诊断及 M1 的语义、IR、解释器、展示和总控已有实现；词法和语法由其他同学提供。实际范围见 [m1-backend.md](m1-backend.md)。
+本文件是本组编译器的公共接口基线；可编译定义在 `include/minic/interface.hpp`，全部位于 `minic` 命名空间。后续模块引用该头文件，不再各自定义同名结构体。常量池、符号表、诊断、M1/M2 后续流程及对象指针等扩展已有实现；词法和语法由其他同学提供。实际范围见 [backend-extensions.md](backend-extensions.md)。
 
 v1.1 补齐模块函数合同，见 [modules.md](modules.md)。数据头文件只保留结构体；函数入口分别位于各模块头文件，可统一包含 `minic/modules.hpp`。
 
 v1.2 增加程序共享的常量池：数据定义位于 interface.hpp，登记接口位于 constant_pool.hpp，登记/去重实现位于 src/constant_pool.cpp。详细规则见 [constant-pool.md](constant-pool.md)。IRProgram 现在拥有 constants，正式 IR 的值常量统一使用 `%c<ID>` 引用。
+
+v1.3 不增删公共字段和 AST 孩子顺序，补充已实现的聚合寻址、数组退化、指针操作和静态存储合同。IRProgram.globals 扩展为静态存储对象清单，包含 static 局部对象；符号的词法作用域保持不变。
 
 需求文档中曾提到“已冻结”的 interface.md，但项目此前没有该文件。本版首次落地这些定义，并明确解决旧资料中的歧义。新增枚举代表预留表达能力，不代表已支持该语法；M1/M2/M3/M4 的功能范围仍以 README 为准。C89/C99 的最终验收口径另行统一。
 
@@ -53,7 +55,7 @@ Token / Diagnostic 保留需求资料中的 `line`、`col` 简便字段，它们
 
 词法成功输出恰好一个末尾 END_OF_FILE，即使输入为空也如此。EOF 原文为空；其他 Token 保留源码拼写，包括字符串的双引号、字符常量的单引号和转义。注释、空白不输出 Token；非法字符产生诊断，跳过后继续扫描。
 
-`main`、`printf`、`scanf` 均为 ID。M1 使用 int / float / char、函数和控制流所需种别；`AMP` 单独表示 `&`，`AND` 表示 `&&`。M1 的取地址仅限 scanf 实参，通用指针操作到 M3 开放。`KW_VOID` 已有定义，允许如何使用由语言规格约定。旧资料“39 类”只是旧清单，不再作为接口总数。
+`main`、`printf`、`scanf` 均为 ID。`AMP` 单独表示 `&`，`AND` 表示 `&&`。后续流程已支持普通对象取地址和整型按位与；具体含义由 AST 运算符和操作数类型决定。`KW_VOID` 允许函数返回及 void 指针声明，当前不允许 void 指针解引用。旧资料“39 类”只是旧清单，不再作为接口总数。
 
 最终词法拼写规则见 [lexer-regex.md](lexer-regex.md) 和 `lexer/patterns.json`，采用 C89 范围：包括 32 关键字、各进制整数、科学计数法、后缀及完整转义。词法种别一次识别齐全，语法/语义功能仍按里程碑实现；早期资料的简单数字规则不再作为最终词法规范。
 
@@ -166,7 +168,7 @@ SymbolId / ScopeId / RecordId 是各自 vector 的下标，从 0 分配；invali
 
 结构体必须先分配 RecordId 并登记标签，再解析/检查成员；因此 `struct Node *next` 能引用自身。尚未完整定义的记录 is_complete=false，size/alignment/offset 为空；不允许直接作为完整对象分配，也不允许按值包含自身。已完整布局的空偏移与 **offset=0** 含义不同。
 
-布局必须选定目标模型，不能随便用宿主机器 sizeof。M1/M2 教学解释器先约定 char=1、int=4、float=4 字节，各自同大小对齐。struct 成员按对齐向上取整后确定 offset，末尾补齐到最大对齐；union 成员 offset=0、大小取最大成员后补齐。M3 的指针、long、double 布局须另行确定后才能填值。例如 `{char c; int x;}` 中 c 偏移 0、x 偏移 4，总大小 8，不能简单累计成 5。
+布局必须选定目标模型，不能用宿主机器 sizeof。目前 char=1、int=4、float=4、对象指针=8 字节，各自同大小对齐。struct 成员按对齐向上取整后确定 offset，末尾补齐到最大对齐。例如 `{char c; int x;}` 中 c 偏移 0、x 偏移 4，总大小 8，不能简单累计成 5。union 的完整运行语义、long/double 布局仍待实现。
 
 `ScopeEntry` 内两张映射：
 
@@ -195,7 +197,7 @@ prefix_query 应从当前作用域向外收集可见普通符号，按名字去�
 |---|---|
 | `%s3` | SymbolId=3 的对象或函数；同名变量靠 ID 区分 |
 | `%t2` | 当前函数的临时变量，类型见 temporaries |
-| `%L4` | 当前函数的跳转标号 |
+| `L4` / `user_name` | 内部跳转标号 / 当前函数的用户标签 |
 | `%c0` | ConstantId=0 的值常量，类型和值取自 IRProgram.constants |
 | `-` | 没有操作数，不能当成数值或名字 |
 
@@ -217,9 +219,9 @@ M1 指令合同：
 | `jmp` | - | - | 标号 | 无条件跳转 |
 | `jz / jnz` | 条件值 | - | 标号 | 为零 / 非零跳转 |
 | `arg` | 已求值的实参 | - | - | 将值复制到本次调用的待传参队列 |
-| `call` | 函数 `%sID` 或函数指针值 | 实参数量（十进制） | 临时量或 - | 消费该次调用的参数，返回值可丢弃 |
+| `call` | 函数 `%sID` | 实参数量（十进制） | 临时量或 - | 直接调用函数，函数指针调用尚未实现 |
 | `ret` | 返回值或 - | - | - | 返回当前调用者 |
-| `addr` | 对象 `%sID` | - | 指针临时量 | M1 仅支持 scanf 地址实参 |
+| `addr` | 对象 `%sID` | - | 指针临时量 | 取得普通对象的地址，不读取对象值 |
 | `local` | - | - | 局部变量 `%sID` | 每次执行声明时将局部对象重置为未初始化 |
 | `%` | 整数左操作数 | 整数右操作数 | int 临时量 | 整数取余，与除法一样向零截断 |
 
@@ -229,9 +231,9 @@ M1 指令合同：
 
 本组解释器选择实参 **从左到右** 求值。先分别求值并在需要时复制到临时量，保留本次求值的值，再连续 emit 本调用的 arg 和 call。嵌套调用必须在外层 arg 序列开始前完成，避免内外参数混入一个队列；后面的实参若会改变变量，前面读出的值必须先快照。call 将参数转移到新调用帧，局部变量和临时量每个调用帧独立，才能支持递归。C 标准未规定一般实参的求值顺序，本组选择只是解释器行为约定。
 
-M2/M3 地址访问预留 `load(addr,-,value)`、`store(value,-,addr)`、`indexaddr(base,index,address)`、`memberaddr(base,byte_offset,address)`；元素步长取地址基类型，成员字节偏移取 MemberEntry。这些属于待实现扩展，不能仅靠字符串 opcode 推断类型或布局。
+已实现 `zero`、`load`、`store`、`indexaddr`、`memberaddr`；元素步长取地址基类型，成员字节偏移取 MemberEntry。另已实现数组转指针的 `decay`、指针偏移的 `ptradd/ptrsub`、指针差值的 `ptrdiff`、整型位运算和 `bnot`。完整操作数表与边界规则见 [backend-extensions.md](backend-extensions.md)，不能仅靠字符串 opcode 推断类型或布局。
 
-`IRFunction` 按函数保存 symbol_id、形参 SymbolId、临时量类型、四元式和逐指令源码范围。locations.size() 必须等于 quads.size()。`IRProgram` 保存共享常量池、全局对象、全局初始化序列及其位置/临时量、函数集合、入口 main 的 SymbolId。入口未找到时可以查看 IR，执行时必须诊断。
+`IRFunction` 按函数保存 symbol_id、形参 SymbolId、临时量类型、四元式和逐指令源码范围。locations.size() 必须等于 quads.size()。`IRProgram` 保存共享常量池、静态存储对象、进入 main 前的初始化序列及其位置/临时量、函数集合、入口 main 的 SymbolId。入口未找到时可以查看 IR，执行时必须诊断。
 
 展示层可把 `%sID` 渲染成人名，同时附编号/作用域；导出可执行 IR 时必须保留唯一名字、常量池、符号/类型表、函数分组及参数信息，单独一张人类可读四元式表不等于完整执行数据。
 
