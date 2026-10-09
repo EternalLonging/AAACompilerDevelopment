@@ -14,20 +14,25 @@ struct ParseFailure {};
 
 // 解析环境只用于 typedef 消歧，不写入语义阶段的持久符号表。
 class Parser {
-    const std::vector<Token>& tokens;
-    std::size_t pos = 0;
-    unsigned depth = 0;
-    ParseResult result;
-    std::vector<std::unordered_map<std::string, bool>> names{{}};
-    unsigned anonymous = 0;
-    std::unordered_map<const ASTNode*, unsigned> heights;
+    const std::vector<Token>& tokens; // 词法阶段生成的单词表，最后一个单词是 EOF。
+    std::size_t pos = 0; // 下一个要读取的单词下标。
+    unsigned depth = 0; // 当前解析函数的嵌套层数，用来限制递归深度。
+    ParseResult result; // 最终的语法树和本阶段诊断。
+    std::vector<std::unordered_map<std::string, bool>> names{{}}; // 每层作用域的名字；true 表示 typedef 别名。
+    unsigned anonymous = 0; // 已生成的匿名类型编号，避免内部名字重复。
+    std::unordered_map<const ASTNode*, unsigned> heights; // 各节点的树高，用来限制语法树深度。
 
+    // 查看后面的单词，不移动读取位置；超过末尾时返回 EOF。
     const Token& peek(std::size_t ahead = 0) const {
         return tokens[std::min(pos + ahead, tokens.size() - 1)];
     }
+    // 判断当前单词是否属于指定种别。
     bool at(TT type) const { return peek().type == type; }
+    // 取出当前单词并向后移动；EOF 不再向后移动。
     Token take() { const auto token = peek(); if (!at(TT::END_OF_FILE)) ++pos; return token; }
+    // 当前种别匹配时读取并返回 true，否则不读取并返回 false。
     bool accept(TT type) { if (!at(type)) return false; take(); return true; }
+    // 记录语法错误，并结束当前解析分支，交给外层恢复处理。
     [[noreturn]] void fail(const std::string& message, const std::string& code = "PARSE_EXPECTED",
                            Level level = Level::Error) {
         const auto& token = peek();
@@ -37,23 +42,29 @@ class Parser {
             result.diagnostics.back().message += "；错误过多，停止本阶段";
         throw ParseFailure{};
     }
+    // 读取必须出现的单词；种别不符时报告错误。
     Token expect(TT type, const std::string& spelling) {
         if (!at(type)) fail("需要 " + spelling + "，实际遇到 " +
                             (at(TT::END_OF_FILE) ? "文件结束" : peek().lexeme));
         return take();
     }
+    // 错误达到上限或出现致命错误时，停止继续解析。
     bool stopped() const {
         return result.diagnostics.size() >= 20 ||
             (!result.diagnostics.empty() && result.diagnostics.back().level == Level::Fatal);
     }
+    // 在进入和离开解析函数时维护嵌套层数。
     struct Nest {
-        Parser& parser;
+        Parser& parser; // 当前解析器；离开本层时自动减少嵌套计数。
+        // 进入一层解析；达到上限时报告致命错误。
         explicit Nest(Parser& p) : parser(p) {
             if (p.depth >= 128) p.fail("语法嵌套超过 128 层", "PARSE_DEPTH", Level::Fatal);
             ++p.depth;
         }
+        // 离开这一层，恢复嵌套计数。
         ~Nest() { --parser.depth; }
     };
+    // 从内层向外查询，判断当前可见名字是否为 typedef 别名。
     bool alias(const std::string& name) const {
         for (auto scope = names.rbegin(); scope != names.rend(); ++scope) {
             const auto found = scope->find(name);
@@ -61,6 +72,7 @@ class Parser {
         }
         return false;
     }
+    // 判断当前单词是否可以作为声明的类型、限定符或存储类别。
     bool specifier() const {
         switch (peek().type) {
         case TT::KW_VOID: case TT::KW_CHAR: case TT::KW_SHORT: case TT::KW_INT:
@@ -72,12 +84,14 @@ class Parser {
         default: return at(TT::ID) && alias(peek().lexeme);
         }
     }
+    // 创建 AST 节点，填写种类、名字和开始位置。
     Node node(NodeType kind, const Token& start, const std::string& name = "") {
         auto n = std::make_unique<ASTNode>();
         n->kind = kind; n->name = name; n->range = start.range;
         heights[n.get()] = 1;
         return n;
     }
+    // 补齐节点的结束位置和树高；树高超限时报告错误。
     void finish(ASTNode& n) {
         if (pos) n.range.end = tokens[pos - 1].range.end;
         unsigned height = 1;
@@ -88,16 +102,19 @@ class Parser {
         if (height > 128) fail("语法树嵌套超过 128 层", "PARSE_DEPTH", Level::Fatal);
         heights[&n] = height;
     }
+    // 在原类型外包一层，例如把 int 变成指向 int 的指针类型。
     static TypePtr wrapped(TypeKind kind, TypePtr base) {
         auto type = std::make_shared<TypeInfo>(); type->kind = kind; type->base = std::move(base);
         return type;
     }
+    // 声明开头的类型、限定符和存储类别信息。
     struct Specs {
-        TypePtr type;
-        StorageClass storage = StorageClass::None;
-        std::vector<Node> definitions;
+        TypePtr type; // 声明中的基础类型，例如 int 或 struct S。
+        StorageClass storage = StorageClass::None; // 声明写出的存储类别，例如 static、extern、typedef。
+        std::vector<Node> definitions; // 声明中同时定义的结构体、联合体或枚举节点。
     };
 
+    // 读取类型说明、限定符和允许的存储类别，返回声明的基础信息。
     Specs specs(bool allow_storage = true) {
         Nest nest(*this);
         Specs s;
@@ -190,18 +207,23 @@ class Parser {
         return s;
     }
 
+    // 声明符中的一层指针、数组或函数。
     struct Layer {
-        TypeKind kind = TypeKind::Pointer;
-        bool is_const = false, is_volatile = false;
-        std::optional<std::size_t> length;
-        bool prototype = true, variadic = false;
-        std::vector<Node> params;
+        TypeKind kind = TypeKind::Pointer; // 这一层是指针、数组还是函数。
+        bool is_const = false; // 这一层指针是否不能被重新赋值。
+        bool is_volatile = false; // 这一层指针是否带 volatile 限定符。
+        std::optional<std::size_t> length; // 数组元素个数；省略界限时为空。
+        bool prototype = true; // 函数是否写了参数类型；空括号表示未写原型。
+        bool variadic = false; // 函数参数表是否以省略号结束。
+        std::vector<Node> params; // 本层函数的形参节点，按声明顺序保存。
     };
+    // 声明符信息，例如 a[3] 或 (*fn)(int)。
     struct Declarator {
-        std::string name;
+        std::string name; // 声明的名字；无名形参或类型名中可以为空。
         std::vector<Layer> layers; // 从名字向外保存指针、数组、函数。
-        SourceRange range;
+        SourceRange range; // 声明符从开始到结束的源码范围。
     };
+    // 读取名字及其指针、数组、函数层次；abstract 为 true 时允许没有名字。
     Declarator declarator(bool abstract = false) {
         Nest nest(*this);
         Declarator d; d.range = peek().range;
@@ -277,6 +299,7 @@ class Parser {
         if (pos) d.range.end = tokens[pos - 1].range.end;
         return d;
     }
+    // 按声明符的层次组合完整类型，不改变基础类型。
     TypePtr build_type(TypePtr base, const Declarator& d) {
         for (auto i = d.layers.rbegin(); i != d.layers.rend(); ++i) {
             auto type = std::make_shared<TypeInfo>(); type->kind = i->kind; type->base = base;
@@ -293,6 +316,7 @@ class Parser {
         }
         return base;
     }
+    // 读取转换或 sizeof 中的无名类型，返回完整类型。
     TypePtr type_name() {
         auto s = specs(false);
         if (!s.definitions.empty()) fail("类型名中的内联记录定义暂不支持", "PARSE_TYPE_NAME");
@@ -300,6 +324,7 @@ class Parser {
         if (!d.name.empty()) fail("类型名不能带声明名字", "PARSE_TYPE_NAME");
         return build_type(s.type, d);
     }
+    // 读取一条声明，返回其中的类型定义、变量或函数节点。
     std::vector<Node> declaration(bool external, bool member = false) {
         Nest nest(*this);
         const auto start = peek();
@@ -356,6 +381,7 @@ class Parser {
         if (!nodes.empty()) finish(*nodes.back());
         return nodes;
     }
+    // 读取初始化表达式或花括号列表，返回初始化节点。
     Node initializer() {
         Nest nest(*this);
         if (!at(TT::LBRACE)) return expression(2);
@@ -379,6 +405,7 @@ class Parser {
             if (external && pos > before && braces == 0 && specifier()) return;
         }
     }
+    // 读取花括号块；默认建立一层 typedef 名字作用域。
     Node block(bool scope = true) {
         Nest nest(*this);
         const auto start = expect(TT::LBRACE, "'{'（控制体必须使用花括号）");
@@ -410,9 +437,11 @@ class Parser {
         if (scope) names.pop_back();
         finish(*n); return n;
     }
+    // 读取括号中的条件表达式。
     Node condition() {
         expect(TT::LPAREN, "'('"); auto n = expression(); expect(TT::RPAREN, "')'"); return n;
     }
+    // 读取一条语句，返回控制流、表达式或块节点。
     Node statement() {
         Nest nest(*this);
         const auto start = peek();
@@ -467,6 +496,7 @@ class Parser {
         expect(TT::SEMI, "';'"); finish(*n); return n;
     }
 
+    // 返回二元运算符优先级；不是二元运算符时返回 0。
     static int precedence(TT type) {
         switch (type) {
         case TT::COMMA: return 1;
@@ -487,6 +517,7 @@ class Parser {
         default: return 0;
         }
     }
+    // 判断节点是否符合赋值左部的一元表达式语法；可否赋值由语义阶段检查。
     static bool unary_shape(const ASTNode& n) {
         switch (n.kind) {
         case NodeType::Identifier: case NodeType::IntLiteral: case NodeType::FloatLiteral:
@@ -496,6 +527,7 @@ class Parser {
         default: return false;
         }
     }
+    // 从最低允许的优先级开始读取表达式，返回表达式树。
     Node expression(int minimum = 1) {
         Nest nest(*this);
         auto left = unary();
@@ -517,7 +549,8 @@ class Parser {
         parenthesized = false;
         return left;
     }
-    bool parenthesized = false;
+    bool parenthesized = false; // 最近的一元表达式是否来自括号，供赋值左部语法检查使用。
+    // 读取前缀运算、类型转换、sizeof 或基本表达式。
     Node unary() {
         Nest nest(*this);
         const auto start = peek(); parenthesized = false;
@@ -570,6 +603,7 @@ class Parser {
         }
         n = postfix(std::move(n)); parenthesized = false; return n;
     }
+    // 在已有表达式后读取调用、下标、成员访问和后置自增自减。
     Node postfix(Node base) {
         while (at(TT::LPAREN) || at(TT::LBRACKET) || at(TT::DOT) || at(TT::ARROW) ||
                at(TT::PLUS_PLUS) || at(TT::MINUS_MINUS)) {
@@ -604,7 +638,9 @@ class Parser {
     }
 
 public:
+    // 使用词法单词表建立解析器，开始位置为第一个单词。
     explicit Parser(const std::vector<Token>& input) : tokens(input) {}
+    // 解析整个文件；任何语法错误都会使结果中的根节点为空。
     ParseResult run() {
         auto root = node(NodeType::Program, peek());
         while (!at(TT::END_OF_FILE) && !stopped()) {

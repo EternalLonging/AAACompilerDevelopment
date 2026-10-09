@@ -132,6 +132,22 @@ def main():
         check("multiple_diagnostics", [compiler, "check", str(file)], code=1,
               errors=("recover.c:2:", "recover.c:3:", "[语法/错误]"), empty_output=True)
 
+        # 通过真实源码检查地址生命周期和数值边界，失败后不应输出后续提示。
+        for name, source, phase, message in [
+            ("dangling_pointer", 'int *bad(void){int x=7;return &x;} int main(void){int *p=bad();return *p;}', "运行", "已经结束的调用帧"),
+            ("one_past_pointer", 'int main(void){int a[2]={1,2};int *p=a+2;return *p;}', "运行", "尾后指针不能解引用"),
+            ("negative_index", 'int main(void){int a[2]={1,2};int i=-1;return a[i];}', "运行", "越界"),
+            ("unrelated_pointers", 'int main(void){int a[2],b[2];return a-b;}', "运行", "指针差值或大小比较必须指向同一个数组"),
+            ("shift_count", 'int main(void){int x=1,n=32;return x<<n;}', "运行", "移位"),
+            ("integer_overflow", 'int main(void){int x=2147483647;return x+1;}', "运行", "范围"),
+            ("object_size_limit", 'int main(void){int a[5000000];return 0;}', "语义", "16 MiB"),
+            ("const_pointer_write", 'int main(void){int x=1;const int *p=&x;*p=2;return 0;}', "语义", "SEM_LVALUE"),
+        ]:
+            file = folder / (name + ".c")
+            file.write_text(source + "\n", encoding="utf-8")
+            check(name, [compiler, "run", str(file)], code=1,
+                  errors=("[" + phase + "/", message), empty_output=True)
+
     passed = sum(item["passed"] for item in results)
     print(f"acceptance: {passed}/{len(results)} checks passed")
     if args.report:
