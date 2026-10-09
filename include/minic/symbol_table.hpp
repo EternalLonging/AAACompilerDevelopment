@@ -22,6 +22,8 @@ public:
 
     // 登记普通符号，返回新建或复用的编号。冲突时返回空值并报错。
     std::optional<SymbolId> insert(SymbolEntry entry);
+    // 登记有链接关系的对象，合并兼容声明；块内 extern 指向同一个全局对象。
+    std::optional<SymbolId> declare_object(SymbolEntry entry);
     // 从当前作用域向外查普通名字。找到返回符号编号，未找到返回空值。
     std::optional<SymbolId> lookup(const std::string& name) const;
     // 只查当前作用域的普通名字。找到返回编号，未找到返回空值。

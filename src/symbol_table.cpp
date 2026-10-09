@@ -147,6 +147,41 @@ std::optional<SymbolId> SymbolTable::lookup(const std::string& name) const {
     return std::nullopt;
 }
 
+std::optional<SymbolId> SymbolTable::declare_object(SymbolEntry entry) {
+    const auto scope = current_scope();
+    if (scope != 0 && entry.storage != StorageClass::Extern) return insert(std::move(entry));
+    auto& global = data_.scopes[0].symbols;
+    const auto found = global.find(entry.name);
+    SymbolId id;
+    if (found != global.end()) {
+        auto& previous = data_.symbols[found->second];
+        if (!object_kind(previous.kind) || !same_type(previous.type, entry.type) ||
+            (previous.is_defined && entry.is_defined) ||
+            (entry.storage == StorageClass::Static && previous.storage != StorageClass::Static) ||
+            (previous.storage == StorageClass::Static && entry.storage == StorageClass::None)) {
+            diagnostics_.report(Level::Error, entry.range, "对象声明类型、链接或定义冲突：" + entry.name, "SYM_DECL_CONFLICT", {previous.range}); return std::nullopt;
+        }
+        previous.is_defined = previous.is_defined || entry.is_defined;
+        if (entry.storage != StorageClass::Extern) previous.storage = entry.storage;
+        id = previous.id;
+    } else {
+        // 暂时切到全局登记，之后恢复调用者的活动作用域。
+        data_.active_scopes.push_back(0);
+        const auto created = insert(std::move(entry));
+        data_.active_scopes.pop_back();
+        if (!created) return std::nullopt;
+        id = *created;
+    }
+    if (scope != 0) {
+        const auto local = data_.scopes[scope].symbols.find(data_.symbols[id].name);
+        if (local != data_.scopes[scope].symbols.end() && local->second != id) {
+            diagnostics_.report(Level::Error, data_.symbols[id].range, "extern 与本层名字冲突", "SYM_DECL_CONFLICT"); return std::nullopt;
+        }
+        data_.scopes[scope].symbols[data_.symbols[id].name] = id;
+    }
+    return id;
+}
+
 std::optional<SymbolId> SymbolTable::lookup_current(const std::string& name) const {
     const auto& names = data_.scopes[current_scope()].symbols;
     const auto found = names.find(name);

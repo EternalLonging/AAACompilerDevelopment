@@ -54,7 +54,7 @@ ConstantId ConstantPool::intern(TypePtr type, ConstantValue value,
             if (!number) throw std::invalid_argument("有符号整数常量需要 int64_t 值");
             append_bytes(key, *number);
         }
-    } else if (type->kind == TypeKind::Float || type->kind == TypeKind::Double) {
+    } else if (type->kind == TypeKind::Float || type->kind == TypeKind::Double || type->kind == TypeKind::LongDouble) {
         type = snapshot_type(type);
         if (type->is_unsigned) throw std::invalid_argument("浮点类型不能带 unsigned");
         auto number = std::get_if<double>(&value);

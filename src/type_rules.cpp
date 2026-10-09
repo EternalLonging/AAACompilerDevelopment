@@ -1,4 +1,5 @@
 #include "minic/semantic.hpp"
+#include "internal.hpp"
 
 #include <utility>
 
@@ -46,12 +47,8 @@ bool compare(const TypePtr& left, const TypePtr& right, std::vector<TypePair>& p
     return equal;
 }
 
-// M1 只处理有符号 char、int 和 float 的数值转换。
-bool m1_number(const TypePtr& type) {
-    return type && !type->is_unsigned &&
-           (type->kind == TypeKind::Char || type->kind == TypeKind::Int ||
-            type->kind == TypeKind::Float);
-}
+// 判断教学目标支持的数值类型。
+bool m1_number(const TypePtr& type) { return detail::numeric(type); }
 
 TypePtr basic_type(TypeKind kind) {
     auto type = std::make_shared<TypeInfo>();
@@ -68,12 +65,20 @@ bool same_type(const TypePtr& left, const TypePtr& right) {
 
 TypePtr arithmetic_result(const TypePtr& left, const TypePtr& right) {
     if (!m1_number(left) || !m1_number(right)) return basic_type(TypeKind::Error);
-    return basic_type(left->kind == TypeKind::Float || right->kind == TypeKind::Float
-                          ? TypeKind::Float : TypeKind::Int);
+    if (left->kind == TypeKind::LongDouble || right->kind == TypeKind::LongDouble) return basic_type(TypeKind::LongDouble);
+    if (left->kind == TypeKind::Double || right->kind == TypeKind::Double) return basic_type(TypeKind::Double);
+    if (left->kind == TypeKind::Float || right->kind == TypeKind::Float) return basic_type(TypeKind::Float);
+    auto result = std::make_shared<TypeInfo>();
+    result->kind = left->kind == TypeKind::Long || right->kind == TypeKind::Long ? TypeKind::Long : TypeKind::Int;
+    result->is_unsigned = (left->is_unsigned && detail::integer_bits(left) == 32) || (right->is_unsigned && detail::integer_bits(right) == 32);
+    return result;
 }
 
 bool can_assign(const TypePtr& target, const TypePtr& source) {
     if (!m1_number(target) || !m1_number(source)) return false;
+    if (target->is_unsigned || source->is_unsigned || target->kind == TypeKind::Short || source->kind == TypeKind::Short ||
+        target->kind == TypeKind::Long || source->kind == TypeKind::Long || target->kind == TypeKind::Double || source->kind == TypeKind::Double ||
+        target->kind == TypeKind::LongDouble || source->kind == TypeKind::LongDouble) return true;
     if (target->kind == source->kind || target->kind == TypeKind::Float) return true;
     return target->kind == TypeKind::Int && source->kind == TypeKind::Char;
 }

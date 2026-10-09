@@ -16,10 +16,18 @@ inline TypePtr type(TypeKind kind) {
     return result;
 }
 
-inline bool numeric(const TypePtr& value) {
-    return value && !value->is_unsigned &&
-           (value->kind == TypeKind::Char || value->kind == TypeKind::Int ||
-            value->kind == TypeKind::Float);
+inline bool floating(const TypePtr& value) {
+    return value && !value->is_unsigned && (value->kind == TypeKind::Float || value->kind == TypeKind::Double || value->kind == TypeKind::LongDouble);
+}
+inline bool integral(const TypePtr& value) {
+    return value && (value->kind == TypeKind::Char || value->kind == TypeKind::Short || value->kind == TypeKind::Int || value->kind == TypeKind::Long);
+}
+inline bool numeric(const TypePtr& value) { return integral(value) || floating(value); }
+inline int integer_bits(const TypePtr& value) {
+    return value->kind == TypeKind::Char ? 8 : value->kind == TypeKind::Short ? 16 : 32;
+}
+inline TypePtr unqualified(const TypePtr& value) {
+    auto result = std::make_shared<TypeInfo>(*value); result->is_const = result->is_volatile = false; return result;
 }
 
 inline std::string symbol_name(SymbolId id) { return "%s" + std::to_string(id); }
@@ -47,7 +55,8 @@ inline std::size_t align_up(std::size_t size, std::size_t alignment) {
 // 布局固定使用项目目标模型，不依赖宿主 sizeof。
 inline Layout layout(const TypePtr& value, const SymbolTableData& symbols, std::size_t depth = 0) {
     if (!value || depth > 128) throw std::runtime_error("对象类型为空或嵌套过深");
-    if (numeric(value)) return value->kind == TypeKind::Char ? Layout{1, 1} : Layout{4, 4};
+    if (integral(value)) { const auto size = static_cast<std::size_t>(integer_bits(value) / 8); return {size, size}; }
+    if (floating(value)) return value->kind == TypeKind::Float ? Layout{4, 4} : Layout{8, 8};
     if (value->kind == TypeKind::Pointer && value->base) return {8, 8};
     if (value->kind == TypeKind::Array) {
         if (!value->array_length || !*value->array_length) throw std::runtime_error("数组长度必须已确定且大于零");
@@ -79,14 +88,17 @@ inline bool pointer_assign(const TypePtr& target, const TypePtr& source) {
     auto left = std::make_shared<TypeInfo>(*target->base), right = std::make_shared<TypeInfo>(*source->base);
     left->is_const = right->is_const = false;
     left->is_volatile = right->is_volatile = false;
+    if ((left->kind == TypeKind::Void && right->kind != TypeKind::Function) ||
+        (right->kind == TypeKind::Void && left->kind != TypeKind::Function)) return true;
     return same_type(left, right);
 }
 
 // 读取纯整型常量表达式；不执行调用、赋值或变量读取。
 inline std::optional<std::int64_t> integer_constant(const ASTNode& node, std::size_t depth = 0) {
-    if (depth > 128 || !numeric(node.type) || node.type->kind == TypeKind::Float) return std::nullopt;
+    if (depth > 128 || !integral(node.type)) return std::nullopt;
     if (node.kind == NodeType::IntLiteral || node.kind == NodeType::CharLiteral) {
         if (const auto* value = std::get_if<std::int64_t>(&node.value)) return *value;
+        if (const auto* value = std::get_if<std::uint64_t>(&node.value); value && *value <= std::numeric_limits<std::uint32_t>::max()) return static_cast<std::int64_t>(*value);
         return std::nullopt;
     }
     if (node.children.empty() || !node.children[0]) return std::nullopt;
@@ -107,7 +119,10 @@ inline std::optional<std::int64_t> integer_constant(const ASTNode& node, std::si
         if (!right) return std::nullopt;
         if (node.name == "+") value = *left + *right;
         else if (node.name == "-") value = *left - *right;
-        else if (node.name == "*") value = *left * *right;
+        else if (node.name == "*") {
+            if (node.type->is_unsigned) value = static_cast<std::int64_t>((static_cast<std::uint64_t>(*left) * static_cast<std::uint64_t>(*right)) & ((std::uint64_t{1} << integer_bits(node.type)) - 1));
+            else value = *left * *right;
+        }
         else if (node.name == "&") value = *left & *right;
         else if (node.name == "|") value = *left | *right;
         else if (node.name == "^") value = *left ^ *right;
@@ -129,8 +144,10 @@ inline std::optional<std::int64_t> integer_constant(const ASTNode& node, std::si
         else if (node.name == "||") value = *left || *right;
         else return std::nullopt;
     } else return std::nullopt;
-    const auto low = node.type->kind == TypeKind::Char ? -128 : std::numeric_limits<std::int32_t>::min();
-    const auto high = node.type->kind == TypeKind::Char ? 127 : std::numeric_limits<std::int32_t>::max();
+    const auto bits = integer_bits(node.type);
+    if (node.type->is_unsigned) return static_cast<std::int64_t>(static_cast<std::uint64_t>(value) & ((std::uint64_t{1} << bits) - 1));
+    const auto low = -(std::int64_t{1} << (bits - 1));
+    const auto high = (std::int64_t{1} << (bits - 1)) - 1;
     if (value < low || value > high) return std::nullopt;
     return value;
 }
@@ -151,7 +168,8 @@ inline double checked_float(double value) {
 
 // 安全折叠数值常量，保留每一步 float 舍入；失败则保留原表达式。
 inline std::optional<ConstantValue> folded_value(const ASTNode& node, std::size_t depth = 0) {
-    if (depth > 128 || !numeric(node.type)) return std::nullopt;
+    // 新的整数宽度及 unsigned 保留运行求值，避免套用旧的 32 位折叠规则。
+    if (depth > 128 || !numeric(node.type) || node.type->is_unsigned || node.type->kind == TypeKind::Long || node.type->kind == TypeKind::Short) return std::nullopt;
     if (const auto integer = integer_constant(node, depth)) return ConstantValue{*integer};
     if (node.kind == NodeType::FloatLiteral) {
         if (const auto* value = std::get_if<double>(&node.value)) return ConstantValue{*value};
@@ -196,7 +214,7 @@ inline std::optional<ConstantValue> folded_value(const ASTNode& node, std::size_
             std::holds_alternative<std::int64_t>(*right_value)) return std::nullopt;
     } else return std::nullopt;
     try {
-        if (node.type->kind == TypeKind::Float) return ConstantValue{checked_float(result)};
+        if (floating(node.type)) return std::isfinite(result) ? std::optional<ConstantValue>{node.type->kind == TypeKind::Float ? ConstantValue{checked_float(result)} : ConstantValue{result}} : std::nullopt;
         const auto truncated = std::trunc(result);
         if (!std::isfinite(truncated) || truncated < std::numeric_limits<std::int32_t>::min() ||
             truncated > std::numeric_limits<std::int32_t>::max()) return std::nullopt;
@@ -261,6 +279,8 @@ inline std::string decode_string(const std::string& spelling, char quote) {
 struct FormatPart {
     std::string text; // 直接输出或匹配的文字。
     char conversion = 0; // d、f、c、s；0 表示纯文字。
+    std::size_t width = 0; // 最大输入或输出字符数，0 表示未指定。
+    char length = 0; // h、l、L 长度修饰符，0 表示默认类型。
 };
 
 // M1 格式串支持 %d、%f、%c、printf 的 %s 及 %%。
@@ -271,13 +291,36 @@ inline std::vector<FormatPart> format_parts(const std::string& format, bool scan
         if (format[i] != '%') { text += format[i]; continue; }
         if (++i >= format.size() || format[i] == 0) throw std::runtime_error("格式串末尾缺少转换符");
         if (format[i] == '%') { text += '%'; continue; }
-        if (format[i] != 'd' && format[i] != 'f' && format[i] != 'c' &&
-            !(format[i] == 's' && !scanning))
-            throw std::runtime_error("M1 格式串仅支持 %d、%f、%c、printf 的 %s 和 %%");
+        std::size_t width = 0;
+        const bool has_width = format[i] >= '0' && format[i] <= '9';
+        while (i < format.size() && format[i] >= '0' && format[i] <= '9') {
+            width = width * 10 + static_cast<std::size_t>(format[i++] - '0');
+            if (width > max_object_size) throw std::runtime_error("格式宽度超出限制");
+        }
+        char length = 0;
+        if (has_width && !width) throw std::runtime_error("格式宽度必须大于零");
+        if (i < format.size() && (format[i] == 'h' || format[i] == 'l' || format[i] == 'L')) length = format[i++];
+        if (i >= format.size() || (format[i] != 'd' && format[i] != 'u' && format[i] != 'x' && format[i] != 'o' &&
+            format[i] != 'f' && format[i] != 'c' && format[i] != 's'))
+            throw std::runtime_error("不支持该格式转换符");
+        if ((format[i] == 's' || format[i] == 'c') && length) throw std::runtime_error("暂不支持宽字符格式");
+        if (format[i] != 'f' && length == 'L') throw std::runtime_error("L 仅能修饰浮点格式");
+        if (format[i] == 'f' && length == 'h') throw std::runtime_error("h 不能修饰浮点格式");
+        if (!scanning && width) throw std::runtime_error("printf 宽度格式尚未支持");
+        if (scanning && width && format[i] != 's') throw std::runtime_error("当前输入宽度只支持 %s");
         if (!text.empty()) { result.push_back({text, 0}); text.clear(); }
-        result.push_back({{}, format[i]});
+        result.push_back({{}, format[i], width, length});
     }
     if (!text.empty()) result.push_back({text, 0});
+    return result;
+}
+
+inline TypePtr format_type(const FormatPart& part, bool scanning) {
+    auto result = std::make_shared<TypeInfo>();
+    if (part.conversion == 'f') result->kind = part.length == 'L' ? TypeKind::LongDouble : part.length == 'l' ? TypeKind::Double : TypeKind::Float;
+    else if (part.conversion == 'c' || part.conversion == 's') result->kind = TypeKind::Char;
+    else result->kind = part.length == 'l' ? TypeKind::Long : part.length == 'h' && scanning ? TypeKind::Short : TypeKind::Int;
+    result->is_unsigned = part.conversion == 'u' || part.conversion == 'x' || part.conversion == 'o';
     return result;
 }
 

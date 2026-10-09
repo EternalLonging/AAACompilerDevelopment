@@ -106,9 +106,9 @@ static void test_types() {
     require(!same_type(integer, qualified), "volatile 参与类型比较");
     qualified->is_volatile = false;
     qualified->is_unsigned = true;
-    require(!same_type(integer, qualified) && !can_assign(integer, qualified) &&
-            arithmetic_result(integer, qualified)->kind == TypeKind::Error,
-            "无符号转换必须留待后续里程碑");
+    require(!same_type(integer, qualified) && can_assign(integer, qualified) &&
+            arithmetic_result(integer, qualified)->is_unsigned,
+            "无符号参与公共类型及数值转换");
     const TypePtr types[] = {character, integer, floating};
     const bool assignment[3][3] = {{true, false, false}, {true, true, false}, {true, true, true}};
     for (std::size_t target = 0; target < 3; ++target) {
@@ -121,7 +121,7 @@ static void test_types() {
         }
     }
     require(arithmetic_result(nullptr, integer)->kind == TypeKind::Error &&
-            !can_assign(integer, basic(TypeKind::Double)), "非法和不支持类型应拒绝");
+            !can_assign(integer, basic(TypeKind::Void)), "非法和非数值类型应拒绝");
     require(same_type(indirect(TypeKind::Pointer, integer), indirect(TypeKind::Pointer, basic(TypeKind::Int))) &&
             !same_type(indirect(TypeKind::Pointer, integer), indirect(TypeKind::Pointer, character)),
             "指针应比较所指类型");

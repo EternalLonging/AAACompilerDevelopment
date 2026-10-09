@@ -2,7 +2,7 @@
 
 常量池是本次编译所有函数和全局初始化共享的常量存储表。它不按名字查询，不入作用域栈，也不替代变量、函数等普通符号。由语义阶段解码并检查常量，IR 生成阶段登记，解释器、优化和展示读取。
 
-数据定义在 [interface.hpp](../include/minic/interface.hpp)，接口在 [constant_pool.hpp](../include/minic/constant_pool.hpp)，登记和去重实现已完成，位于 [constant_pool.cpp](../src/constant_pool.cpp)。整个编译器的 generate/run 仍仅有声明，本次已规定它们接入常量池的合同。
+数据定义在 [interface.hpp](../include/minic/interface.hpp)，接口在 [constant_pool.hpp](../include/minic/constant_pool.hpp)，登记和去重实现位于 [constant_pool.cpp](../src/constant_pool.cpp)。generate/run 已接入常量池，并通过后续流程测试。
 
 ## 保存什么
 
@@ -29,9 +29,9 @@ AST.value 与原文仍保留，便于语义检查和展示。const 变量依然�
 - 字符串按完整解码字节串去重，包含内部零字节；"a\0b" 不会与 "a" 合并。
 - 类型使用独立只读快照，调用者修改自己持有的类型对象不能改变池中的键。
 
-当前实现支持 Char/Short/Int/Long 对应的 int64_t 或 uint64_t、Float/Double 对应的 double，以及普通 char[N] 窄字符串。数组长度必须包含末尾零，而 value 中不附加末尾零。
+当前实现支持 Char/Short/Int/Long 对应的 int64_t 或 uint64_t、Float/Double/LongDouble 对应的 double，以及普通 char[N] 窄字符串。数组长度必须包含末尾零，而 value 中不附加末尾零。
 
-long double 与宽字符串尚缺准确值载体和目标编码模型，明确拒绝入池，不将它们降成 double 或窄字符后假装支持。非法类型、值不匹配、未解码值、NaN/无穷或 float 溢出均抛 invalid_argument 且不改池。整数具体范围、字符编码以及其他目标类型转换由语义阶段检查；池不调用宿主 sizeof 猜测目标布局。
+本教学目标的 long double 明确采用 64 位 double 精度，类型身份仍单独保留；宽字符串尚未支持，拒绝入池。非法类型、值不匹配、未解码值、NaN/无穷或 float 溢出均抛 invalid_argument 且不改池。整数具体范围、字符编码以及其他目标类型转换由语义阶段检查；池不调用宿主 sizeof 猜测目标布局。
 
 这些异常表示调用阶段未交付合法值，IR 调用者应捕获并转换为原源码处的诊断。内存耗尽等资源异常交给编译总控处理。内部二进制去重键只用于当前进程，不是跨平台序列化格式。
 

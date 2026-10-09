@@ -1,5 +1,6 @@
 #pragma once
 #include "minic/interface.hpp"
+#include "minic/preprocessor.hpp"
 
 namespace minic {
 
@@ -14,6 +15,7 @@ struct CompilationResult {
     std::optional<SemanticResult> semantic; // 语义分析结果；未执行时为空。
     std::optional<IRResult> ir; // 中间代码生成结果；未执行时为空。
     std::vector<Diagnostic> diagnostics; // 所有已执行阶段的诊断汇总。
+    std::optional<PreprocessResult> preprocessing; // 预处理结果；直接调用 compile 时为空。
     // 判断是否成功编译到请求阶段。成功返回 true，否则返回 false。
     bool ok() const;
 };
@@ -22,5 +24,12 @@ struct CompilationResult {
 CompilationResult compile(const std::string& source,
                           const std::string& filename = "<input>",
                           CompileTarget target = CompileTarget::IR);
+
+// 先预处理，再编译；头文件由 loader 读取，错误位置映射到原文件行号。
+// 展开后的列号和字节偏移不能精确还原，映射时列号置 1、偏移置 0。
+CompilationResult compile_preprocessed(const std::string& source,
+                                      const std::string& filename = "<input>",
+                                      CompileTarget target = CompileTarget::IR,
+                                      const IncludeLoader& loader = {});
 
 }

@@ -5,6 +5,7 @@
 #include "internal.hpp"
 
 #include <utility>
+#include <algorithm>
 #include <unordered_map>
 
 namespace minic {
@@ -73,7 +74,7 @@ class Generator {
         if (depth > 128 || !node.type) throw std::runtime_error("地址表达式类型无效或过深");
         const auto result = temporary(detail::pointer(node.type));
         if (node.kind == NodeType::Identifier) {
-            binding(node); emit("addr", detail::symbol_name(node.symbol_id), "-", result, node.range);
+            const auto& entry = binding(node); emit(entry.kind == SymbolKind::Function ? "faddr" : "addr", detail::symbol_name(node.symbol_id), "-", result, node.range);
         } else if (node.kind == NodeType::UnaryOp && node.name == "*") {
             count(node, 1, 1);
             emit("=", expression(child(node, 0)), "-", result, node.range);
@@ -91,6 +92,9 @@ class Generator {
             if (member.name != node.name || !member.offset) throw std::runtime_error("成员名字或布局无效");
             const auto base = address(child(node, 0), depth + 1);
             emit("memberaddr", base, std::to_string(*member.offset), result, node.range);
+        } else if (detail::aggregate(node.type) && node.category == ValueCategory::RValue) {
+            const auto value = snapshot(expression(node), node.type, node.range);
+            emit("tempaddr", value, "-", result, node.range);
         } else throw std::runtime_error("此表达式不能求对象地址");
         return result;
     }
@@ -160,7 +164,8 @@ class Generator {
         case NodeType::Identifier:
             count(node, 0, 0);
             binding(node);
-            result = detail::symbol_name(node.symbol_id);
+            if (node.type->kind == TypeKind::Function) result = address(node);
+            else result = detail::symbol_name(node.symbol_id);
             break;
         case NodeType::IntLiteral: case NodeType::FloatLiteral:
         case NodeType::CharLiteral: case NodeType::StringLiteral:
@@ -169,6 +174,9 @@ class Generator {
             break;
         case NodeType::ImplicitCast: case NodeType::Cast: {
             count(node, 1, 1);
+            if (child(node, 0).type->kind == TypeKind::Function && node.type->kind == TypeKind::Pointer) {
+                result = expression(child(node, 0)); break;
+            }
             if (child(node, 0).type->kind == TypeKind::Array && child(node, 0).kind != NodeType::StringLiteral && node.type->kind == TypeKind::Pointer) {
                 result = temporary(node.type); emit("decay", address(child(node, 0)), "-", result, node.range); break;
             }
@@ -235,7 +243,9 @@ class Generator {
             count(node, 1, 1);
             const auto& operand = child(node, 0);
             if (node.name == "*") {
-                result = temporary(node.type); emit("load", address(node), "-", result, node.range); break;
+                if (node.type->kind == TypeKind::Function) result = expression(operand);
+                else { result = temporary(node.type); emit("load", address(node), "-", result, node.range); }
+                break;
             }
             if (node.name == "&") { result = address(operand); break; }
             const bool update = node.name == "pre++" || node.name == "post++" || node.name == "pre--" || node.name == "post--";
@@ -261,8 +271,9 @@ class Generator {
         case NodeType::Call: {
             count(node, 1, invalid_id);
             const auto& callee = child(node, 0);
-            if (callee.kind != NodeType::Identifier || binding(callee).kind != SymbolKind::Function)
-                throw std::runtime_error("M1 调用目标必须是函数符号");
+            const bool direct = callee.kind == NodeType::Identifier && callee.type->kind == TypeKind::Function;
+            const auto target = direct ? detail::symbol_name(binding(callee).id) : snapshot(expression(callee),
+                callee.type->kind == TypeKind::Function ? detail::pointer(callee.type) : callee.type, node.range);
             std::vector<std::string> arguments;
             for (std::size_t i = 1; i < node.children.size(); ++i) {
                 const auto value = expression(child(node, i));
@@ -271,7 +282,7 @@ class Generator {
             }
             for (const auto& value : arguments) emit("arg", value, "-", "-", node.range);
             result = node.type->kind == TypeKind::Void ? "-" : temporary(node.type);
-            emit("call", detail::symbol_name(callee.symbol_id), std::to_string(arguments.size()), result, node.range);
+            emit(direct ? "call" : "callind", target, std::to_string(arguments.size()), result, node.range);
             break;
         }
         default: throw std::runtime_error("此表达式不能生成 M1 四元式");
@@ -332,6 +343,7 @@ class Generator {
         case NodeType::VarDecl: {
             count(node, 0, 1);
             const auto& entry = binding(node);
+            if (node.storage == StorageClass::Extern && node.children.empty()) break;
             const auto destination = detail::symbol_name(entry.id);
             auto* saved_quads = quads_; auto* saved_locations = locations_; auto* saved_temporaries = temporaries_;
             const bool local_static = entry.scope != 0 && entry.storage == StorageClass::Static;
@@ -349,7 +361,7 @@ class Generator {
             quads_ = saved_quads; locations_ = saved_locations; temporaries_ = saved_temporaries;
             break;
         }
-        case NodeType::StructDef: case NodeType::EnumDef: case NodeType::TypedefDecl: break;
+        case NodeType::StructDef: case NodeType::UnionDef: case NodeType::EnumDef: case NodeType::TypedefDecl: break;
         case NodeType::Label:
             count(node, 1, 1);
             mark("user_" + node.name, node.range); statement(child(node, 0)); break;
@@ -439,11 +451,13 @@ public:
                 current_range_ = node.range;
                 if (node.kind == NodeType::VarDecl) {
                     if (binding(node).scope != 0) throw std::runtime_error("顶层变量不属于全局作用域");
-                    program_.globals.push_back(node.symbol_id);
+                    const auto& entry = binding(node);
+                    if (entry.storage == StorageClass::Extern && !entry.is_defined) continue;
+                    if (std::find(program_.globals.begin(), program_.globals.end(), node.symbol_id) == program_.globals.end()) program_.globals.push_back(node.symbol_id);
                     statement(node);
                 } else if (node.kind == NodeType::TypedefDecl) {
                     if (node.symbol_id >= symbols_.symbols.size()) throw std::runtime_error("类型别名缺少符号绑定");
-                } else if (node.kind == NodeType::StructDef || node.kind == NodeType::EnumDef) {
+                } else if (node.kind == NodeType::StructDef || node.kind == NodeType::UnionDef || node.kind == NodeType::EnumDef) {
                     if (node.record_id >= symbols_.records.size()) throw std::runtime_error("结构体缺少记录绑定");
                 } else if (node.kind == NodeType::FunctionDecl) {
                     if (binding(node).kind != SymbolKind::Function) throw std::runtime_error("函数声明绑定无效");

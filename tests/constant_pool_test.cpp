@@ -93,7 +93,7 @@ int main() {
         rejects(pool, [&] { pool.intern(number_type(TypeKind::Float),
                                        std::numeric_limits<double>::max(), "overflow"); });
         rejects(pool, [&] { pool.intern(string_type(2), std::string("a"), "bad length"); });
-        rejects(pool, [&] { pool.intern(number_type(TypeKind::LongDouble), 1.0, "1.0L"); });
+        require(pool.intern(number_type(TypeKind::LongDouble), 1.0, "1.0L") != pool.intern(number_type(TypeKind::Double), 1.0, "1.0"), "long double 保留独立类型身份");
         rejects(pool, [&] { constant_operand(invalid_id); });
 
         // 修改调用方仍持有的可写类型，不得改变已入池的类型和索引身份。
