@@ -53,6 +53,12 @@ def main():
     complete_source = "int main(void){int total=1;tot"
     completed = server_module.invoke(driver, {"source": complete_source, "cursor": len(complete_source)}, "complete")
     check(any(item["label"] == "total" for item in completed["items"]), "服务连接真实补全接口")
+    prefix_source = 'int main(void){int a;pr}'
+    prefix_completed = server_module.invoke(driver, {"source": prefix_source, "cursor": len(prefix_source)-1}, "complete")
+    check([item["label"] for item in prefix_completed["items"]] == ["printf"], "pr 只匹配 printf，不能混入 a 或 main")
+    ranked_source = 'int prefix;int main(void){int project;{int prize;pr}}'
+    ranked_completed = server_module.invoke(driver, {"source": ranked_source, "cursor": len(ranked_source)-2}, "complete")
+    check([item["label"] for item in ranked_completed["items"]] == ["prize", "project", "prefix", "printf"], "前缀匹配后按作用域由近到远排序")
     named_completed = server_module.invoke(driver, {"entry": "练习.c", "source": complete_source, "cursor": len(complete_source)}, "complete")
     check(any(item["label"] == "total" for item in named_completed["items"]), "自建中文文件名也支持真实补全")
     for payload in [{"source": source, "files": {"../outside.h": ""}}, {"source": source, "cursor": -1},

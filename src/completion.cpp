@@ -5,6 +5,7 @@
 #include "minic/symbol_table.hpp"
 #include <algorithm>
 #include <cctype>
+#include <unordered_map>
 
 namespace minic {
 namespace {
@@ -53,6 +54,7 @@ CompletionResult complete(const std::string& source, std::size_t cursor) {
     if (!code_position(source, result.end)) return result;
     while (result.begin && word(static_cast<unsigned char>(source[result.begin - 1]))) --result.begin;
     const auto prefix = source.substr(result.begin, result.end - result.begin);
+    std::unordered_map<std::string, std::size_t> scope_ranks; // 每个符号离当前作用域有几层，越小越靠前。
     const auto before = source.substr(0, result.begin);
     const auto lexical = lex(before);
     const auto& tokens = lexical.tokens;
@@ -92,8 +94,14 @@ CompletionResult complete(const std::string& source, std::size_t cursor) {
                         if (field.name.compare(0, prefix.size(), prefix) == 0) result.items.push_back({field.name, "成员", describe_type(field.type)});
             }
         } else {
+            std::unordered_map<ScopeId, std::size_t> distances;
+            auto current = scope;
+            while (current != invalid_id && current < data.scopes.size() && !distances.count(current)) {
+                distances[current] = distances.size(); current = data.scopes[current].parent;
+            }
             for (const auto id : visible_symbols(data, prefix, scope, location)) {
                 const auto& entry = data.symbols[id];
+                scope_ranks[entry.name] = distances.at(entry.scope);
                 result.items.push_back({entry.name, "符号", describe_type(entry.type)});
             }
         }
@@ -115,7 +123,15 @@ CompletionResult complete(const std::string& source, std::size_t cursor) {
                 std::none_of(result.items.begin(), result.items.end(), [&](const CompletionItem& item) { return item.label == key; }))
                 result.items.push_back({key, "关键字", "项目语言关键字"});
     }
-    std::sort(result.items.begin(), result.items.end(), [](const CompletionItem& a, const CompletionItem& b) {
+    // 只保留前缀匹配；完全相同的名字优先，再按作用域由近到远排序。
+    result.items.erase(std::remove_if(result.items.begin(), result.items.end(), [&](const CompletionItem& item) {
+        return item.label.compare(0, prefix.size(), prefix) != 0;
+    }), result.items.end());
+    std::sort(result.items.begin(), result.items.end(), [&](const CompletionItem& a, const CompletionItem& b) {
+        if ((a.label == prefix) != (b.label == prefix)) return a.label == prefix;
+        const auto a_scope = scope_ranks.count(a.label) ? scope_ranks.at(a.label) : static_cast<std::size_t>(invalid_id);
+        const auto b_scope = scope_ranks.count(b.label) ? scope_ranks.at(b.label) : static_cast<std::size_t>(invalid_id);
+        if (a_scope != b_scope) return a_scope < b_scope;
         if (a.kind != b.kind) return a.kind != "关键字" && (b.kind == "关键字" || a.kind < b.kind);
         return a.label < b.label;
     });

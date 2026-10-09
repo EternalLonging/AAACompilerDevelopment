@@ -62,6 +62,41 @@ def main():
         expect(page.locator("#completion")).to_contain_text("score", timeout=15000)
         editor.press("Enter")
         assert editor.input_value().endswith("item.score")
+        # pr 只显示匹配前缀，按当前、外层、全局作用域排序。
+        ranked = 'int prefix;int main(void){int project;int a;{int prize;pr}}'
+        editor.fill(ranked)
+        editor.evaluate("e => { const p=e.value.lastIndexOf('pr}}')+2; e.setSelectionRange(p,p); }")
+        editor.press("Control+Space")
+        expect(page.locator("#completion")).to_be_visible(timeout=15000)
+        candidate_labels = page.locator('#completion button > span:nth-child(2)').all_text_contents()
+        assert candidate_labels == ["prize", "project", "prefix", "printf"], candidate_labels
+        editor.press("Tab")
+        assert editor.input_value().endswith('prize}}')
+        exact = 'int pr;int main(void){int project;pr}'
+        editor.fill(exact)
+        editor.evaluate("e => e.setSelectionRange(e.value.length-1,e.value.length-1)")
+        editor.press("Control+Space")
+        expect(page.locator("#completion")).to_be_visible(timeout=15000)
+        assert page.locator('#completion button > span:nth-child(2)').first.text_content() == 'pr'
+        editor.fill('int main(void){int a;pr}')
+        editor.evaluate("e => e.setSelectionRange(e.value.length-1,e.value.length-1)")
+        # 直接输入 pr 时，第一个且唯一的候选应是 printf。
+        editor.press("Control+Space")
+        expect(page.locator("#completion")).to_be_visible(timeout=15000)
+        assert page.locator('#completion button > span:nth-child(2)').all_text_contents() == ['printf']
+        editor.press("ArrowLeft")
+        expect(page.locator("#completion")).to_be_hidden()
+        editor.press("Tab")
+        assert 'printf' not in editor.input_value(), '光标移动后不能插入旧候选'
+        # 空前缀可以显示 a/main，移动回 pr 后必须清除这份旧列表。
+        editor.fill('int main(void){int a;pr; }')
+        editor.evaluate("e => e.setSelectionRange(e.value.length-1,e.value.length-1)")
+        editor.press("Control+Space")
+        expect(page.locator("#completion")).to_be_visible(timeout=15000)
+        assert 'a' in page.locator('#completion button > span:nth-child(2)').all_text_contents()
+        editor.press("ArrowLeft")
+        editor.press("ArrowLeft")
+        expect(page.locator("#completion")).to_be_hidden()
         editor.fill('int main(void){ printf("sco')
         editor.press("Control+Space")
         expect(page.locator("#completion")).to_be_hidden(timeout=15000)
