@@ -1,0 +1,27 @@
+digraph G { graph [rankdir=LR, bgcolor="white", nodesep=0.3, ranksep=0.65, pad=0.25]; node [fontname="Arial", fontsize=12, shape=circle, width=0.55]; edge [fontname="Arial", fontsize=11, arrowsize=0.65];n23 [label="S23",shape=doublecircle,style=solid];
+n24 [label="S24",shape=doublecircle,style=solid];
+n25 [label="S25",shape=doublecircle,style=solid];
+n31 [label="S31",shape=doublecircle,style=solid];
+n33 [label="S33",shape=doublecircle,style=solid];
+n35 [label="S35",shape=doublecircle,style=solid];
+n65 [label="S65",shape=doublecircle,style=solid];
+n66 [label="S66",shape=doublecircle,style=solid];
+n67 [label="S67",shape=doublecircle,style=solid];
+n68 [label="S68",shape=doublecircle,style=solid];
+n69 [label="S69",shape=doublecircle,style=solid];
+n70 [label="S70",shape=doublecircle,style=solid];
+n71 [label="S71",shape=doublecircle,style=solid];
+n72 [label="S72",shape=doublecircle,style=solid];
+n86 [label="S86",shape=doublecircle,style=solid];
+n87 [label="S87",shape=doublecircle,style=solid];
+n23 -> n65 [label="C23"];
+n23 -> n66 [label="C24"];
+n24 -> n67 [label="C24"];
+n25 -> n68 [label="C24"];
+n25 -> n69 [label="C25"];
+n31 -> n70 [label="C24"];
+n33 -> n71 [label="C24"];
+n33 -> n72 [label="C45"];
+n65 -> n86 [label="C24"];
+n69 -> n87 [label="C24"];
+}

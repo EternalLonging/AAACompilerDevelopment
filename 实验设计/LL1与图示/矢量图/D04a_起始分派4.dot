@@ -1,0 +1,19 @@
+digraph G { graph [rankdir=LR, bgcolor="white", nodesep=0.3, ranksep=0.65, pad=0.25]; node [fontname="Arial", fontsize=12, shape=circle, width=0.55]; edge [fontname="Arial", fontsize=11, arrowsize=0.65];n0 [label="S0",shape=circle,style=solid];
+n1 [label="S1",shape=doublecircle,style=dashed];
+n27 [label="S27",shape=doublecircle,style=dashed];
+n30 [label="S30",shape=doublecircle,style=dashed];
+n31 [label="S31",shape=doublecircle,style=dashed];
+n32 [label="S32",shape=doublecircle,style=dashed];
+n33 [label="S33",shape=doublecircle,style=dashed];
+n34 [label="S34",shape=doublecircle,style=dashed];
+n35 [label="S35",shape=doublecircle,style=dashed];
+start [shape=point,width=0.04]; start -> n0;
+n0 -> n1 [label="C36"];
+n0 -> n30 [label="C37"];
+n0 -> n31 [label="C38"];
+n0 -> n27 [label="C39-C43"];
+n0 -> n32 [label="C44"];
+n0 -> n33 [label="C45"];
+n0 -> n34 [label="C46"];
+n0 -> n35 [label="C47"];
+}

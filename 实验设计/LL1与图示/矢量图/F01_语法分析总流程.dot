@@ -1,0 +1,14 @@
+digraph G { graph [rankdir=TB, bgcolor="white", nodesep=0.55, ranksep=0.5, pad=0.25]; node [fontname="Microsoft YaHei",fontsize=12,shape=box,margin="0.15,0.10"]; edge [fontname="Microsoft YaHei",fontsize=11,arrowsize=0.7];
+ start [label="开始",shape=oval,width=1.05]; input [label="接收预处理后的 Token 流\n保留源码位置，初始化诊断和作用域",width=3.01];
+ valid [label="有词法错误或\n缺少结束标记？",shape=diamond,width=2.80]; reject [label="返回失败 ParseResult\n包含诊断，不提供正常可执行 AST",shape=oval,width=4.06];
+ parse [label="调用 parseTranslationUnit()\n按各非终结符的 SELECT 选择分支",width=3.03];
+ context [label="按当前作用域与名字角色分类 TYPE_NAME\n仅语句入口以 ID + COLON 分类 LABEL_ID",width=3.79];
+ step [label="匹配终结符 / 调用子分析函数\n维护声明绑定与块作用域\n检查赋值左部 UnaryExpression 形状\n检查具名 / 抽象声明符约束",width=3.40];
+ good [label="分支、匹配及\n必要语法守卫成功？",shape=diamond,width=3.42]; recovery [label="记录位置和预期 Token\n按 FOLLOW 与上下文同步点恢复\n保证前进：消费 Token 或退出当前分析层",width=3.53];
+ build [label="构造 AST\n保持运算优先级与结合性",width=2.25];
+ more [label="翻译单元\n还有待分析内容？",shape=diamond,width=3.11]; endcheck [label="已到 EOF 且\n没有语法错误？",shape=diamond,width=2.80]; success [label="返回成功 ParseResult(AST)\n交给项目语义检查",shape=oval,width=3.83];
+ start -> input -> valid; valid -> reject [label="是",width=0.58]; valid -> parse [label="否",width=0.58];
+ parse -> context -> step -> good;
+ good -> build [label="是",width=0.58]; good -> recovery [label="否",width=0.58]; recovery -> more; build -> more;
+ more -> context [label="是",width=0.58]; more -> endcheck [label="否",width=0.58]; endcheck -> success [label="是",width=0.58]; endcheck -> reject [label="否",width=0.58];
+}
