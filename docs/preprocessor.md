@@ -4,7 +4,11 @@
 
 `preprocess(source, filename, loader)` 返回展开后的源码、每行原始文件和行号、诊断。调用者通过 loader 提供头文件内容，参数是头文件名和包含它的文件名，找不到时返回 `std::nullopt`。模块不自行读取磁盘或提供系统头文件。
 
+可增量传入第四个参数 `resolver`（IncludePathResolver），将头文件名和包含者文件名解析为实际路径。此时 loader 的第一个参数、嵌套包含的父文件名、行映射和诊断使用该路径；不传 resolver 时保持原来的命名行为。`compile_preprocessed` 对应新增第五个可选参数。命令行用这个接口实现相对包含者目录的本地文件读取，不将文件读取逻辑放进预处理模块。
+
 `compile_preprocessed(source, filename, target, loader)` 先预处理，再走既有总控；预处理失败不会调用词法。原 `compile` 接口保持直接编译行为。正式词法与语法已接入总控，宏和头文件到真实源码编译的链路已有 frontend_test 验证。
+
+`minic` 的全部命令现已默认调用 `compile_preprocessed`；`--raw` 保留直接编译入口。嵌套本地头文件、中文路径和错误映射通过正式命令行测试，操作方式及路径查找规则见 [command-line.md](command-line.md)。
 
 | 功能 | 当前行为 |
 |---|---|

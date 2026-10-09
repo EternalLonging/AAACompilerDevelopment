@@ -30,6 +30,7 @@ CompilationResult compile(const std::string& source,
 CompilationResult compile_preprocessed(const std::string& source,
                                       const std::string& filename = "<input>",
                                       CompileTarget target = CompileTarget::IR,
-                                      const IncludeLoader& loader = {});
+                                      const IncludeLoader& loader = {},
+                                      const IncludePathResolver& resolver = {});
 
 }

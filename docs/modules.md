@@ -146,6 +146,8 @@ compile(source, filename, target) 保存所有已执行阶段的产物并汇总�
 
 新增 compile_preprocessed(source, filename, target, loader)，先展开宏和头文件再调用后续阶段。CompilationResult.preprocessing 保存源码、行映射及预处理诊断；失败时不调用词法。原 compile 不自动预处理。宏与头文件后的定位只保证原始行号，映射列号置 1、偏移置 0。接口与范围见 [preprocessor.md](preprocessor.md)。
 
+第五个可选参数 resolver 将 include 名字解析为实际路径，用于 loader 读取、嵌套包含和诊断定位；省略时保留既有行为。minic 默认调用 compile_preprocessed，`minic <命令> --raw <源文件>` 使用原 compile。头文件查找以包含者所在目录为起点，不读取系统头文件，详见 [command-line.md](command-line.md)。
+
 | 用户命令 | CompileTarget | 使用的结果 |
 |---|---|---|
 | minic tokens | Tokens | lexical.tokens |

@@ -69,7 +69,7 @@ apply(fn, 6)
 
 typedef 用 TypedefDecl(name="Count", declared_type=Int)，后续 `Count n` 的声明类型用 Named(name="Count")，交给语义阶段解析。语法阶段需要自己的轻量 typedef 作用域分类，不能等整棵 AST 建好后才识别类型名，也不能一次性重分类全部 ID。Label/Goto 的 name 保存标签，不与类型标签共用表。
 
-宏样例先预处理，HASH/HASH_HASH 及 include 指令不进入普通 AST。展开后的主体相当于 `int value3=3+4; printf("macro = %d %s\n", value3, "3");`。正式总控用 `compile_preprocessed`；原 compile 和现有 minic 命令行仍是直接编译入口，本套自动验收不假定命令行已自动启用预处理。
+宏样例先预处理，HASH/HASH_HASH 及 include 指令不进入普通 AST。展开后的主体相当于 `int value3=3+4; printf("macro = %d %s\n", value3, "3");`。正式总控用 `compile_preprocessed`；minic 命令行已默认启用预处理和本地头文件读取，原 compile 及命令行的 --raw 模式保持直接编译行为。新增 cli_preprocessing 独立验收正式命令行，不改变本套夹具预期。
 
 ## 联调顺序
 

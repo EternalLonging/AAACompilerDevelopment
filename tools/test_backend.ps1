@@ -41,7 +41,9 @@ try {
         $source = if ($name -eq 'minic') { 'src/main.cpp' } elseif ($name -eq 'compile_and_run') {
             'examples/compile_and_run.cpp'
         } else { "tests/${name}.cpp" }
-        & $Compiler '-std=c++17' '-Wall' '-Wextra' '-Wpedantic' '-Werror' '-I' 'include' $source @frontendObjects @objects '-o' "build/${name}.exe"
+        $linkOptions = @()
+        if ($name -eq 'minic' -and $env:OS -eq 'Windows_NT') { $linkOptions += '-municode' }
+        & $Compiler '-std=c++17' '-Wall' '-Wextra' '-Wpedantic' '-Werror' '-I' 'include' $source @frontendObjects @objects @linkOptions '-o' "build/${name}.exe"
         if ($LASTEXITCODE -ne 0) { throw "前端链接失败：$name" }
     }
     & './build/frontend_test.exe'
@@ -52,6 +54,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'DFA 表过期' }
     python tools/test_lexer_dfa.py build/lexer_probe.exe
     if ($LASTEXITCODE -ne 0) { throw '词法对照测试失败' }
+    python tools/test_cli_preprocessing.py build/minic.exe
+    if ($LASTEXITCODE -ne 0) { throw '命令行预处理测试失败' }
 } finally {
     Pop-Location
 }

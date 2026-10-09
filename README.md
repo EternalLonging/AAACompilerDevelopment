@@ -10,6 +10,7 @@
 
 | 已完成内容 | 入口 |
 |---|---|
+| 命令行自动预处理、本地头文件与原始源码模式 | [docs/command-line.md](docs/command-line.md)、[tools/test_cli_preprocessing.py](tools/test_cli_preprocessing.py) |
 | 整体验收结果、命令行与综合程序复验 | [docs/acceptance.md](docs/acceptance.md)、[tools/test_acceptance.py](tools/test_acceptance.py) |
 | 词法 DFA 扫描器、递归下降解析器及真实源码测试 | [src/lexer.cpp](src/lexer.cpp)、[src/parser.cpp](src/parser.cpp)、[docs/frontend.md](docs/frontend.md)、[tests/frontend_test.cpp](tests/frontend_test.cpp) |
 | 公共结构体，全部成员附中文注释 | [include/minic/interface.hpp](include/minic/interface.hpp) |
@@ -85,7 +86,7 @@ cmake --build build/cmake
 ctest --test-dir build/cmake --output-on-failure
 ```
 
-验证使用严格 g++ 脚本；CMake/CTest 加入命令行验收后共 15 项测试。minic 命令行和 compile_and_run 已建立并实际运行。前端测试覆盖真实源码编译执行，词法对照验证 3396 组输入及起止位置。Windows 中文路径建议使用 `cmake -S . -B build/frontend -G Ninja`，具体命令见 [frontend.md](docs/frontend.md)。当前支持范围、限制、节点顺序、目标布局、指针边界和新四元式见 [后续模块交接说明](docs/backend-extensions.md) 和 [本轮交付](docs/backend-completion.md)。原公共字段保持不变，新预处理结果及总控接口采用增量扩展。
+验证使用严格 g++ 脚本；CMake/CTest 加入命令行预处理验收后共 16 项测试。minic 命令行和 compile_and_run 已建立并实际运行。前端测试覆盖真实源码编译执行，词法对照验证 3396 组输入及起止位置。Windows 中文路径建议使用 `cmake -S . -B build/frontend -G Ninja`，具体命令见 [frontend.md](docs/frontend.md)。当前支持范围、限制、节点顺序、目标布局、指针边界和新四元式见 [后续模块交接说明](docs/backend-extensions.md) 和 [本轮交付](docs/backend-completion.md)。原公共字段保持不变，新预处理结果及总控接口采用增量扩展。
 
 ## 语言目标与协作
 
