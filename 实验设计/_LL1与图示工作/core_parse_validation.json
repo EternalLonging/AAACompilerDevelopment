@@ -1,0 +1,140 @@
+[
+  {
+    "source": "int main(void){float r;float c;r=1;c=2*3.14159*r;printf(\"%f\",c);return 0;}",
+    "expected": true,
+    "accepted": true,
+    "reason": "通过（不含完整语义检查）"
+  },
+  {
+    "source": "int (*f)(int);",
+    "expected": true,
+    "accepted": true,
+    "reason": "通过（不含完整语义检查）"
+  },
+  {
+    "source": "int apply(int (*)(int));",
+    "expected": true,
+    "accepted": true,
+    "reason": "通过（不含完整语义检查）"
+  },
+  {
+    "source": "int sum(a,b) int a; int b; {return a+b;}",
+    "expected": true,
+    "accepted": true,
+    "reason": "通过（不含完整语义检查）"
+  },
+  {
+    "source": "struct S {int a; unsigned b:3;}; struct S s={1,2,};",
+    "expected": true,
+    "accepted": true,
+    "reason": "通过（不含完整语义检查）"
+  },
+  {
+    "source": "enum E {A=1,B=2};",
+    "expected": true,
+    "accepted": true,
+    "reason": "通过（不含完整语义检查）"
+  },
+  {
+    "source": "int main(void){int x;x=(int)1.2;x=sizeof(int*);return x;}",
+    "expected": true,
+    "accepted": true,
+    "reason": "通过（不含完整语义检查）"
+  },
+  {
+    "source": "int main(void){int x;goto done;done: return 0;}",
+    "expected": true,
+    "accepted": true,
+    "reason": "通过（不含完整语义检查）"
+  },
+  {
+    "source": "int main(void){int x;while(x){x--;}for(x=0;x<10;x++){if(x){x+=1;}else{x=0;}}return x;}",
+    "expected": true,
+    "accepted": true,
+    "reason": "通过（不含完整语义检查）"
+  },
+  {
+    "source": "int main(void){int x;switch(x){case 1: x=2;break;default: x=0;}do{x--;}while(x);return x;}",
+    "expected": true,
+    "accepted": true,
+    "reason": "通过（不含完整语义检查）"
+  },
+  {
+    "source": "int f(const char *s,...);",
+    "expected": true,
+    "accepted": true,
+    "reason": "通过（不含完整语义检查）"
+  },
+  {
+    "source": "int main(void){int a;int b;int c;a=b=c=1;a=(b?c:a);return a;}",
+    "expected": true,
+    "accepted": true,
+    "reason": "通过（不含完整语义检查）"
+  },
+  {
+    "source": "int main(void){char *s;s=\"a\" \"b\";return 0;}",
+    "expected": true,
+    "accepted": true,
+    "reason": "通过（不含完整语义检查）"
+  },
+  {
+    "source": "int main(void){int a[2];int *p;p=&a[0];*p=1;return a[0];}",
+    "expected": true,
+    "accepted": true,
+    "reason": "通过（不含完整语义检查）"
+  },
+  {
+    "source": "int main(void){if(1) return 0;}",
+    "expected": false,
+    "accepted": false,
+    "reason": "无预测表项：CompoundStatement, KW_RETURN"
+  },
+  {
+    "source": "int main(void){for(int i=0;i<3;i++){}}",
+    "expected": false,
+    "accepted": false,
+    "reason": "无预测表项：ExpressionOpt, KW_INT"
+  },
+  {
+    "source": "int main(void){int x;x=1;int y;}",
+    "expected": false,
+    "accepted": false,
+    "reason": "无预测表项：StatementsOpt, KW_INT"
+  },
+  {
+    "source": "enum E{A,B,};",
+    "expected": false,
+    "accepted": false,
+    "reason": "无预测表项：Enumerator, RBRACE"
+  },
+  {
+    "source": "int main(void){int a;int b;a+b=1;}",
+    "expected": false,
+    "accepted": false,
+    "reason": "赋值左部不符合 C89 UnaryExpression 形状"
+  },
+  {
+    "source": "int main(void){int a;a=;}",
+    "expected": false,
+    "accepted": false,
+    "reason": "无预测表项：AssignmentExpression, SEMI"
+  },
+  {
+    "source": "int main(void){return 0}",
+    "expected": false,
+    "accepted": false,
+    "reason": "无预测表项：ExpressionTail, RBRACE"
+  },
+  {
+    "source": "int main(void){if(1){return 0;}else return 1;}",
+    "expected": false,
+    "accepted": false,
+    "reason": "无预测表项：CompoundStatement, KW_RETURN"
+  },
+  {
+    "source": "typedef int T; T x;",
+    "expected": true,
+    "accepted": true,
+    "reason": "TYPE_NAME 位置由测试明确给定；不宣称实现完整作用域适配器"
+  }
+]

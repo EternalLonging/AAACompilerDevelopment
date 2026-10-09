@@ -1,0 +1,26 @@
+digraph G { graph [rankdir=LR, bgcolor="white", nodesep=0.3, ranksep=0.65, pad=0.25]; node [fontname="Arial", fontsize=12, shape=circle, width=0.55]; edge [fontname="Arial", fontsize=11, arrowsize=0.65];n10 [label="S10",shape=doublecircle,style=solid];
+n43 [label="S43",shape=doublecircle,style=solid];
+n44 [label="S44",shape=doublecircle,style=solid];
+n45 [label="S45",shape=doublecircle,style=solid];
+n75 [label="S75",shape=doublecircle,style=solid];
+n76 [label="S76",shape=doublecircle,style=solid];
+n77 [label="S77",shape=doublecircle,style=solid];
+n90 [label="S90",shape=doublecircle,style=solid];
+n10 -> n43 [label="K03"];
+n10 -> n44 [label="C09"];
+n10 -> n45 [label="C36"];
+n43 -> n43 [label="K03"];
+n43 -> n75 [label="C09"];
+n43 -> n45 [label="C36"];
+n45 -> n76 [label="K07"];
+n45 -> n43 [label="K08"];
+n45 -> n77 [label="C43"];
+n76 -> n76 [label="K03"];
+n76 -> n44 [label="C09"];
+n76 -> n90 [label="C36"];
+n77 -> n76 [label="K20"];
+n77 -> n44 [label="C09"];
+n77 -> n43 [label="K19"];
+n77 -> n90 [label="C36"];
+n90 -> n76 [label="C00-C01, C04-C47"];
+}

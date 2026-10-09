@@ -1,0 +1,26 @@
+digraph G { graph [rankdir=LR, bgcolor="white", nodesep=0.3, ranksep=0.65, pad=0.25]; node [fontname="Arial", fontsize=12, shape=circle, width=0.55]; edge [fontname="Arial", fontsize=11, arrowsize=0.65];n53 [label="S53",shape=doublecircle,style=solid];
+n59 [label="S59",shape=doublecircle,style=dashed];
+n60 [label="S60",shape=doublecircle,style=solid];
+n62 [label="S62",shape=doublecircle,style=dashed];
+n79 [label="S79",shape=doublecircle,style=solid];
+n81 [label="S81",shape=doublecircle,style=solid];
+n82 [label="S82",shape=doublecircle,style=solid];
+n53 -> n59 [label="K09"];
+n53 -> n53 [label="C18-C20"];
+n53 -> n60 [label="C28"];
+n53 -> n79 [label="C29, C31, C40-C41"];
+n53 -> n62 [label="C32"];
+n60 -> n81 [label="C13, C15"];
+n60 -> n59 [label="K12"];
+n60 -> n82 [label="C18-C20"];
+n60 -> n62 [label="C28, C32"];
+n79 -> n59 [label="K11"];
+n79 -> n62 [label="C28, C32"];
+n81 -> n59 [label="K12"];
+n81 -> n82 [label="C18-C20"];
+n81 -> n62 [label="C28, C32"];
+n82 -> n59 [label="K09"];
+n82 -> n82 [label="C18-C20"];
+n82 -> n62 [label="C28, C32"];
+n82 -> n79 [label="C29, C31, C40-C41"];
+}

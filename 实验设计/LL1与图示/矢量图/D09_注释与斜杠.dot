@@ -1,0 +1,16 @@
+digraph G { graph [rankdir=LR, bgcolor="white", nodesep=0.3, ranksep=0.65, pad=0.25]; node [fontname="Arial", fontsize=12, shape=circle, width=0.55]; edge [fontname="Arial", fontsize=11, arrowsize=0.65];n18 [label="S18",shape=doublecircle,style=solid];
+n54 [label="S54",shape=doublecircle,style=solid];
+n55 [label="S55",shape=doublecircle,style=solid];
+n56 [label="S56",shape=doublecircle,style=solid];
+n80 [label="S80",shape=doublecircle,style=solid];
+n91 [label="S91",shape=doublecircle,style=solid];
+n18 -> n54 [label="C12"];
+n18 -> n55 [label="C17"];
+n18 -> n56 [label="C24"];
+n54 -> n54 [label="C00-C11, C13-C47"];
+n54 -> n80 [label="C12"];
+n55 -> n55 [label="C00-C01, C04-C47"];
+n80 -> n54 [label="K21"];
+n80 -> n80 [label="C12"];
+n80 -> n91 [label="C17"];
+}

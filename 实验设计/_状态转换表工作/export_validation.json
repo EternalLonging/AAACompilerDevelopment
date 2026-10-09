@@ -1,0 +1,19 @@
+{
+  "result": "通过",
+  "ordinary_states": 92,
+  "input_classes": 48,
+  "transition_cells": 4416,
+  "header_states": 7,
+  "rules": 64,
+  "keywords": 32,
+  "preserved_source_examples": 23,
+  "formula_errors": [],
+  "commit": "589ac50d8602fc926577316e5b6514fba5e242a3",
+  "verified_date": "2026-10-09",
+  "freeze_panes": {
+    "普通词法状态转换表": "F9",
+    "输入字符分类": "A8",
+    "规则与关键字": "A9",
+    "头文件上下文": "A8"
+  }
+}

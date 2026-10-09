@@ -1,0 +1,26 @@
+test_all_32_keywords_and_boundaries (project_checks.FinalLexerPatterns.test_all_32_keywords_and_boundaries) ... ok
+test_all_fixed_punctuators (project_checks.FinalLexerPatterns.test_all_fixed_punctuators) ... ok
+test_circle_and_scanf (project_checks.FinalLexerPatterns.test_circle_and_scanf) ... ok
+test_closed_invalid_literals (project_checks.FinalLexerPatterns.test_closed_invalid_literals) ... ok
+test_comments_stop_at_first_closer (project_checks.FinalLexerPatterns.test_comments_stop_at_first_closer) ... ok
+test_empty_input_and_invalid_byte (project_checks.FinalLexerPatterns.test_empty_input_and_invalid_byte) ... ok
+test_every_rule_consumes_input (project_checks.FinalLexerPatterns.test_every_rule_consumes_input) ... ok
+test_exact_token_enum_coverage (project_checks.FinalLexerPatterns.test_exact_token_enum_coverage) ... ok
+test_final_float_forms (project_checks.FinalLexerPatterns.test_final_float_forms) ... ok
+test_final_integer_forms (project_checks.FinalLexerPatterns.test_final_integer_forms) ... ok
+test_header_context_patterns (project_checks.FinalLexerPatterns.test_header_context_patterns) ... ok
+test_invalid_numbers_are_one_error (project_checks.FinalLexerPatterns.test_invalid_numbers_are_one_error) ... ok
+test_longest_match_and_positions (project_checks.FinalLexerPatterns.test_longest_match_and_positions) ... ok
+test_signs_are_operators (project_checks.FinalLexerPatterns.test_signs_are_operators) ... ok
+test_strings_and_character_escapes (project_checks.FinalLexerPatterns.test_strings_and_character_escapes) ... ok
+test_unterminated_comment_commits_to_comment (project_checks.FinalLexerPatterns.test_unterminated_comment_commits_to_comment) ... ok
+test_unterminated_literals_and_recovery (project_checks.FinalLexerPatterns.test_unterminated_literals_and_recovery) ... ok
+
+----------------------------------------------------------------------
+Ran 17 tests in 0.002s
+
+OK
+
+3000 random sources agree with project regex scanner.
+All 64 rules reachable. All 256 byte columns preserved.
+Pinned commit: 589ac50d8602fc926577316e5b6514fba5e242a3

@@ -1,0 +1,12 @@
+digraph G { graph [rankdir=TB, bgcolor="white", nodesep=0.55, ranksep=0.5, pad=0.25]; node [fontname="Microsoft YaHei",fontsize=12,shape=box,margin="0.15,0.10"]; edge [fontname="Microsoft YaHei",fontsize=11,arrowsize=0.7];
+ start [label="开始",shape=oval,width=1.05]; init [label="栈底放 EOF，压入 TranslationUnit\n输入为经过上下文分类的 Token 流",width=3.29];
+ read [label="读取栈顶 X 和当前输入 a",width=2.40];
+ done [label="X = EOF 且 a = EOF？",shape=diamond,width=4.14]; success [label="接受",shape=oval,width=1.05];
+ terminal [label="X 是终结符？",shape=diamond,width=2.54]; match [label="X = a？",shape=diamond,width=1.85]; consume [label="弹栈；消费当前 Token",width=2.10];
+ lookup [label="查询 M[X,a]（SELECT 预测表）",width=2.81]; entry [label="恰有一条产生式？",shape=diamond,width=3.11]; push [label="弹出 X；产生式右部逆序入栈\nε 不入栈",width=2.54];
+ error [label="报告语法错误或表冲突\n严格验证模式：拒绝",shape=oval,width=2.92];
+ start -> init -> read -> done; done -> success [label="是",width=0.58]; done -> terminal [label="否",width=0.58];
+ terminal -> match [label="是",width=0.58]; terminal -> lookup [label="否",width=0.58];
+ match -> consume [label="是",width=0.58]; match -> error [label="否",width=0.58]; consume -> read;
+ lookup -> entry; entry -> push [label="是",width=0.58]; entry -> error [label="否",width=0.58]; push -> read;
+}

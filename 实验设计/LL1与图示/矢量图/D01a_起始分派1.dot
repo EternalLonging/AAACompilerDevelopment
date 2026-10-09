@@ -1,0 +1,27 @@
+digraph G { graph [rankdir=LR, bgcolor="white", nodesep=0.3, ranksep=0.65, pad=0.25]; node [fontname="Arial", fontsize=12, shape=circle, width=0.55]; edge [fontname="Arial", fontsize=11, arrowsize=0.65];n0 [label="S0",shape=circle,style=solid];
+n1 [label="S1",shape=doublecircle,style=dashed];
+n2 [label="S2",shape=doublecircle,style=dashed];
+n3 [label="S3",shape=doublecircle,style=dashed];
+n4 [label="S4",shape=doublecircle,style=dashed];
+n5 [label="S5",shape=doublecircle,style=dashed];
+n6 [label="S6",shape=doublecircle,style=dashed];
+n7 [label="S7",shape=doublecircle,style=dashed];
+n8 [label="S8",shape=doublecircle,style=dashed];
+n9 [label="S9",shape=doublecircle,style=dashed];
+n10 [label="S10",shape=doublecircle,style=dashed];
+n11 [label="S11",shape=doublecircle,style=dashed];
+n12 [label="S12",shape=doublecircle,style=dashed];
+start [shape=point,width=0.04]; start -> n0;
+n0 -> n1 [label="C00"];
+n0 -> n2 [label="C01"];
+n0 -> n3 [label="C02"];
+n0 -> n4 [label="C03"];
+n0 -> n5 [label="C04"];
+n0 -> n6 [label="C05"];
+n0 -> n7 [label="C06"];
+n0 -> n8 [label="C07"];
+n0 -> n9 [label="C08"];
+n0 -> n10 [label="C09"];
+n0 -> n11 [label="C10"];
+n0 -> n12 [label="C11"];
+}

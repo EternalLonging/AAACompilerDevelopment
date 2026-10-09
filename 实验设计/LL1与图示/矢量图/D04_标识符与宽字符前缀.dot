@@ -1,0 +1,9 @@
+digraph G { graph [rankdir=LR, bgcolor="white", nodesep=0.3, ranksep=0.65, pad=0.25]; node [fontname="Arial", fontsize=12, shape=circle, width=0.55]; edge [fontname="Arial", fontsize=11, arrowsize=0.65];n6 [label="S6",shape=doublecircle,style=dashed];
+n10 [label="S10",shape=doublecircle,style=dashed];
+n27 [label="S27",shape=doublecircle,style=solid];
+n28 [label="S28",shape=doublecircle,style=solid];
+n27 -> n27 [label="K06"];
+n28 -> n6 [label="C05"];
+n28 -> n10 [label="C09"];
+n28 -> n27 [label="K06"];
+}

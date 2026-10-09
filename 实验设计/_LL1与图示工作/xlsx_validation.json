@@ -1,0 +1,18 @@
+{
+  "saved_xlsx_comparisons": 12379,
+  "formula_errors": [],
+  "sheets": [
+    "使用说明",
+    "FIRST集",
+    "FOLLOW集",
+    "SELECT集",
+    "核心文法",
+    "预测分析表",
+    "C89原始集合",
+    "C89原始SELECT",
+    "冲突分析",
+    "终结符映射"
+  ],
+  "core_conflicts": 0,
+  "raw_conflicts": 20
+}

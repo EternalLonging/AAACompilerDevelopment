@@ -1,0 +1,38 @@
+{
+  "FIRST集": {
+    "header": 6,
+    "last": 130
+  },
+  "FOLLOW集": {
+    "header": 6,
+    "last": 130
+  },
+  "SELECT集": {
+    "header": 6,
+    "last": 273
+  },
+  "核心文法": {
+    "header": 6,
+    "last": 273
+  },
+  "预测分析表": {
+    "header": 6,
+    "last": 130
+  },
+  "C89原始集合": {
+    "header": 6,
+    "last": 123
+  },
+  "C89原始SELECT": {
+    "header": 6,
+    "last": 260
+  },
+  "冲突分析": {
+    "header": 6,
+    "last": 26
+  },
+  "终结符映射": {
+    "header": 6,
+    "last": 92
+  }
+}

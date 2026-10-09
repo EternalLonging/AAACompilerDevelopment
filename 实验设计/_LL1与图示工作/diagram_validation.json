@@ -1,0 +1,9 @@
+{
+  "ordinary_states": 92,
+  "ordinary_classes": 48,
+  "nonfailure_transitions": 1056,
+  "segmented_transition_coverage": 1056,
+  "duplicate_transitions": 0,
+  "header_states": 7,
+  "full_svg": true
+}

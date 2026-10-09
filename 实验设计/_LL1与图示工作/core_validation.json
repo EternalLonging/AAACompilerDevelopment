@@ -1,0 +1,17 @@
+{
+  "nonterminals": 124,
+  "productions": 267,
+  "terminals": 85,
+  "conflict_cells": 0,
+  "conflict_nonterminals": 0,
+  "strict_LL1": true,
+  "left_recursion": false,
+  "all_symbols_reachable": true,
+  "all_nonterminals_productive": true,
+  "all_32_keywords_used": true,
+  "control_bodies_braced": true,
+  "unused_ordinary_tokens": [
+    "HASH",
+    "HASH_HASH"
+  ]
+}

@@ -1,0 +1,15 @@
+digraph G { graph [rankdir=LR, bgcolor="white", nodesep=0.3, ranksep=0.65, pad=0.25]; node [fontname="Arial", fontsize=12, shape=circle, width=0.55]; edge [fontname="Arial", fontsize=11, arrowsize=0.65];n0 [label="S0",shape=circle,style=solid];
+n24 [label="S24",shape=doublecircle,style=dashed];
+n25 [label="S25",shape=doublecircle,style=dashed];
+n26 [label="S26",shape=doublecircle,style=dashed];
+n27 [label="S27",shape=doublecircle,style=dashed];
+n28 [label="S28",shape=doublecircle,style=dashed];
+n29 [label="S29",shape=doublecircle,style=dashed];
+start [shape=point,width=0.04]; start -> n0;
+n0 -> n24 [label="C24"];
+n0 -> n25 [label="C25"];
+n0 -> n26 [label="C26"];
+n0 -> n27 [label="C27-C30, C32-C34"];
+n0 -> n28 [label="C31"];
+n0 -> n29 [label="C35"];
+}
