@@ -53,13 +53,16 @@ def handler(driver):
     class Handler(BaseHTTPRequestHandler):
         # 只提供工作台文件和固定 API，避免把仓库与用户磁盘当成静态目录。
         def send(self, status, data, content_type="application/json; charset=utf-8"):
-            self.send_response(status)
-            self.send_header("Content-Type", content_type)
-            self.send_header("Content-Length", str(len(data)))
-            self.send_header("Cache-Control", "no-store")
-            self.send_header("X-Content-Type-Options", "nosniff")
-            self.end_headers()
-            self.wfile.write(data)
+            try:
+                self.send_response(status)
+                self.send_header("Content-Type", content_type)
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.end_headers()
+                self.wfile.write(data)
+            except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+                pass  # 页面切换或取消补全后，客户端可能已经断开，无需再次发送错误。
 
         def json(self, status, payload):
             self.send(status, json.dumps(payload, ensure_ascii=False).encode("utf-8"))
