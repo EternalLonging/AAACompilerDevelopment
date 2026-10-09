@@ -143,6 +143,8 @@ Case/Default 的链可表示连续标签，Block 表示其后的顺序语句。B
 
 Function 节点的 ParamDecl 类型和 declared_type.params 必须一致。无名原型形参不进符号表；定义中每个具名形参都登记。函数体最外层 Block 与形参共享 Function 作用域，因此 `int f(int x){int x;}` 应报重复声明；只有更内层的 Block 才可遮蔽 x。
 
+比较签名时，数组/函数形参先调整为指针，并忽略形参顶层 const/volatile；函数体中的形参对象仍保留限定符。因此 `f(int)` 与 `f(const int)` 签名兼容，但 const 形参在函数体内不能修改；`f(int*)` 与 `f(const int*)` 不因此兼容。临时 struct/union 的数组成员可读取下标结果，直接结果仍是 RValue，不能把它当可修改左值。
+
 普通窄字符串的 value 保存解码后的字节串（不附终止零），name 保存原文；语义类型是包含终止零的 char 数组，长度为 `value.size()+1`。用于函数实参时，语义插入数组到指针的转换。字符常量的 value 用 int64_t 保存解码码值，M1 先遵循本组 char 规则，后续完整 C 对字符常量类型的调整集中在语义模块。最终词法已能识别 L 前缀、完整转义和多字符常量；宽字符/宽字符串的语义存储需在实现中明确，不能直接套用窄字节串的长度规则。
 
 ### 例：printf("%d", s)

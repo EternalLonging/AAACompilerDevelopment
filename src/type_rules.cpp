@@ -10,6 +10,7 @@ using TypePair = std::pair<const TypeInfo*, const TypeInfo*>;
 
 // 比较类型的每一层，循环引用视为无效类型。
 bool compare(const TypePtr& left, const TypePtr& right, std::vector<TypePair>& path) {
+    if (path.size() > 128) return false;
     if (!left || !right || left->kind != right->kind ||
         left->is_unsigned != right->is_unsigned ||
         left->is_const != right->is_const || left->is_volatile != right->is_volatile)
@@ -33,8 +34,15 @@ bool compare(const TypePtr& left, const TypePtr& right, std::vector<TypePair>& p
                 left->has_prototype == right->has_prototype &&
                 left->params.size() == right->params.size() &&
                 compare(left->base, right->base, path);
-        for (std::size_t i = 0; equal && i < left->params.size(); ++i)
-            equal = compare(left->params[i], right->params[i], path);
+        for (std::size_t i = 0; equal && i < left->params.size(); ++i) {
+            const auto adjusted = [](TypePtr parameter) {
+                if (!parameter) return TypePtr{};
+                if (parameter->kind == TypeKind::Array) parameter = detail::pointer(parameter->base);
+                else if (parameter->kind == TypeKind::Function) parameter = detail::pointer(parameter);
+                return detail::unqualified(parameter);
+            };
+            equal = compare(adjusted(left->params[i]), adjusted(right->params[i]), path);
+        }
         break;
     case TypeKind::Struct: case TypeKind::Union: case TypeKind::Enum:
         equal = left->record_id != invalid_id && left->record_id == right->record_id;

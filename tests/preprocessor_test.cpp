@@ -41,7 +41,19 @@ int main() {
         rejects("#define F(a,a) a\n", "重复"); rejects("#define F(a,) a\n", "不能为空");
         rejects("#define F(a) a\nF(1,2)\n", "数量");
         rejects("#define X 1\n#define X 2\n", "重复定义");
-        rejects("#define F(a) #a\n", "字符串化");
+        result = preprocess("#define N 3\n#define STR(x) #x\n#define XSTR(x) STR(x)\nSTR(N) XSTR(N)\nSTR(a  +  b)\nSTR(\"a\\n\")\n");
+        require(result.ok() && result.source.find("\"N\" \"3\"") != std::string::npos &&
+                result.source.find("\"a + b\"") != std::string::npos && result.source.find("\"\\\"a\\\\n\\\"\"") != std::string::npos, "字符串化应使用原始实参并转义字面量");
+        result = preprocess("#define N 7\n#define CAT(a,b) a ## b\n#define XCAT(a,b) CAT(a,b)\n#define varN 11\n#define var7 12\nCAT(var,N) XCAT(var,N) CAT(,N) CAT(N,) CAT(,)\nCAT(+,=) CAT(1,e3)\n");
+        require(result.ok() && result.source.find("11 12 7 7") != std::string::npos && result.source.find("+= 1e3") != std::string::npos, "拼接应使用原始实参、处理空参数并重扫描结果");
+        result = preprocess("#define F(x) ((x)+1)\n#define ALIAS F\nALIAS(2) F(F(1))\n#define JOIN(a,b,c) a ## b ## c\nJOIN(,x,)\n#define PLUS +\nPLUS+\n");
+        require(result.ok() && result.source.find("((2)+1)") != std::string::npos && result.source.find("((((1)+1))+1)") != std::string::npos &&
+                result.source.find("x") != std::string::npos && result.source.find("+ +") != std::string::npos, "别名与源码需一起重扫描，普通替换不能意外拼成 ++");
+        rejects("#define F(a) #bad\n", "字符串化");
+        rejects("#define F(a) ##a\n", "左右");
+        rejects("#define F(a,b) a##b\nF(x,+)\n", "有效预处理单词");
+        result = preprocess("#define f(a) a*g\n#define g(a) f(a)\nf(2)(9)\n");
+        require(result.ok() && result.source.find("2*9*g") != std::string::npos, "跨宏边界的函数调用不能错误禁用后续宏");
         rejects("/* unfinished", "注释"); rejects("#error stop\n", "stop");
         rejects("#if " + std::string(140, '!') + "1\n#endif\n", "过深");
         result = preprocess("#include \"gone.h\"\n", "main.c", [](const std::string&, const std::string&) -> std::optional<std::string> { return std::nullopt; });

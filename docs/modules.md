@@ -118,7 +118,7 @@ diagnostics.report(Level::Error, node.range,
 
 这三个函数不打印、不登记符号、不收集诊断，也不检查左值属性；调用者结合 AST 的 category 和 const 限定符诊断。Error 子表达式向父节点传播时应抑制重复报错。比较与逻辑表达式结果类型为 int，不能把结果类型当成两个操作数的公共算术类型。M1 以外的转换按后续语言规格统一扩展。
 
-实现位于 src/type_rules.cpp。same_type 对 Unknown、Error、未解析 Named 及缺失记录编号返回 false；这是严格的结构相等判断，尚未实现完整 C 的函数类型兼容与形参限定符归一化。算术和赋值支持扩展数值类型，忽略顶层 const / volatile；原 MiniC 的 char/int/float 隐式缩窄限制保留。指针、数组、聚合转换由 analyze 结合 AST 处理。
+实现位于 src/type_rules.cpp。same_type 对 Unknown、Error、未解析 Named 及缺失记录编号返回 false；函数签名中调整数组/函数形参并忽略形参顶层 const/volatile，所指类型的限定符仍保留。函数体中的形参对象保留自己的限定符。完整 C 的旧式函数兼容和全部重声明规则尚未实现。算术和赋值支持扩展数值类型，忽略顶层 const / volatile；原 MiniC 的 char/int/float 隐式缩窄限制保留。指针、数组、聚合转换由 analyze 结合 AST 处理。
 
 上述 can_assign 保留基础数值类型判断。analyze 另外按 AST 检查兼容对象指针、整型零空指针常量、结构体同型拷贝和数组退化；generate/run 使用私有类型辅助函数保持一致。这些规则不能只根据来源 TypeKind 判断，例如 int 类型的普通变量并不自动成为空指针常量。
 

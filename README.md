@@ -36,6 +36,7 @@
 | 指针、别名、枚举、标签、位运算和静态存储的 9 组测试 | [tests/m3_pipeline_test.cpp](tests/m3_pipeline_test.cpp) |
 | 扩展类型、union、函数指针、extern、字符串与聚合调用的 7 组测试 | [tests/m4_pipeline_test.cpp](tests/m4_pipeline_test.cpp) |
 | 独立预处理、宏、条件表达式与包含，以及原始行号映射 | [include/minic/preprocessor.hpp](include/minic/preprocessor.hpp)、[docs/preprocessor.md](docs/preprocessor.md) |
+| 宏字符串化/拼接/单词重扫描、形参限定符兼容、临时聚合数组成员读取 | [docs/backend-completion.md](docs/backend-completion.md) |
 | 支持范围、构建方法与给同学的 AST 交接说明 | [docs/m1-backend.md](docs/m1-backend.md) |
 | 构建配置与独立测试脚本 | [CMakeLists.txt](CMakeLists.txt)、[tools/test_backend.ps1](tools/test_backend.ps1) |
 | 原有四元式教学演示，不使用本次公共接口 | [ir_demo.cpp](ir_demo.cpp) |

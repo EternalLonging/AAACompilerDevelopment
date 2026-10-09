@@ -102,6 +102,25 @@ static void aggregate_calls() {
         object("copy", record("Pair", TypeKind::Struct), call("change", id("p"))),
         ret(binary("+", field(id("p"), "x"), field(call("change", id("copy")), "x"))));
     ast->children.push_back(function("main", TypeKind::Int, std::move(body))); check(std::move(ast), 10);
+    auto arrays = program(tree(NodeType::StructDef, "Box", member("values", array(type(TypeKind::Int), 2))));
+    auto create = function("make", TypeKind::Int, block(object("box", record("Box", TypeKind::Struct), list(list(integer(4), integer(8)))), ret(id("box"))));
+    create->declared_type = signature(record("Box", TypeKind::Struct)); arrays->children.push_back(std::move(create));
+    arrays->children.push_back(function("main", TypeKind::Int, block(ret(index(field(call("make"), "values"), integer(1))))));
+    check(std::move(arrays), 8);
+    auto qualified = std::make_shared<TypeInfo>(); qualified->kind = TypeKind::Int; qualified->is_const = true;
+    auto prototype = node(NodeType::FunctionDecl, "f"); prototype->declared_type = signature(type(TypeKind::Int), {type(TypeKind::Int)});
+    prototype->children.push_back(parameter("", TypeKind::Int));
+    auto arg_const = node(NodeType::ParamDecl, "x"); arg_const->declared_type = qualified;
+    auto declarations = program(std::move(prototype), function("f", TypeKind::Int, block(ret(id("x"))), std::move(arg_const)),
+        function("main", TypeKind::Int, block(ret(call("f", integer(9))))));
+    check(std::move(declarations), 9);
+    auto bad_parameter = node(NodeType::ParamDecl, "x"); bad_parameter->declared_type = qualified;
+    rejects(program(function("f", TypeKind::Int, block(statement(assign("x", integer(1))), ret(id("x"))), std::move(bad_parameter))), "SEM_LVALUE");
+    auto array_error = program(tree(NodeType::StructDef, "Box", member("values", array(type(TypeKind::Int), 2))));
+    auto get = function("make", TypeKind::Int, block(object("box", record("Box", TypeKind::Struct), list(list(integer(4), integer(8)))), ret(id("box"))));
+    get->declared_type = signature(record("Box", TypeKind::Struct)); array_error->children.push_back(std::move(get));
+    array_error->children.push_back(function("main", TypeKind::Int, block(ret(index(field(call("make"), "values"), integer(2))))));
+    check(std::move(array_error), 0, "", "", "越界");
 }
 
 static void errors_and_boundaries() {
