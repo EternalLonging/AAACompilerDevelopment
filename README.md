@@ -6,7 +6,7 @@
 
 使用 **C++17** 实现可展示内部过程的 C 语言编译器：词法分析 → 语法分析 → 语义分析 → 四元式生成 → 解释器执行。符号表与统一诊断服务各阶段，最终词法规则采用 **C89** 范围，并保留项目要求的 `//` 注释扩展。
 
-已完成公共结构体、模块接口、最终词法正则，并实现常量池、符号表管理、统一诊断和基础类型规则。**这些支持模块可以独立运行和测试；完整 C 源程序编译流程尚未实现，NFA/DFA 生成器、正式扫描器、语法分析、完整语义遍历、IR 和解释器入口仍待开发。**
+已完成公共结构体、模块接口、最终词法正则、常量池、符号表和统一诊断；现已实现 M1 语义检查、四元式生成、解释执行、结果展示、总控和命令行入口。**目前可以独立运行“手动 AST → 语义 → 四元式 → 执行”；词法和语法由其他同学交付，接入前还不能直接编译 C 源文件。** M2–M4 的数组、记录寻址、通用指针及完整 C 规则仍待扩展。
 
 | 已完成内容 | 入口 |
 |---|---|
@@ -25,6 +25,14 @@
 | 类型规则：类型比较、M1 算术提升及赋值兼容 | [src/type_rules.cpp](src/type_rules.cpp) |
 | 符号表运行示例与行为测试 | [examples/symbol_table_demo.cpp](examples/symbol_table_demo.cpp)、[tests/symbol_table_test.cpp](tests/symbol_table_test.cpp) |
 | 常量池行为测试 | [tests/constant_pool_test.cpp](tests/constant_pool_test.cpp) |
+| M1 语义检查：类型/左值、声明、函数调用、返回与格式串 | [src/semantic.cpp](src/semantic.cpp) |
+| 四元式生成：运算、短路、分支、循环与函数调用 | [src/ir.cpp](src/ir.cpp) |
+| 解释执行：独立调用帧、递归、输入输出与运行错误检查 | [src/interpreter.cpp](src/interpreter.cpp) |
+| Token、AST、符号表、常量池、四元式和诊断展示 | [src/display.cpp](src/display.cpp) |
+| 编译总控与命令行：等待词法/语法链接 | [src/compiler.cpp](src/compiler.cpp)、[src/main.cpp](src/main.cpp) |
+| M1 联动示例、9 组测试及总控流程测试 | [examples/m1_pipeline_demo.cpp](examples/m1_pipeline_demo.cpp)、[tests/m1_pipeline_test.cpp](tests/m1_pipeline_test.cpp)、[tests/compiler_flow_test.cpp](tests/compiler_flow_test.cpp) |
+| 支持范围、构建方法与给同学的 AST 交接说明 | [docs/m1-backend.md](docs/m1-backend.md) |
+| 构建配置与独立测试脚本 | [CMakeLists.txt](CMakeLists.txt)、[tools/test_backend.ps1](tools/test_backend.ps1) |
 | 原有四元式教学演示，不使用本次公共接口 | [ir_demo.cpp](ir_demo.cpp) |
 
 ## 验证方式
@@ -45,9 +53,29 @@ g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -I include examples/symbol_table
 & build/symbol_table_demo.exe
 ```
 
-compile_and_run.cpp 调用的完整编译入口尚无实现，目前只做声明层编译检查。interface_demo.cpp 需链接常量池实现，其输出演示数据组装；symbol_table_demo.cpp 展示作用域遮蔽、前缀查询及重复声明报错。
+compile_and_run.cpp 的总控已有实现，但仍需要词法/语法函数才能链接完整流程，目前可做声明层编译检查。interface_demo.cpp 需链接常量池实现，其输出演示数据组装；symbol_table_demo.cpp 展示作用域遮蔽、前缀查询及重复声明报错。
 
 两个行为测试分别验证常量池和符号表/诊断/类型规则。类型转换目前限 M1 的有符号 char、int、float；结构体布局由语义模块计算后交给符号表校验；补全目前按单源文件字节位置处理。详细范围见上述模块文档。头文件和实现中的说明采用简短中文注释。
+
+新增 M1 后续模块可直接使用统一脚本严格编译并测试：
+
+```powershell
+& tools/test_backend.ps1
+# 编译器不在 PATH 时：
+& tools/test_backend.ps1 -Compiler 'D:/G++/MinGW/bin/g++.exe'
+```
+
+脚本运行原有测试、9 组语义→IR→执行联动测试、编译总控测试及求和示例。示例输入 5，输出 `sum = 15`。总控测试中的词法/语法替身只在测试程序中链接，不属于正式编译器实现。
+
+安装 CMake 后也可以使用：
+
+```powershell
+cmake -S . -B build/cmake
+cmake --build build/cmake
+ctest --test-dir build/cmake --output-on-failure
+```
+
+本次实际验证使用 g++ 脚本，CMake 配置尚未在本机执行。`src/lexer.cpp`、`src/parser.cpp` 交付后重新配置 CMake，即可建立完整 minic 命令行和 compile_and_run 示例。节点结构、孩子顺序、函数签名和字面量约定见 [M1 交接说明](docs/m1-backend.md)。
 
 ## 语言目标与协作
 

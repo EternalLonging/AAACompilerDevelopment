@@ -2,7 +2,7 @@
 
 日期：2026-10-08。结构体及其字段约定见 [interface.md](interface.md)。本文件定义“各模块怎样调用”，全部函数声明位于 `include/minic/`，均附中文注释。
 
-当前已实现常量池、符号表管理、统一诊断和三个类型规则函数；编译阶段入口仍只有声明，需要各模块负责人实现。不要添加返回空结果或无条件成功的占位实现，否则会把“未实现”伪装成“编译成功”。主程序统一包含 `minic/modules.hpp`；某模块可以只包含自己需要的头文件。
+当前已实现常量池、符号表管理、统一诊断、M1 语义检查、IR 生成、解释执行、文本展示及总控。词法和语法入口由其他同学提供；其完成前可以用手动 AST 验证全部后续模块。不要添加返回空结果或无条件成功的占位实现，否则会把“未实现”伪装成“编译成功”。主程序统一包含 `minic/modules.hpp`；某模块可以只包含自己需要的头文件。
 
 ## 1. 文件与分工
 
@@ -12,14 +12,14 @@
 | 语法分析 | parser.hpp | src/parser.cpp | parse |
 | 符号表管理 | symbol_table.hpp | src/symbol_table.cpp | SymbolTable、register_builtins（已实现） |
 | 统一出错处理 | diagnostic.hpp | src/diagnostic.cpp | DiagnosticEngine（已实现） |
-| 语义分析 | semantic.hpp | src/semantic.cpp（待实现）、src/type_rules.cpp | analyze（待实现）、same_type / arithmetic_result / can_assign（已实现） |
-| 中间代码生成 | ir.hpp | src/ir.cpp | generate |
+| 语义分析 | semantic.hpp | src/semantic.cpp、src/type_rules.cpp | analyze、same_type / arithmetic_result / can_assign（M1 已实现） |
+| 中间代码生成 | ir.hpp | src/ir.cpp | generate（M1 已实现） |
 | 常量池（IR 公共支持） | constant_pool.hpp | src/constant_pool.cpp | ConstantPool、constant_operand（已实现） |
-| 四元式解释器 | interpreter.hpp | src/interpreter.cpp | run |
-| 主流程整合 | compiler.hpp | src/compiler.cpp | compile、CompilationResult::ok |
-| 文本展示与导出 | display.hpp | src/display.cpp | print_tokens / ast / symbols / ir / diagnostics |
+| 四元式解释器 | interpreter.hpp | src/interpreter.cpp | run（M1 已实现） |
+| 主流程整合 | compiler.hpp | src/compiler.cpp、src/compilation_result.cpp | compile、CompilationResult::ok（已实现，compile 等待词法/语法链接） |
+| 文本展示与导出 | display.hpp | src/display.cpp | print_tokens / ast / symbols / ir / diagnostics（已实现） |
 
-词法、语法、完整语义遍历、IR、解释器、总控和展示函数体仍待开发。已实现部分的运行与测试说明见 [symbol-table.md](symbol-table.md) 和 [constant-pool.md](constant-pool.md)。没有要求模块继承抽象基类；四个编译阶段用普通函数返回明确的结果，符号表、常量池和诊断收集器通过类封装自己的状态。
+词法、语法函数体仍待同学交付；M2–M4 的数组、记录寻址、通用指针及完整 C 规则仍待扩展。M1 支持范围及联调说明见 [m1-backend.md](m1-backend.md)，基础支持模块见 [symbol-table.md](symbol-table.md) 和 [constant-pool.md](constant-pool.md)。没有要求模块继承抽象基类；四个编译阶段用普通函数返回明确的结果，符号表、常量池和诊断收集器通过类封装自己的状态。
 
 ## 2. 五个模块怎样交接
 
@@ -175,6 +175,6 @@ IR 显示可用符号表补充用户名字，但同时保留 `%sID`，保证同�
 g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -I include -fsyntax-only examples/compile_and_run.cpp
 ```
 
-这验证头文件、函数参数、返回类型和流程调用是否兼容，不验证编译器行为，也不链接尚未实现的函数。数据组装示例 interface_demo.cpp 仍可独立编译运行。
+这验证头文件、函数参数、返回类型和流程调用是否兼容，不验证编译器行为。compile_and_run.cpp 还需要词法/语法实现才能链接。M1 后续模块已有实际行为测试：运行 `tools/test_backend.ps1`，或使用根目录 CMakeLists.txt 和 CTest。compiler_flow_test.cpp 中的词法/语法替身只检查总控调用顺序，不属于正式扫描器或解析器。
 
 v1.1 将四个已有入口迁入各模块头文件；v1.2 新增常量池并在 IRProgram 中保存数据。原来只含 interface.hpp 的调用代码如需调用模块函数，改含对应头文件或 modules.hpp；interface_demo.cpp 从 v1.2 起需同时链接 src/constant_pool.cpp。

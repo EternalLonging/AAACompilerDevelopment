@@ -1,4 +1,4 @@
-// 模块实现后的主程序使用示例；当前仅能编译检查，不能链接为完整编译器。
+// 完整流程示例；同学交付 lexer.cpp 和 parser.cpp 后即可链接运行。
 // 检查命令：g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -I include -fsyntax-only examples/compile_and_run.cpp
 #include "minic/modules.hpp"
 

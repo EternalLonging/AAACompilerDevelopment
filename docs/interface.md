@@ -2,7 +2,7 @@
 
 日期：2026-10-08。依据：README 和 `需求分析/00–05` 文档。
 
-本文件是本组编译器的公共接口基线；可编译定义在 `include/minic/interface.hpp`，全部位于 `minic` 命名空间。后续模块引用该头文件，不再各自定义同名结构体。常量池、符号表管理、统一诊断及基础类型规则已有实现；词法、语法、完整语义遍历、IR 及解释器入口仍需开发。
+本文件是本组编译器的公共接口基线；可编译定义在 `include/minic/interface.hpp`，全部位于 `minic` 命名空间。后续模块引用该头文件，不再各自定义同名结构体。常量池、符号表、诊断及 M1 的语义、IR、解释器、展示和总控已有实现；词法和语法由其他同学提供。实际范围见 [m1-backend.md](m1-backend.md)。
 
 v1.1 补齐模块函数合同，见 [modules.md](modules.md)。数据头文件只保留结构体；函数入口分别位于各模块头文件，可统一包含 `minic/modules.hpp`。
 
@@ -220,6 +220,10 @@ M1 指令合同：
 | `call` | 函数 `%sID` 或函数指针值 | 实参数量（十进制） | 临时量或 - | 消费该次调用的参数，返回值可丢弃 |
 | `ret` | 返回值或 - | - | - | 返回当前调用者 |
 | `addr` | 对象 `%sID` | - | 指针临时量 | M1 仅支持 scanf 地址实参 |
+| `local` | - | - | 局部变量 `%sID` | 每次执行声明时将局部对象重置为未初始化 |
+| `%` | 整数左操作数 | 整数右操作数 | int 临时量 | 整数取余，与除法一样向零截断 |
+
+`local` 在变量声明时执行，之后可接初始化赋值。这样循环中重新进入块时，不会把上一轮同一声明的值当作本轮初始值；全局对象在进入初始化序列前统一零初始化。
 
 `&&` / `||` 必须通过跳转实现短路，不可把两侧都算完再做普通二元运算。比较节点类型为 int，操作数的算术提升由语义插入的 ImplicitCast 决定，不能拿“比较结果为 int”去强转两个 float 操作数。
 
@@ -241,7 +245,7 @@ SemanticResult analyze(Program& program);
 IRResult generate(const Program& program, const SymbolTableData& symbols);
 ```
 
-这四个入口分别在 lexer.hpp、parser.hpp、semantic.hpp、ir.hpp 中声明，尚无编译器实现；其详细合同及符号表、诊断、执行与总控接口见 [modules.md](modules.md)。每阶段填完产物/diagnostics 再调用 ok()；默认构造的结果不代表该阶段已经运行。编译驱动负责按顺序调用并保存所有诊断，不能用一个默认 bool ok 隐瞒错误。
+这四个入口分别在 lexer.hpp、parser.hpp、semantic.hpp、ir.hpp 中声明；analyze 和 generate 已有 M1 实现，lex 和 parse 等待同学交付。详细合同及符号表、诊断、执行与总控接口见 [modules.md](modules.md)。每阶段填完产物/diagnostics 再调用 ok()；默认构造的结果不代表该阶段已经运行。编译驱动负责按顺序调用并保存所有诊断，不能用一个默认 bool ok 隐瞒错误。
 
 - LexResult：Token 序列 + 词法诊断；错误时仍可展示收集到的 Token。
 - ParseResult：AST 根 + 语法诊断；解析恢复可继续收集错误，但只要有语法错误，最终 root 置空。
@@ -280,6 +284,7 @@ g++ -std=c++17 -Wall -Wextra -Wpedantic -I include examples/interface_demo.cpp s
 
 ## 变更记录
 
+- 2026-10-09：公共数据字段保持 v1.2；落实 M1 后续模块，实现 `local` 局部声明重置指令和整数 `%`，支持边界及联调约定见 m1-backend.md。
 - v1.2（2026-10-08）：增加 ConstantId、ConstantEntry、ConstantPoolData 及 IRProgram.constants；实现类型和值去重；正式四元式值常量改用 `%c<ID>`。
 - v1.1（2026-10-08）：补齐独立模块头文件与函数接口说明；已有四个入口迁入各自模块头文件，数据成员保持不变；新增执行和编译总控结果。
 - v1.0（2026-10-08）：首次建立公共数据定义、AST 孩子合同、持久作用域、类型表示、四元式交接和模块结果。
