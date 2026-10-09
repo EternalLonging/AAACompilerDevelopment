@@ -6,7 +6,7 @@
 
 使用 **C++17** 实现可展示内部过程的 C 语言编译器：词法分析 → 语法分析 → 语义分析 → 四元式生成 → 解释器执行。符号表与统一诊断服务各阶段，最终词法规则采用 **C89** 范围，并保留项目要求的 `//` 注释扩展。
 
-已完成公共结构体、模块接口、最终词法正则、常量池、符号表和统一诊断；现已实现 M1 语义检查、四元式生成、解释执行、结果展示、总控和命令行入口。**目前可以独立运行“手动 AST → 语义 → 四元式 → 执行”；词法和语法由其他同学交付，接入前还不能直接编译 C 源文件。** M2–M4 的数组、记录寻址、通用指针及完整 C 规则仍待扩展。
+已完成公共结构体、模块接口、最终词法正则、常量池、符号表、统一诊断、M1/M2 的后续流程，以及对象指针、数组传参、typedef、enum、goto、位运算、静态存储和安全常量折叠。**目前可以独立运行“手动 AST → 语义 → 四元式 → 执行”；词法和语法由其他同学交付，接入前还不能直接编译 C 源文件。** union、扩展数值类型、函数指针、外部对象链接、预处理和标准库等完整 C 功能仍待扩展。
 
 | 已完成内容 | 入口 |
 |---|---|
@@ -31,6 +31,9 @@
 | Token、AST、符号表、常量池、四元式和诊断展示 | [src/display.cpp](src/display.cpp) |
 | 编译总控与命令行：等待词法/语法链接 | [src/compiler.cpp](src/compiler.cpp)、[src/main.cpp](src/main.cpp) |
 | M1 联动示例、9 组测试及总控流程测试 | [examples/m1_pipeline_demo.cpp](examples/m1_pipeline_demo.cpp)、[tests/m1_pipeline_test.cpp](tests/m1_pipeline_test.cpp)、[tests/compiler_flow_test.cpp](tests/compiler_flow_test.cpp) |
+| M2 数组/结构体/控制流与指针等扩展说明 | [docs/backend-extensions.md](docs/backend-extensions.md) |
+| M2 示例与 7 组行为测试 | [examples/m2_pipeline_demo.cpp](examples/m2_pipeline_demo.cpp)、[tests/m2_pipeline_test.cpp](tests/m2_pipeline_test.cpp) |
+| 指针、别名、枚举、标签、位运算和静态存储的 9 组测试 | [tests/m3_pipeline_test.cpp](tests/m3_pipeline_test.cpp) |
 | 支持范围、构建方法与给同学的 AST 交接说明 | [docs/m1-backend.md](docs/m1-backend.md) |
 | 构建配置与独立测试脚本 | [CMakeLists.txt](CMakeLists.txt)、[tools/test_backend.ps1](tools/test_backend.ps1) |
 | 原有四元式教学演示，不使用本次公共接口 | [ir_demo.cpp](ir_demo.cpp) |
@@ -65,7 +68,7 @@ compile_and_run.cpp 的总控已有实现，但仍需要词法/语法函数才�
 & tools/test_backend.ps1 -Compiler 'D:/G++/MinGW/bin/g++.exe'
 ```
 
-脚本运行原有测试、9 组语义→IR→执行联动测试、编译总控测试及求和示例。示例输入 5，输出 `sum = 15`。总控测试中的词法/语法替身只在测试程序中链接，不属于正式编译器实现。
+脚本严格编译并运行原有测试、M1 的 9 组、M2 的 7 组、指针等扩展的 9 组、编译总控测试及示例。M1 示例输入 5 输出 `sum = 15`，M2 示例输出 `S = 9`。总控测试中的词法/语法替身只在测试程序中链接，不属于正式编译器实现。
 
 安装 CMake 后也可以使用：
 
@@ -75,7 +78,7 @@ cmake --build build/cmake
 ctest --test-dir build/cmake --output-on-failure
 ```
 
-本次实际验证使用 g++ 脚本，CMake 配置尚未在本机执行。`src/lexer.cpp`、`src/parser.cpp` 交付后重新配置 CMake，即可建立完整 minic 命令行和 compile_and_run 示例。节点结构、孩子顺序、函数签名和字面量约定见 [M1 交接说明](docs/m1-backend.md)。
+本次已实际运行严格 g++ 脚本及 CMake 配置、构建和 CTest，7 项测试全部通过。`src/lexer.cpp`、`src/parser.cpp` 交付后重新配置 CMake，即可建立完整 minic 命令行和 compile_and_run 示例。当前支持范围、限制、节点顺序、目标布局、指针边界和新四元式见 [后续模块交接说明](docs/backend-extensions.md)，公共字段保持不变，说明合同更新至 v1.3。
 
 ## 语言目标与协作
 

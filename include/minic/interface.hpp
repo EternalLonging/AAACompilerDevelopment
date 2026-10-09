@@ -278,7 +278,7 @@ struct IRFunction {
 // 整个程序的中间代码。
 struct IRProgram {
     ConstantPoolData constants; // 整个程序共享的常量池。
-    std::vector<SymbolId> globals; // 需要分配存储的全局对象编号表。
+    std::vector<SymbolId> globals; // 静态存储对象编号表，包括全局对象和 static 局部对象。
     std::vector<Quadruple> global_initializers; // 进入 main 前执行的初始化指令。
     std::vector<SourceRange> global_locations; // 全局初始化指令的位置表，与指令一一对应。
     std::vector<TemporaryEntry> global_temporaries; // 全局初始化使用的临时变量表。

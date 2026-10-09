@@ -90,4 +90,41 @@ inline Node loop_program() {
         ret(integer(0)))));
 }
 
+inline TypePtr array(TypePtr element, std::optional<std::size_t> length) {
+    auto value = std::make_shared<TypeInfo>();
+    value->kind = TypeKind::Array; value->base = std::move(element); value->array_length = length;
+    return value;
+}
+inline TypePtr record_type(const std::string& tag) {
+    auto value = std::make_shared<TypeInfo>(); value->kind = TypeKind::Struct; value->name = tag; return value;
+}
+inline Node object(const std::string& name, TypePtr type, Node init = {}) {
+    auto value = node(NodeType::VarDecl, name); value->declared_type = std::move(type);
+    if (init) value->children.push_back(std::move(init));
+    return value;
+}
+inline Node member(const std::string& name, TypePtr type) {
+    auto value = node(NodeType::MemberDecl, name); value->declared_type = std::move(type); return value;
+}
+inline Node index(Node base, Node subscript) { return tree(NodeType::ArrayAccess, "", std::move(base), std::move(subscript)); }
+inline Node field(Node base, const std::string& name) { return tree(NodeType::MemberAccess, name, std::move(base)); }
+inline Node set(Node destination, Node source, const std::string& op = "=") {
+    return tree(NodeType::Assign, op, std::move(destination), std::move(source));
+}
+template <typename... Elements>
+Node list(Elements... elements) { return tree(NodeType::InitList, "", std::move(elements)...); }
+
+// 数组元素赋值、结构体成员求和及带填充的结构体布局示例。
+inline Node aggregate_program() {
+    auto structure = tree(NodeType::StructDef, "Result", member("label", basic(TypeKind::Char)), member("total", basic(TypeKind::Int)));
+    return program(std::move(structure), function("main", TypeKind::Int, block(
+        object("values", array(basic(TypeKind::Int), 3), list(integer(2), integer(3), integer(4))),
+        object("result", record_type("Result"), list(node(NodeType::CharLiteral, "'S'"), integer(0))),
+        tree(NodeType::For, "", variable("i", TypeKind::Int, integer(0)), binary("<", id("i"), integer(3)),
+            tree(NodeType::UnaryOp, "post++", id("i")),
+            block(statement(set(field(id("result"), "total"), index(id("values"), id("i")), "+=")))),
+        statement(call("printf", text("\"%c = %d\\n\""), field(id("result"), "label"), field(id("result"), "total"))),
+        ret(integer(0)))));
+}
+
 }

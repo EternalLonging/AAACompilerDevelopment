@@ -37,14 +37,14 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/lexer.cpp" AND
     target_link_libraries(compile_and_run PRIVATE minic_compiler)
 endif()
 
-foreach(demo interface_demo symbol_table_demo m1_pipeline_demo)
+foreach(demo interface_demo symbol_table_demo m1_pipeline_demo m2_pipeline_demo)
     add_executable(${demo} examples/${demo}.cpp)
     target_link_libraries(${demo} PRIVATE minic_backend)
 endforeach()
 
 include(CTest)
 if(BUILD_TESTING)
-    foreach(test constant_pool symbol_table m1_pipeline)
+    foreach(test constant_pool symbol_table m1_pipeline m2_pipeline m3_pipeline)
         add_executable(${test}_test tests/${test}_test.cpp)
         target_link_libraries(${test}_test PRIVATE minic_backend)
         add_test(NAME ${test} COMMAND ${test}_test)

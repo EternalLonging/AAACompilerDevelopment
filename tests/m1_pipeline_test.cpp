@@ -145,7 +145,7 @@ static void test_semantic_errors() {
     bad->children.push_back(nullptr);
     semantic_failure(std::move(bad), "SEM_AST_SHAPE");
     semantic_failure(node(NodeType::Block), "SEM_ROOT");
-    semantic_failure(program(function("main", TypeKind::Int, block(ret(node(NodeType::ArrayAccess))))), "SEM_UNSUPPORTED");
+    semantic_failure(program(function("main", TypeKind::Int, block(ret(node(NodeType::ArrayAccess))))), "SEM_AST_SHAPE");
     semantic_failure(program(variable("g", TypeKind::Int, call("printf", text("\"bad\"")))), "SEM_GLOBAL_INIT");
     auto constant = variable("x", TypeKind::Int, integer(1));
     auto const_type = std::make_shared<TypeInfo>(*constant->declared_type);
