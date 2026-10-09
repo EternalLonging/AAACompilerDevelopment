@@ -1,8 +1,11 @@
 "use strict";
 const $ = id => document.getElementById(id);
 const editor = $("editor"), result = $("result"), popup = $("completion");
-let files = {"main.c": ""}, activeFile = "main.c", data = null, view = "ast", examples = [], dirty = false;
+let files = {"main.c": ""}, activeFile = "main.c", entryFile = "main.c", data = null, view = "ast", examples = [], dirty = false;
 let revision = 0, completionTicket = 0, completionData = null, selected = 0, timer = null, busy = false;
+const newFiles = new Set(); // 还没保存到电脑的新文件，切换前必须保存或放弃。
+let resolveFileChoice = null; // 保存提示等待中的选择，避免同时执行多个切换操作。
+let savingFile = false; // 正在保存时保留当前文件，防止保存与放弃同时发生。
 const labels = {
   ast: ["SYNTAX TREE", "语法树", "真实节点与父子关系。点击节点可以定位到源码。"],
   tokens: ["LEXICAL ANALYSIS", "单词表", "预处理后的真实单词序列，位置映射到原始文件与行号。"],
@@ -18,9 +21,60 @@ async function api(path, payload) {
   const body = await response.json(); if (!response.ok || body.error) throw new Error(body.error || "操作失败"); return body;
 }
 function stash() { files[activeFile] = editor.value; }
-function payload() { stash(); const headers = {...files}; delete headers["main.c"]; return {source: files["main.c"], files: headers, input: $("stdin").value}; }
-function refreshFiles() { const select = $("file"); select.replaceChildren(); Object.keys(files).forEach(name => { const option = new Option(name, name); select.add(option); }); select.value = activeFile; }
+function payload() { stash(); const others = {...files}; delete others[entryFile]; return {source: files[entryFile], entry: entryFile, files: others, input: $("stdin").value}; }
+function refreshFiles() {
+  $("file").replaceChildren(); $("entry").replaceChildren();
+  Object.keys(files).forEach(name => { $("file").add(new Option(name, name)); if (name.endsWith(".c")) $("entry").add(new Option(name, name)); });
+  $("file").value = activeFile; $("entry").value = entryFile;
+}
+// 统一检查创建和导入的名字，避免同名覆盖或使用项目外的路径。
+function fileName(raw) {
+  const name = raw.trim().replaceAll("\\", "/");
+  if (name.length > 180 || !/^[\w\u0080-\uffff /.-]+\.(c|h)$/.test(name) || name.split("/").some(p => !p || p === "." || p === ".." || /[. ]$/.test(p) || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)/i.test(p))) throw new Error("请填写项目内的 .c 或 .h 文件名，例如 demo.c、inc/config.h");
+  return name;
+}
+function checkNewName(name, existing) {
+  const lower = name.toLowerCase();
+  if (Object.keys(existing).some(n => n.toLowerCase() === lower)) throw new Error("这个文件已存在，请换一个名字");
+  if (Object.keys(existing).some(n => lower.startsWith(n.toLowerCase() + "/") || n.toLowerCase().startsWith(lower + "/"))) throw new Error("文件名与现有文件的目录冲突，请换一个路径");
+}
 function switchFile(name) { stash(); activeFile = name; editor.value = files[name]; $("file").value = name; hideCompletion(); updateEditor(); }
+async function saveToComputer(name, content, type = "text/plain;charset=utf-8") {
+  try {
+    if (typeof window.showSaveFilePicker === "function") {
+      const handle = await window.showSaveFilePicker({suggestedName: name});
+      const writer = await handle.createWritable(); await writer.write(content); await writer.close();
+    } else download(name, content, type);
+    return true;
+  } catch (err) { if (err.name !== "AbortError") toast("保存失败：" + err.message); return false; }
+}
+async function saveCurrentFile() {
+  if (savingFile) return false;
+  stash(); const name = activeFile, content = editor.value; savingFile = true;
+  const saved = await saveToComputer(name.split("/").at(-1), content); savingFile = false;
+  if (saved && files[name] === content && (name !== activeFile || editor.value === content)) newFiles.delete(name);
+  return saved;
+}
+function allowFileChange() {
+  if (!newFiles.has(activeFile)) return Promise.resolve(true);
+  if (resolveFileChoice) return Promise.resolve(false);
+  hideCompletion(); $("unsaved-file-message").textContent = `“${activeFile}”还没有保存到电脑。保存或放弃后才能打开其他文件。`;
+  $("unsaved-file-dialog").showModal();
+  return new Promise(resolve => { resolveFileChoice = resolve; });
+}
+function finishFileChoice(allowed) {
+  if (savingFile) return;
+  const resolve = resolveFileChoice; resolveFileChoice = null; $("unsaved-file-dialog").close(); resolve?.(allowed);
+}
+$("stay-file").onclick = () => finishFileChoice(false);
+$("unsaved-file-dialog").addEventListener("cancel", e => { e.preventDefault(); finishFileChoice(false); });
+$("save-file-and-continue").onclick = async () => { if (await saveCurrentFile()) finishFileChoice(true); };
+$("discard-file").onclick = () => {
+  if (savingFile) return;
+  const abandoned = activeFile; newFiles.delete(abandoned); delete files[abandoned];
+  if (entryFile === abandoned) entryFile = Object.keys(files).find(n => n.endsWith(".c"));
+  activeFile = entryFile; editor.value = files[activeFile]; refreshFiles(); changed(); finishFileChoice(true);
+};
 function updateEditor() {
   const lineCount = editor.value.split("\n").length;
   $("lines").textContent = Array.from({length: lineCount}, (_, i) => i + 1).join("\n");
@@ -38,11 +92,11 @@ function table(headers, rows) {
   const body = t.createTBody(); rows.forEach(row => { const tr = body.insertRow(); row.forEach(cell => tr.append(textElement("td", String(cell ?? "")))); });
   return t;
 }
-function jump(line, filename = "main.c") {
+async function jump(line, filename = entryFile) {
   if (dirty) { toast("源码已变化，请重新分析后定位"); return; }
   const name = Object.keys(files).find(f => f === filename) || Object.keys(files).find(f => f.split("/").at(-1) === filename);
   if (!name) { toast("该节点来自未在编辑器打开的文件"); return; }
-  if (name !== activeFile) switchFile(name);
+  if (name !== activeFile) { if (!await allowFileChange()) return; if (!Object.hasOwn(files, name)) return; switchFile(name); }
   const parts = editor.value.split("\n"); line = Math.max(1, Math.min(line, parts.length));
   const start = parts.slice(0, line - 1).reduce((n, t) => n + t.length + 1, 0);
   editor.focus(); editor.setSelectionRange(start, start + parts[line - 1].length); editor.scrollTop = Math.max(0, (line - 3) * 24); updateEditor();
@@ -119,7 +173,7 @@ async function compile(run) {
 }
 function hideCompletion() { popup.hidden = true; completionData = null; completionTicket++; }
 async function complete(force = false) {
-  if (activeFile !== "main.c" || busy) return;
+  if (!activeFile.endsWith(".c") || busy) return;
   const source = editor.value, cursor = editor.selectionStart; if (editor.selectionEnd !== cursor) return;
   const word = source.slice(0, cursor).match(/[A-Za-z_][A-Za-z_0-9]*$/)?.[0] || "";
   if (!force && word.length < 2 && !/[.>]$/.test(source.slice(0, cursor))) return;
@@ -155,27 +209,59 @@ editor.addEventListener("keydown", e => {
   if (e.key === "Tab") { e.preventDefault(); editor.setRangeText("    ", editor.selectionStart, editor.selectionEnd, "end"); changed(); }
 });
 editor.addEventListener("blur", () => setTimeout(hideCompletion, 120));
-$("file").onchange = e => switchFile(e.target.value);
+$("file").onchange = async e => { const name = e.target.value; e.target.value = activeFile; if (name !== activeFile && !await allowFileChange()) return; switchFile(name); };
+$("entry").onchange = async e => { const name = e.target.value; e.target.value = entryFile; if (name !== activeFile && !await allowFileChange()) return; entryFile = name; switchFile(name); refreshFiles(); changed(); };
 $("stdin").oninput = changed;
 $("run").onclick = () => compile(true); $("analyze").onclick = () => compile(false);
 document.querySelectorAll(".stage-tabs button").forEach(b => b.onclick = () => { view = b.dataset.view; render(); });
-$("add-file").onclick = () => { const name = prompt("本地头文件名，例如 inc/config.h"); if (!name) return; if (!/^[\w\u0080-\uffff /.-]+\.h$/.test(name) || name.split("/").includes("..") || name.startsWith("/")) { toast("请填写项目内的 .h 相对路径"); return; } stash(); files[name] ??= ""; refreshFiles(); switchFile(name); changed(); };
-$("save-source").onclick = () => download(activeFile.split("/").at(-1), editor.value);
-$("save-project").onclick = () => { stash(); download("minic-project.json", JSON.stringify({files, input: $("stdin").value}, null, 2), "application/json"); };
-$("import").onclick = () => $("upload").click();
+async function openNewFile() { if ($("new-file-dialog").open || !await allowFileChange()) return; $("new-file-name").value = ""; $("new-file-error").textContent = ""; $("new-file-dialog").showModal(); $("new-file-name").focus(); }
+$("add-file").onclick = openNewFile;
+document.addEventListener("keydown", e => {
+  if (e.ctrlKey && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "n") { e.preventDefault(); if (!e.repeat) openNewFile(); }
+  if (e.ctrlKey && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "s") { e.preventDefault(); if (!e.repeat && !$("new-file-dialog").open && !$("unsaved-file-dialog").open) saveCurrentFile(); }
+});
+$("cancel-new-file").onclick = () => $("new-file-dialog").close();
+$("new-file-form").onsubmit = e => {
+  e.preventDefault();
+  try {
+    const name = fileName($("new-file-name").value); checkNewName(name, files);
+    if (Object.keys(files).length >= 33) throw new Error("一个项目最多保存 33 个文件");
+    stash(); files[name] = name.endsWith(".c") ? "int main(void) {\n    return 0;\n}\n" : "";
+    newFiles.add(name);
+    if (name.endsWith(".c")) entryFile = name;
+    refreshFiles(); switchFile(name); changed(); $("new-file-dialog").close(); editor.focus();
+    toast(`已创建 ${name}${name.endsWith(".c") ? "，点击「编译并运行」即可运行" : "，在源码中用 #include 引用"}`);
+  } catch (err) { $("new-file-error").textContent = err.message; }
+};
+$("save-source").onclick = saveCurrentFile;
+$("save-project").onclick = async () => { if (savingFile) return; stash(); const version = revision; savingFile = true; const saved = await saveToComputer("minic-project.json", JSON.stringify({files, entry: entryFile, input: $("stdin").value}, null, 2), "application/json"); savingFile = false; if (saved && revision === version) newFiles.clear(); };
+$("import").onclick = async () => { if (await allowFileChange()) $("upload").click(); };
 $("upload").onchange = async e => {
   const file = e.target.files[0]; if (!file) return;
   try {
+    if (!await allowFileChange()) return;
     if (dirty && !confirm("导入会修改当前项目，是否继续？")) return;
     const text = await file.text();
-    if (file.name.endsWith(".json")) { const project = JSON.parse(text); if (!project.files || typeof project.files["main.c"] !== "string" || Object.values(project.files).some(v => typeof v !== "string")) throw new Error("不是有效的工作台项目"); files = project.files; $("stdin").value = project.input || ""; activeFile = "main.c"; }
-    else { stash(); const name = file.name.endsWith(".h") ? file.name : "main.c"; files[name] = text; activeFile = name; }
+    if (file.name.endsWith(".json")) {
+      const project = JSON.parse(text), imported = {};
+      if (!project || !project.files || typeof project.files !== "object" || Array.isArray(project.files) || Object.keys(project.files).length > 33) throw new Error("不是有效的工作台项目");
+      for (const [raw, content] of Object.entries(project.files)) { const name = fileName(raw); checkNewName(name, imported); if (typeof content !== "string") throw new Error("项目文件内容必须为文本"); imported[name] = content; }
+      const entry = fileName(project.entry ?? "main.c");
+      if (!entry.endsWith(".c") || !Object.hasOwn(imported, entry) || (project.input != null && typeof project.input !== "string")) throw new Error("项目需要一个有效的 .c 编译文件");
+      files = imported; newFiles.clear(); entryFile = activeFile = entry; $("stdin").value = project.input || "";
+    } else {
+      const name = fileName(file.name); stash();
+      if (!Object.hasOwn(files, name)) { checkNewName(name, files); if (Object.keys(files).length >= 33) throw new Error("一个项目最多保存 33 个文件"); }
+      else if (!confirm(`覆盖 ${name} 的当前内容？`)) return;
+      files[name] = text; activeFile = name; if (name.endsWith(".c")) entryFile = name;
+    }
     editor.value = files[activeFile]; refreshFiles(); changed();
   } catch (err) { toast(err.message); }
   finally { e.target.value = ""; }
 };
-$("reset").onclick = () => { if (!confirm("清空当前项目？可先使用「保存项目」。")) return; files = {"main.c": ""}; activeFile = "main.c"; editor.value = ""; $("stdin").value = ""; data = null; refreshFiles(); changed(); render(); $("output").textContent = "输出将显示在这里。"; $("diagnostics").textContent = "尚未分析。"; $("diagnostic-count").textContent = "0"; };
+$("reset").onclick = async () => { if (!await allowFileChange() || !confirm("清空当前项目？可先使用「保存项目」。")) return; files = {"main.c": ""}; newFiles.clear(); entryFile = activeFile = "main.c"; editor.value = ""; $("stdin").value = ""; data = null; refreshFiles(); changed(); render(); $("output").textContent = "输出将显示在这里。"; $("diagnostics").textContent = "尚未分析。"; $("diagnostic-count").textContent = "0"; };
 $("export").onclick = () => { if (!data || dirty) { toast("请先分析当前源码"); return; } if (view === "ast") { const current = result.querySelector("svg"); if (!current) { toast("当前没有可导出的语法树"); return; } const svg = current.cloneNode(true); svg.style.removeProperty("width"); svg.style.removeProperty("height"); const style = document.createElementNS(svg.namespaceURI, "style"); style.textContent = ".ast-edge{stroke:#aec4a6;fill:none}.ast-node rect{fill:#fffef9;stroke:#b6cbb0}.ast-node text{font:11px monospace;fill:#183a35}.node-type{font-size:9px}"; svg.prepend(style); download("minic-ast.svg", new XMLSerializer().serializeToString(svg), "image/svg+xml"); } else if (view === "compare") download("minic-optimization.txt", "优化前\n" + (data.baseline?.text || "") + "\n优化后\n" + (data.optimized?.text || "")); else download("minic-results.json", JSON.stringify(data, null, 2), "application/json"); };
-$("example").onchange = e => { if (!e.target.value) return; if (dirty && !confirm("载入示例会替换当前项目，是否继续？")) { e.target.value = ""; return; } const item = examples[Number(e.target.value) - 1]; files = {"main.c": item.source, ...item.files}; activeFile = "main.c"; editor.value = files[activeFile]; $("stdin").value = item.input; refreshFiles(); data = null; changed(); render(); };
+$("example").onchange = async e => { const choice = e.target.value; if (!choice) return; if (!await allowFileChange() || (dirty && !confirm("载入示例会替换当前项目，是否继续？"))) { e.target.value = ""; return; } const item = examples[Number(choice) - 1]; files = {"main.c": item.source, ...item.files}; newFiles.clear(); entryFile = activeFile = "main.c"; editor.value = files[activeFile]; $("stdin").value = item.input; refreshFiles(); data = null; changed(); render(); };
+window.addEventListener("beforeunload", e => { if (newFiles.size) { e.preventDefault(); e.returnValue = ""; } });
 async function init() { try { examples = await (await fetch("/api/examples")).json(); examples.forEach((e, i) => $("example").add(new Option(e.name, String(i + 1)))); files["main.c"] = examples[0].source; editor.value = files["main.c"]; refreshFiles(); updateEditor(); } catch (e) { toast("无法载入示例：" + e.message); } }
 init();

@@ -4,6 +4,7 @@ import argparse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path, PurePosixPath
+import re
 import subprocess
 import tempfile
 import threading
@@ -14,33 +15,54 @@ ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "web"
 
 
+def project_path(name):
+    # 项目文件只使用相对路径，统一拒绝 Windows 保留名字和容易混淆的路径。
+    if not isinstance(name, str):
+        raise ValueError("文件名必须为文本")
+    name = name.strip().replace("\\", "/")
+    parts = name.split("/")
+    if len(name) > 180 or not re.fullmatch(r"[\w\u0080-\uffff /.-]+\.(c|h)", name) or any(
+        not part or part in (".", "..") or part.endswith((".", " ")) or
+        re.match(r"^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)", part, re.I)
+        for part in parts
+    ) or parts[0].lower() == "input.txt":
+        raise ValueError("文件名应为项目内的 .c 或 .h 相对路径")
+    return PurePosixPath(name)
+
+
 def invoke(driver, payload, action):
     source = payload.get("source", "")
     stdin = payload.get("input", "")
     files = payload.get("files", {})
     if not isinstance(source, str) or not isinstance(stdin, str) or not isinstance(files, dict):
-        raise ValueError("源码、输入或头文件格式不正确")
+        raise ValueError("源码、输入或项目文件格式不正确")
     if len(files) > 32 or len(source.encode("utf-8")) > 262144 or len(stdin.encode("utf-8")) > 65536:
-        raise ValueError("源码、输入或头文件数量超过工作台限制")
+        raise ValueError("源码、输入或项目文件数量超过工作台限制")
+    entry = project_path(payload.get("entry", "main.c"))
+    if entry.suffix != ".c":
+        raise ValueError("编译文件必须是 .c 源文件")
+    project = {entry: source}
+    for name, text in files.items():
+        if not isinstance(text, str):
+            raise ValueError("项目文件内容必须为文本")
+        path = project_path(name)
+        lower = str(path).lower()
+        if any(lower == str(p).lower() or lower.startswith(str(p).lower() + "/") or str(p).lower().startswith(lower + "/") for p in project):
+            raise ValueError("项目文件重名或目录冲突")
+        if len(text.encode("utf-8")) > 262144:
+            raise ValueError("项目文件过大")
+        project[path] = text
     with tempfile.TemporaryDirectory(prefix="minic-workbench-") as temporary:
         folder = Path(temporary)
-        (folder / "main.c").write_text(source, encoding="utf-8")
         (folder / "input.txt").write_text(stdin, encoding="utf-8")
-        for name, text in files.items():
-            if not isinstance(name, str) or not isinstance(text, str):
-                raise ValueError("头文件必须是名字与文本")
-            path = PurePosixPath(name.replace("\\", "/"))
-            if path.is_absolute() or ".." in path.parts or not path.parts or ":" in name or path.parts[0] in ("main.c", "input.txt"):
-                raise ValueError("头文件名应为项目内的相对路径")
-            if len(text.encode("utf-8")) > 262144:
-                raise ValueError("头文件过大")
+        for path, text in project.items():
             target = folder.joinpath(*path.parts)
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_text(text, encoding="utf-8")
         cursor = payload.get("cursor", 0)
         if not isinstance(cursor, int) or cursor < 0 or cursor > len(source.encode("utf-8")):
             raise ValueError("光标位置无效")
-        result = subprocess.run([str(driver), action, str(folder / "main.c"), str(folder / "input.txt"), str(cursor)],
+        result = subprocess.run([str(driver), action, str(folder.joinpath(*entry.parts)), str(folder / "input.txt"), str(cursor), str(folder)],
                                 capture_output=True, timeout=15)
         if result.returncode:
             raise ValueError(result.stderr.decode("utf-8", errors="replace") or "编译服务失败")
