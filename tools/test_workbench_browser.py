@@ -51,7 +51,7 @@ def main():
 
         editor = page.locator("#editor")
         # 成对输入后的光标在中间；已有结束符直接跳过，空配对可一起删除。
-        for opening, closing in (('{', '}'), ('"', '"'), ("'", "'")):
+        for opening, closing in (('{', '}'), ('(', ')'), ('"', '"'), ("'", "'")):
             editor.fill('')
             editor.press(opening)
             expect(editor).to_have_value(opening + closing)
@@ -92,10 +92,22 @@ def main():
             editor.press('Enter')
             expect(editor).to_have_value(source + '\n\t')
         for comment in ('// ', '/* '):
-            for key in ('{', '"', "'"):
+            for key in ('{', '(', '"', "'"):
                 editor.fill(comment)
                 editor.press(key)
                 expect(editor).to_have_value(comment + key)
+        editor.fill('printf')
+        editor.press('(')
+        editor.press('(')
+        expect(editor).to_have_value('printf(())')
+        editor.press(')')
+        editor.press(')')
+        expect(editor).to_have_value('printf(())')
+        assert editor.evaluate('e => e.selectionStart === e.value.length')
+        editor.fill('""')
+        editor.evaluate('e => e.setSelectionRange(1,1)')
+        editor.press('(')
+        expect(editor).to_have_value('"("')
         editor.fill('char *s = "";')
         editor.evaluate('e => {const p=e.value.indexOf(";")-1;e.setSelectionRange(p,p);}')
         page.keyboard.insert_text('\\')

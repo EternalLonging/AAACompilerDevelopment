@@ -227,7 +227,7 @@ function insertEditorText(text, start = editor.selectionStart, end = editor.sele
 }
 function editPairOrIndent(e) {
   if (e.ctrlKey || e.altKey || e.metaKey || e.isComposing) return false;
-  if (!["Enter", "Tab", "Backspace", "{", "}", '"', "'"].includes(e.key)) return false;
+  if (!["Enter", "Tab", "Backspace", "{", "}", "(", ")", '"', "'"].includes(e.key)) return false;
   const source = editor.value, start = editor.selectionStart, end = editor.selectionEnd;
   const context = editingContext(source, start), lineStart = source.lastIndexOf("\n", start - 1) + 1;
   const selectedText = source.slice(start, end), next = source[start], before = source.slice(lineStart, start);
@@ -242,7 +242,7 @@ function editPairOrIndent(e) {
   }
   if (e.key === "Tab" && !e.shiftKey) { e.preventDefault(); insertEditorText("\t"); return true; }
   if (e.key === "Backspace" && start === end && start > 0 &&
-      ((source[start - 1] === "{" && next === "}") || (source[start - 1] === '"' && next === '"') || (source[start - 1] === "'" && next === "'")) && editingContext(source, start - 1).state === "code") {
+      ((source[start - 1] === "{" && next === "}") || (source[start - 1] === "(" && next === ")") || (source[start - 1] === '"' && next === '"') || (source[start - 1] === "'" && next === "'")) && editingContext(source, start - 1).state === "code") {
     e.preventDefault(); insertEditorText("", start - 1, start + 1); return true;
   }
   if ((e.key === '"' || e.key === "'") && start === end && next === e.key && !context.escaped &&
@@ -254,8 +254,11 @@ function editPairOrIndent(e) {
     const indent = closeStart === lineStart ? "\t".repeat(Math.max(0, context.depth - 1)) : "";
     insertEditorText(indent + "}", closeStart, start === end && next === "}" ? end + 1 : end); return true;
   }
-  if (context.state === "code" && ["{", '"', "'"].includes(e.key)) {
-    e.preventDefault(); const close = e.key === "{" ? "}" : e.key;
+  if (e.key === ")" && context.state === "code" && start === end && next === ")") {
+    e.preventDefault(); hideCompletion(); editor.setSelectionRange(start + 1, start + 1); updateEditor(); return true;
+  }
+  if (context.state === "code" && ["{", "(", '"', "'"].includes(e.key)) {
+    e.preventDefault(); const close = e.key === "{" ? "}" : e.key === "(" ? ")" : e.key;
     insertEditorText(e.key + selectedText + close, start, end, start + 1, start + 1 + selectedText.length); return true;
   }
   return false;
