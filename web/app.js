@@ -178,12 +178,15 @@ async function complete(force = false) {
   const word = source.slice(0, cursor).match(/[A-Za-z_][A-Za-z_0-9]*$/)?.[0] || "";
   if (!force && word.length < 2 && !/[.>]$/.test(source.slice(0, cursor))) return;
   const ticket = ++completionTicket, version = revision, filename = activeFile;
+  const begin = cursor - word.length, encoder = new TextEncoder();
+  const beginByte = encoder.encode(source.slice(0, begin)).length, endByte = encoder.encode(source.slice(0, cursor)).length;
   try {
-    const body = await api("/api/complete", {source, cursor: new TextEncoder().encode(source.slice(0, cursor)).length});
+    const body = await api("/api/complete", {source, cursor: endByte});
     if (ticket !== completionTicket || version !== revision || filename !== activeFile || source !== editor.value || cursor !== editor.selectionStart || cursor !== editor.selectionEnd) return;
     // 编辑器也按当前前缀过滤，避免旧结果或异常候选被显示和插入。
     body.items = body.items.filter(item => item.label.startsWith(word));
-    completionData = {body, source, cursor, filename}; selected = 0; popup.replaceChildren();
+    if (body.items.length && (body.begin !== beginByte || body.end !== endByte)) { hideCompletion(); toast("补全位置不一致，请重新分析源码"); return; }
+    completionData = {body, source, begin, cursor, filename}; selected = 0; popup.replaceChildren();
     if (!body.items.length) { popup.hidden = true; if (force) toast("当前位置没有可用候选"); return; }
     body.items.slice(0, 50).forEach((item, i) => { const b = document.createElement("button"); b.setAttribute("role", "option"); b.append(textElement("span", item.kind, "badge"), textElement("span", item.label), textElement("small", item.detail)); b.addEventListener("mousedown", e => { e.preventDefault(); insertCompletion(i); }); popup.append(b); });
     popup.hidden = false; popup.style.top = Math.min(205, Math.max(35, source.slice(0, cursor).split("\n").length * 24 - editor.scrollTop + 18)) + "px"; selectCompletion();
@@ -193,9 +196,8 @@ async function complete(force = false) {
 function selectCompletion() { [...popup.children].forEach((e, i) => { e.classList.toggle("selected", i === selected); e.setAttribute("aria-selected", i === selected); }); popup.children[selected]?.scrollIntoView({block: "nearest"}); }
 function insertCompletion(i = selected) {
   if (!completionData) return;
-  const {body, source, cursor, filename} = completionData;
+  const {body, source, begin, cursor, filename} = completionData;
   if (source !== editor.value || cursor !== editor.selectionStart || cursor !== editor.selectionEnd || filename !== activeFile || !body.items[i]) { hideCompletion(); return; }
-  const begin = new TextDecoder().decode(new TextEncoder().encode(source).slice(0, body.begin)).length;
   editor.setRangeText(body.items[i].label, begin, cursor, "end"); changed(); editor.focus();
 }
 editor.addEventListener("input", () => { changed(); clearTimeout(timer); timer = setTimeout(() => complete(), 280); });

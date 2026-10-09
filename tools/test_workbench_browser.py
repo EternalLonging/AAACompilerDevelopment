@@ -62,6 +62,21 @@ def main():
         expect(page.locator("#completion")).to_contain_text("score", timeout=15000)
         editor.press("Enter")
         assert editor.input_value().endswith("item.score")
+        # 真实键入多行源码中的 pr，Enter/Tab/点击都应替换前缀，不能追加 prprintf。
+        for comment in ('', '/* 中文说明 😀 */\n'):
+            for accept in ('Enter', 'Tab', 'click'):
+                source = comment + 'int main(void) {\n    int a;\n    \n}'
+                editor.fill(source)
+                editor.evaluate("e => {const p=e.value.lastIndexOf('\\n}');e.setSelectionRange(p,p);}")
+                editor.press('p')
+                editor.press('r')
+                expect(page.locator('#completion')).to_be_visible(timeout=15000)
+                assert page.locator('#completion button > span:nth-child(2)').all_text_contents() == ['printf']
+                if accept == 'click':
+                    page.locator('#completion button').first.click()
+                else:
+                    editor.press(accept)
+                expect(editor).to_have_value(source.replace('    \n}', '    printf\n}'))
         # pr 只显示匹配前缀，按当前、外层、全局作用域排序。
         ranked = 'int prefix;int main(void){int project;int a;{int prize;pr}}'
         editor.fill(ranked)

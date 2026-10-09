@@ -56,6 +56,14 @@ def main():
     prefix_source = 'int main(void){int a;pr}'
     prefix_completed = server_module.invoke(driver, {"source": prefix_source, "cursor": len(prefix_source)-1}, "complete")
     check([item["label"] for item in prefix_completed["items"]] == ["printf"], "pr 只匹配 printf，不能混入 a 或 main")
+    for newline in ("\n", "\r\n"):
+        for comment in ("", "/* 中文说明 😀 */" + newline):
+            multiline = comment + newline.join(['int main(void) {', '    int a;', '    pr', '}'])
+            cursor = len(multiline[:multiline.index('pr')+2].encode('utf-8'))
+            response = server_module.invoke(driver, {"source": multiline, "cursor": cursor}, "complete")
+            check(response["begin"] == cursor-2 and response["end"] == cursor and
+                  [item["label"] for item in response["items"]] == ["printf"],
+                  "多行源码的换行、中文和表情不能改变 pr 的字节范围或候选")
     ranked_source = 'int prefix;int main(void){int project;{int prize;pr}}'
     ranked_completed = server_module.invoke(driver, {"source": ranked_source, "cursor": len(ranked_source)-2}, "complete")
     check([item["label"] for item in ranked_completed["items"]] == ["prize", "project", "prefix", "printf"], "前缀匹配后按作用域由近到远排序")
