@@ -39,6 +39,9 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/lexer.cpp" AND
     endif()
     add_executable(minic src/main.cpp)
     target_link_libraries(minic PRIVATE minic_compiler)
+    if(MINGW)
+        target_link_options(minic PRIVATE -municode)
+    endif()
     add_executable(compile_and_run examples/compile_and_run.cpp)
     target_link_libraries(compile_and_run PRIVATE minic_compiler)
 endif()
@@ -85,6 +88,8 @@ if(BUILD_TESTING)
             add_test(NAME source_integration COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_integration.py
                      --compiler $<TARGET_FILE:integration_driver>)
             add_test(NAME cli_acceptance COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_acceptance.py
+                     $<TARGET_FILE:minic>)
+            add_test(NAME cli_preprocessing COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tools/test_cli_preprocessing.py
                      $<TARGET_FILE:minic>)
         endif()
     endif()
