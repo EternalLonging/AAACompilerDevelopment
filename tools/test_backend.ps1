@@ -5,7 +5,7 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 Push-Location $projectRoot
 try {
     New-Item -ItemType Directory -Force build | Out-Null
-    $sources = @('src/constant_pool.cpp', 'src/diagnostic.cpp', 'src/symbol_table.cpp',
+    $sources = @('src/preprocessor.cpp', 'src/constant_pool.cpp', 'src/diagnostic.cpp', 'src/symbol_table.cpp',
         'src/type_rules.cpp', 'src/semantic.cpp', 'src/ir.cpp', 'src/interpreter.cpp',
         'src/display.cpp', 'src/compilation_result.cpp')
     $objects = @()
@@ -15,7 +15,7 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "编译失败：$source" }
         $objects += $object
     }
-    foreach ($name in @('constant_pool', 'symbol_table', 'm1_pipeline', 'm2_pipeline', 'm3_pipeline', 'compiler_flow')) {
+    foreach ($name in @('constant_pool', 'symbol_table', 'm1_pipeline', 'm2_pipeline', 'm3_pipeline', 'm4_pipeline', 'preprocessor', 'compiler_flow')) {
         $testSources = @("tests/${name}_test.cpp")
         if ($name -eq 'compiler_flow') { $testSources += 'src/compiler.cpp' }
         & $Compiler '-std=c++17' '-Wall' '-Wextra' '-Wpedantic' '-Werror' '-I' 'include' @testSources @objects '-o' "build/${name}_test.exe"

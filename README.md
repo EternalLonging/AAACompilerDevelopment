@@ -6,7 +6,7 @@
 
 使用 **C++17** 实现可展示内部过程的 C 语言编译器：词法分析 → 语法分析 → 语义分析 → 四元式生成 → 解释器执行。符号表与统一诊断服务各阶段，最终词法规则采用 **C89** 范围，并保留项目要求的 `//` 注释扩展。
 
-已完成公共结构体、模块接口、最终词法正则、常量池、符号表、统一诊断、M1/M2 的后续流程，以及对象指针、数组传参、typedef、enum、goto、位运算、静态存储和安全常量折叠。**目前可以独立运行“手动 AST → 语义 → 四元式 → 执行”；词法和语法由其他同学交付，接入前还不能直接编译 C 源文件。** union、扩展数值类型、函数指针、外部对象链接、预处理和标准库等完整 C 功能仍待扩展。
+已完成公共结构体、模块接口、最终词法正则、常量池、符号表、统一诊断、M1/M2 后续流程，以及对象指针、数组传参、typedef、enum、goto、位运算、静态存储和安全常量折叠。本轮进一步实现 union、short/long/unsigned/double、函数指针回调、extern 对象声明、聚合函数传值与返回、字符串指针输入输出，以及独立预处理和总控入口。**目前可以独立运行“手动 AST → 语义 → 四元式 → 执行”和预处理源码；词法和语法由其他同学交付，接入前还不能直接编译 C 源文件。** 完整 C89、跨文件链接、动态内存和完整标准库仍未完成，见 [本轮交付范围](docs/backend-completion.md)。
 
 | 已完成内容 | 入口 |
 |---|---|
@@ -22,7 +22,7 @@
 | 常量池：按类型和值去重、稳定编号与四元式常量操作数 | [src/constant_pool.cpp](src/constant_pool.cpp)、[docs/constant-pool.md](docs/constant-pool.md) |
 | 符号表：作用域、普通名字、标签、成员、函数声明、内建函数与补全 | [src/symbol_table.cpp](src/symbol_table.cpp)、[docs/symbol-table.md](docs/symbol-table.md) |
 | 统一诊断：中文消息、行列、关联位置、错误数量限制 | [src/diagnostic.cpp](src/diagnostic.cpp) |
-| 类型规则：类型比较、M1 算术提升及赋值兼容 | [src/type_rules.cpp](src/type_rules.cpp) |
+| 类型规则：类型比较、扩展数值算术提升及赋值兼容 | [src/type_rules.cpp](src/type_rules.cpp) |
 | 符号表运行示例与行为测试 | [examples/symbol_table_demo.cpp](examples/symbol_table_demo.cpp)、[tests/symbol_table_test.cpp](tests/symbol_table_test.cpp) |
 | 常量池行为测试 | [tests/constant_pool_test.cpp](tests/constant_pool_test.cpp) |
 | M1 语义检查：类型/左值、声明、函数调用、返回与格式串 | [src/semantic.cpp](src/semantic.cpp) |
@@ -34,6 +34,8 @@
 | M2 数组/结构体/控制流与指针等扩展说明 | [docs/backend-extensions.md](docs/backend-extensions.md) |
 | M2 示例与 7 组行为测试 | [examples/m2_pipeline_demo.cpp](examples/m2_pipeline_demo.cpp)、[tests/m2_pipeline_test.cpp](tests/m2_pipeline_test.cpp) |
 | 指针、别名、枚举、标签、位运算和静态存储的 9 组测试 | [tests/m3_pipeline_test.cpp](tests/m3_pipeline_test.cpp) |
+| 扩展类型、union、函数指针、extern、字符串与聚合调用的 7 组测试 | [tests/m4_pipeline_test.cpp](tests/m4_pipeline_test.cpp) |
+| 独立预处理、宏、条件表达式与包含，以及原始行号映射 | [include/minic/preprocessor.hpp](include/minic/preprocessor.hpp)、[docs/preprocessor.md](docs/preprocessor.md) |
 | 支持范围、构建方法与给同学的 AST 交接说明 | [docs/m1-backend.md](docs/m1-backend.md) |
 | 构建配置与独立测试脚本 | [CMakeLists.txt](CMakeLists.txt)、[tools/test_backend.ps1](tools/test_backend.ps1) |
 | 原有四元式教学演示，不使用本次公共接口 | [ir_demo.cpp](ir_demo.cpp) |
@@ -58,7 +60,7 @@ g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -I include examples/symbol_table
 
 compile_and_run.cpp 的总控已有实现，但仍需要词法/语法函数才能链接完整流程，目前可做声明层编译检查。interface_demo.cpp 需链接常量池实现，其输出演示数据组装；symbol_table_demo.cpp 展示作用域遮蔽、前缀查询及重复声明报错。
 
-两个行为测试分别验证常量池和符号表/诊断/类型规则。类型转换目前限 M1 的有符号 char、int、float；结构体布局由语义模块计算后交给符号表校验；补全目前按单源文件字节位置处理。详细范围见上述模块文档。头文件和实现中的说明采用简短中文注释。
+基础行为测试分别验证常量池和符号表/诊断/类型规则，扩展类型及 struct/union 布局已接入后续流程；补全目前按单源文件字节位置处理。详细范围见上述模块文档。头文件和实现中的说明采用简短中文注释。
 
 新增 M1 后续模块可直接使用统一脚本严格编译并测试：
 
@@ -68,7 +70,7 @@ compile_and_run.cpp 的总控已有实现，但仍需要词法/语法函数才�
 & tools/test_backend.ps1 -Compiler 'D:/G++/MinGW/bin/g++.exe'
 ```
 
-脚本严格编译并运行原有测试、M1 的 9 组、M2 的 7 组、指针等扩展的 9 组、编译总控测试及示例。M1 示例输入 5 输出 `sum = 15`，M2 示例输出 `S = 9`。总控测试中的词法/语法替身只在测试程序中链接，不属于正式编译器实现。
+脚本严格编译并运行基础测试、M1–M4、预处理、编译总控测试及示例。M1 示例输入 5 输出 `sum = 15`，M2 示例输出 `S = 9`。总控测试中的词法/语法替身只在测试程序中链接，不属于正式编译器实现。
 
 安装 CMake 后也可以使用：
 
@@ -78,7 +80,7 @@ cmake --build build/cmake
 ctest --test-dir build/cmake --output-on-failure
 ```
 
-本次已实际运行严格 g++ 脚本及 CMake 配置、构建和 CTest，7 项测试全部通过。`src/lexer.cpp`、`src/parser.cpp` 交付后重新配置 CMake，即可建立完整 minic 命令行和 compile_and_run 示例。当前支持范围、限制、节点顺序、目标布局、指针边界和新四元式见 [后续模块交接说明](docs/backend-extensions.md)，公共字段保持不变，说明合同更新至 v1.3。
+验证使用严格 g++ 脚本及 CMake/CTest 的 9 项回归测试。`src/lexer.cpp`、`src/parser.cpp` 交付后重新配置 CMake，即可建立完整 minic 命令行和 compile_and_run 示例。当前支持范围、限制、节点顺序、目标布局、指针边界和新四元式见 [后续模块交接说明](docs/backend-extensions.md) 和 [本轮交付](docs/backend-completion.md)。原公共字段保持不变，新预处理结果及总控接口采用增量扩展。
 
 ## 语言目标与协作
 

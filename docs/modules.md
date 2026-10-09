@@ -113,12 +113,12 @@ diagnostics.report(Level::Error, node.range,
 | 函数 | 判断内容 | 返回约定 |
 |---|---|---|
 | same_type(left, right) | 已解析类型的结构相等性，含限定符、函数签名和记录身份 | bool；任一空指针为 false |
-| arithmetic_result(left, right) | M1 的算术公共类型：char 提升为 int，出现 float 则为 float | TypePtr；不合法返回非空 Error 类型 |
-| can_assign(target, source) | M1 相同基本类型、char→int、int/char→float 的赋值兼容性 | bool；未知、非法及不支持组合为 false |
+| arithmetic_result(left, right) | char/short 整数提升及 unsigned/long/float/double/long double 公共类型 | TypePtr；不合法返回非空 Error 类型 |
+| can_assign(target, source) | 基础与扩展数值赋值兼容性 | bool；未知、非法及不支持组合为 false |
 
 这三个函数不打印、不登记符号、不收集诊断，也不检查左值属性；调用者结合 AST 的 category 和 const 限定符诊断。Error 子表达式向父节点传播时应抑制重复报错。比较与逻辑表达式结果类型为 int，不能把结果类型当成两个操作数的公共算术类型。M1 以外的转换按后续语言规格统一扩展。
 
-实现位于 src/type_rules.cpp。same_type 对 Unknown、Error、未解析 Named 及缺失记录编号返回 false；这是严格的结构相等判断，尚未实现完整 C 的函数类型兼容与形参限定符归一化。算术和赋值只处理 M1 的有符号 char / int / float，忽略顶层 const / volatile；unsigned、short、long、double、指针和数组转换暂不支持。
+实现位于 src/type_rules.cpp。same_type 对 Unknown、Error、未解析 Named 及缺失记录编号返回 false；这是严格的结构相等判断，尚未实现完整 C 的函数类型兼容与形参限定符归一化。算术和赋值支持扩展数值类型，忽略顶层 const / volatile；原 MiniC 的 char/int/float 隐式缩窄限制保留。指针、数组、聚合转换由 analyze 结合 AST 处理。
 
 上述 can_assign 保留基础数值类型判断。analyze 另外按 AST 检查兼容对象指针、整型零空指针常量、结构体同型拷贝和数组退化；generate/run 使用私有类型辅助函数保持一致。这些规则不能只根据来源 TypeKind 判断，例如 int 类型的普通变量并不自动成为空指针常量。
 
@@ -143,6 +143,8 @@ RunResult 保存 executed_steps、diagnostics 和可选 exit_code。正常完成
 ## 7. 总控与命令行的对应
 
 compile(source, filename, target) 保存所有已执行阶段的产物并汇总诊断，不读取文件、不打印、不运行代码。CompilationResult 的阶段字段采用 optional，以区分“未运行”和“已运行但失败”。
+
+新增 compile_preprocessed(source, filename, target, loader)，先展开宏和头文件再调用后续阶段。CompilationResult.preprocessing 保存源码、行映射及预处理诊断；失败时不调用词法。原 compile 不自动预处理。宏与头文件后的定位只保证原始行号，映射列号置 1、偏移置 0。接口与范围见 [preprocessor.md](preprocessor.md)。
 
 | 用户命令 | CompileTarget | 使用的结果 |
 |---|---|---|

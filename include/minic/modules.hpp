@@ -9,5 +9,6 @@
 #include "minic/ir.hpp"
 #include "minic/lexer.hpp"
 #include "minic/parser.hpp"
+#include "minic/preprocessor.hpp"
 #include "minic/semantic.hpp"
 #include "minic/symbol_table.hpp"

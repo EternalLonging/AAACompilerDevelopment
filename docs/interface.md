@@ -76,7 +76,7 @@ Token / Diagnostic 保留需求资料中的 `line`、`col` 简便字段，它们
 
 每一层单独携带 const / volatile，不能用“指针层数”代替递归类型，否则无法区分 `int *a[3]` 与 `int (*a)[3]`。array_length 为空表示长度尚未确定，**不代表长度 0**。
 
-Function 的 params 存 **形参类型**，Call 的 children 存 **实参表达式**。printf/scanf 的签名标为 variadic，固定参数是格式串；SymbolEntry.builtin 指明需要格式检查。M1 解释器按本组 float 输出约定处理；完整 C 的默认实参提升（float → double 等）留给后续里程碑，不把两套规则混用。`has_prototype=false` 表示 C 风格 `f()` 的未指定参数，与 `f(void)` 的零参数原型不同。
+Function 的 params 存 **形参类型**，Call 的 children 存 **实参表达式**。固定签名函数指针用 Pointer.base=Function 表示，Call 的首孩子也可为函数指针表达式。printf/scanf 的签名标为 variadic，固定参数是格式串；SymbolEntry.builtin 指明需要格式检查。解释器按本组数值约定处理；完整 C 的默认实参提升规则尚未全部实现。`has_prototype=false` 表示 C 风格 `f()` 的未指定参数，与 `f(void)` 的零参数原型不同。
 
 解析阶段创建声明中写出的类型：`struct T` 可先只有 name，record_id 为 invalid_id；typedef 名可先为 Named。语义按该声明的作用域解析，递归生成新的、已解析的 TypeInfo，写入 AST.type / SymbolEntry.type。禁止修改已有共享类型，更不能仅按标签字符串全局合并类型。后续重声明处理必须复用同一个记录身份。
 

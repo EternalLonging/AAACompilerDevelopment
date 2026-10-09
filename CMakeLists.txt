@@ -9,6 +9,7 @@ if(MSVC)
 endif()
 
 add_library(minic_backend STATIC
+    src/preprocessor.cpp
     src/constant_pool.cpp
     src/diagnostic.cpp
     src/symbol_table.cpp
@@ -44,7 +45,7 @@ endforeach()
 
 include(CTest)
 if(BUILD_TESTING)
-    foreach(test constant_pool symbol_table m1_pipeline m2_pipeline m3_pipeline)
+    foreach(test constant_pool symbol_table m1_pipeline m2_pipeline m3_pipeline m4_pipeline preprocessor)
         add_executable(${test}_test tests/${test}_test.cpp)
         target_link_libraries(${test}_test PRIVATE minic_backend)
         add_test(NAME ${test} COMMAND ${test}_test)

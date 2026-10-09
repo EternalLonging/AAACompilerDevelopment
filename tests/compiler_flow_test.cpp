@@ -71,6 +71,15 @@ int main() {
         try { compile("success", "flow.c", static_cast<CompileTarget>(100)); }
         catch (const std::invalid_argument&) { rejected = true; }
         require(rejected, "无效目标必须拒绝");
+        lexer_calls = parser_calls = 0;
+        const auto pp_failure = compile_preprocessed("#error stop", "main.c");
+        require(!pp_failure.ok() && pp_failure.preprocessing && !pp_failure.lexical && lexer_calls == 0, "预处理失败应阻止词法");
+        const auto pp_success = compile_preprocessed("#define VALUE success\nVALUE", "main.c", CompileTarget::IR);
+        require(pp_success.ok() && pp_success.preprocessing && mode.find("success") != std::string::npos, "展开结果应交给词法");
+        const auto pp_header = compile_preprocessed("#include \"test.h\"", "main.c", CompileTarget::Tokens,
+            [](const std::string&, const std::string&) -> std::optional<std::string> { return "success"; });
+        require(pp_header.ok() && pp_header.lexical->tokens[0].range.file == "test.h" &&
+                pp_header.lexical->tokens[0].line == 1, "头文件单词应映射到原文件");
         std::cout << "编译总控：阶段停止、错误传播和结果归属检查全部通过\n";
         return 0;
     } catch (const std::exception& error) {
