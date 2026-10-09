@@ -31,23 +31,25 @@ try {
     }
     # 总控替身测试保持隔离，正式前端对象只链接真实源码测试和命令行。
     $frontendObjects = @()
-    foreach ($source in @('src/lexer.cpp', 'src/parser.cpp', 'src/compiler.cpp')) {
+    foreach ($source in @('src/lexer.cpp', 'src/parser.cpp', 'src/compiler.cpp', 'src/completion.cpp')) {
         $object = 'build/' + [System.IO.Path]::GetFileNameWithoutExtension($source) + '.o'
         & $Compiler '-std=c++17' '-Wall' '-Wextra' '-Wpedantic' '-Werror' '-I' 'include' '-c' $source '-o' $object
         if ($LASTEXITCODE -ne 0) { throw "前端编译失败：$source" }
         $frontendObjects += $object
     }
-    foreach ($name in @('frontend_test', 'lexer_probe', 'minic', 'compile_and_run')) {
+    foreach ($name in @('frontend_test', 'workbench_test', 'lexer_probe', 'minic', 'compile_and_run', 'workbench_driver')) {
         $source = if ($name -eq 'minic') { 'src/main.cpp' } elseif ($name -eq 'compile_and_run') {
             'examples/compile_and_run.cpp'
-        } else { "tests/${name}.cpp" }
+        } elseif ($name -eq 'workbench_driver') { 'tools/workbench_driver.cpp' } else { "tests/${name}.cpp" }
         $linkOptions = @()
-        if ($name -eq 'minic' -and $env:OS -eq 'Windows_NT') { $linkOptions += '-municode' }
+        if ($name -in @('minic', 'workbench_driver') -and $env:OS -eq 'Windows_NT') { $linkOptions += '-municode' }
         & $Compiler '-std=c++17' '-Wall' '-Wextra' '-Wpedantic' '-Werror' '-I' 'include' $source @frontendObjects @objects @linkOptions '-o' "build/${name}.exe"
         if ($LASTEXITCODE -ne 0) { throw "前端链接失败：$name" }
     }
     & './build/frontend_test.exe'
     if ($LASTEXITCODE -ne 0) { throw '前端测试失败' }
+    & './build/workbench_test.exe'
+    if ($LASTEXITCODE -ne 0) { throw '补全和优化测试失败' }
     & './build/minic.exe' 'run' 'examples/frontend_demo.c'
     if ($LASTEXITCODE -ne 0) { throw '源码示例失败' }
     python tools/generate_lexer_dfa.py --check
@@ -56,6 +58,8 @@ try {
     if ($LASTEXITCODE -ne 0) { throw '词法对照测试失败' }
     python tools/test_cli_preprocessing.py build/minic.exe
     if ($LASTEXITCODE -ne 0) { throw '命令行预处理测试失败' }
+    python tools/test_workbench_service.py build/workbench_driver.exe
+    if ($LASTEXITCODE -ne 0) { throw '工作台服务测试失败' }
 } finally {
     Pop-Location
 }

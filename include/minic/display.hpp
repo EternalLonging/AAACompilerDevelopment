@@ -4,6 +4,11 @@
 
 namespace minic {
 
+// 返回单词、节点和类型的可读名字，供文本及图形界面共用。
+std::string token_type_name(TokenType type);
+std::string ast_node_name(NodeType type);
+std::string describe_type(const TypePtr& type);
+
 // 打印单词表。
 void print_tokens(const std::vector<Token>& tokens, std::ostream& output);
 // 打印抽象语法树。

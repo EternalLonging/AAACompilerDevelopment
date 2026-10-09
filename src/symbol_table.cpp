@@ -311,6 +311,11 @@ std::vector<SymbolId> SymbolTable::prefix_query(const std::string& prefix, Scope
     return collect_prefix(data_, prefix, scope, &cursor);
 }
 
+std::vector<SymbolId> visible_symbols(const SymbolTableData& data, const std::string& prefix,
+                                      ScopeId scope, const SourceLocation& cursor) {
+    return collect_prefix(data, prefix, scope, &cursor);
+}
+
 const SymbolTableData& SymbolTable::data() const noexcept { return data_; }
 SymbolTableData SymbolTable::release() && { return std::move(data_); }
 

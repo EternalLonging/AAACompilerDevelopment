@@ -2,6 +2,7 @@
 
 // 模块接口统一入口。
 #include "minic/compiler.hpp"
+#include "minic/completion.hpp"
 #include "minic/constant_pool.hpp"
 #include "minic/diagnostic.hpp"
 #include "minic/display.hpp"
