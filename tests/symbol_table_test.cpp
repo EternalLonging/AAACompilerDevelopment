@@ -146,6 +146,12 @@ static void test_types() {
     different->variadic = false;
     different->has_prototype = false;
     require(!same_type(signature, different), "原型标记参与签名比较");
+    auto constant = std::make_shared<TypeInfo>(*integer); constant->is_const = true;
+    require(same_type(function(integer, {integer}), function(integer, {constant})), "形参顶层 const 不影响签名");
+    require(!same_type(function(integer, {indirect(TypeKind::Pointer, integer)}),
+                       function(integer, {indirect(TypeKind::Pointer, constant)})), "所指对象的 const 仍影响签名");
+    require(same_type(function(integer, {indirect(TypeKind::Array, integer, 3)}),
+                      function(integer, {indirect(TypeKind::Pointer, integer)})), "数组形参应按指针比较");
 }
 
 static void test_scopes_and_functions() {

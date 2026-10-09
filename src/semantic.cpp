@@ -94,6 +94,7 @@ class Analyzer {
                 parameter = resolve(parameter, node, depth + 1);
                 if (parameter->kind == TypeKind::Array) parameter = detail::pointer(parameter->base);
                 else if (parameter->kind == TypeKind::Function) parameter = detail::pointer(parameter);
+                parameter = detail::unqualified(parameter);
             }
         } else if (!detail::numeric(source) && source->kind != TypeKind::Void) {
             error(node, "声明类型尚未支持", "SEM_DECL_TYPE"); return detail::type(TypeKind::Error);
@@ -599,9 +600,6 @@ class Analyzer {
                 if ((array.type->kind != TypeKind::Array && array.type->kind != TypeKind::Pointer) || !detail::numeric(index.type) || detail::floating(index.type)) {
                     error(node, "下标访问需要数组和整型下标", "SEM_INDEX"); break;
                 }
-                if (array.type->kind == TypeKind::Array && array.category != ValueCategory::LValue) {
-                    error(node, "暂不支持临时聚合值的下标访问", "SEM_UNSUPPORTED"); break;
-                }
                 try { detail::layout(array.type->base, table_.data()); }
                 catch (const std::runtime_error& exception) { error(node, exception.what(), "SEM_INDEX"); break; }
                 auto element = std::make_shared<TypeInfo>(*array.type->base);
@@ -858,6 +856,7 @@ class Analyzer {
                 parameter = resolve(parameter, node);
                 if (parameter->kind == TypeKind::Array) parameter = detail::pointer(parameter->base);
                 else if (parameter->kind == TypeKind::Function) parameter = detail::pointer(parameter);
+                parameter = detail::unqualified(parameter);
             }
             declared = normalized;
         }
@@ -877,10 +876,11 @@ class Analyzer {
             if (parameter.kind != NodeType::ParamDecl || !parameter.children.empty() ||
                 !(detail::numeric(declared->params[i]) || declared->params[i]->kind == TypeKind::Pointer ||
                   declared->params[i]->kind == TypeKind::Struct || declared->params[i]->kind == TypeKind::Union) ||
-                !same_type(parameter_type, declared->params[i]) ||
+                !same_type(detail::unqualified(parameter_type), declared->params[i]) ||
                 parameter.storage != StorageClass::None || (definition && parameter.name.empty())) {
                 error(node, "函数形参节点与签名不一致", "SEM_PARAMETER"); return;
             }
+            parameter.type = parameter_type;
         }
         if (definition && node.children.back()->kind != NodeType::Block) { error(node, "函数定义最后一个孩子必须是 Block"); return; }
         // M1 将空参数 f() 按无参函数处理，完整 C 的未指定参数规则留待扩展。
@@ -904,7 +904,7 @@ class Analyzer {
         for (std::size_t i = 0; i < declared->params.size(); ++i) {
             auto& parameter = *node.children[i];
             parameter.scope_id = node.scope_id;
-            parameter.type = normalized->params[i];
+            // 签名忽略形参的顶层限定符，函数体内的形参仍保留 const/volatile。
             SymbolEntry symbol;
             symbol.name = parameter.name;
             symbol.kind = SymbolKind::Parameter;

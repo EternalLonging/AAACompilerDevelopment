@@ -145,59 +145,162 @@ class Processor {
         throw std::runtime_error("预处理字面量缺少结束引号");
     }
 
-    std::string expand(const std::string& text, std::unordered_set<std::string> disabled = {}, std::size_t depth = 0) {
-        if (text.size() > 16 * 1024 * 1024) throw std::runtime_error("宏展开输入过大");
-        if (depth > 128 || expansions_ > 100000) throw std::runtime_error("宏展开超过数量或深度限制");
-        std::string output;
+    struct PPToken {
+        std::string text; // 一个预处理单词的原文。
+        std::string space; // 这个单词前的空白。
+        std::unordered_set<std::string> hidden; // 本单词不能再次展开的宏名。
+        bool paste = false; // 是否是宏体中的拼接运算符。
+    };
+    using Tokens = std::vector<PPToken>;
+
+    // 这里只分预处理单词，不判断 C 语法，也不替代正式词法模块。
+    Tokens tokenize(const std::string& text) const {
+        Tokens result;
         for (std::size_t i = 0; i < text.size();) {
-            if (text[i] == '"' || text[i] == '\'') { const auto end = quoted_end(text, i); output += text.substr(i, end - i); i = end; continue; }
-            if (std::isdigit(static_cast<unsigned char>(text[i])) || (text[i] == '.' && i + 1 < text.size() && std::isdigit(static_cast<unsigned char>(text[i + 1])))) {
-                const auto start = i++;
+            const auto space_begin = i;
+            while (i < text.size() && std::isspace(static_cast<unsigned char>(text[i]))) ++i;
+            const auto space = text.substr(space_begin, i - space_begin);
+            if (i == text.size()) break;
+            const auto begin = i;
+            if (text[i] == '"' || text[i] == '\'') i = quoted_end(text, i);
+            else if (text[i] == 'L' && i + 1 < text.size() && (text[i + 1] == '"' || text[i + 1] == '\'')) i = quoted_end(text, i + 1);
+            else if (std::isdigit(static_cast<unsigned char>(text[i])) ||
+                     (text[i] == '.' && i + 1 < text.size() && std::isdigit(static_cast<unsigned char>(text[i + 1])))) {
+                ++i;
                 while (i < text.size() && (name_part(static_cast<unsigned char>(text[i])) || text[i] == '.' ||
                     ((text[i] == '+' || text[i] == '-') && (text[i - 1] == 'e' || text[i - 1] == 'E' || text[i - 1] == 'p' || text[i - 1] == 'P')))) ++i;
-                output += text.substr(start, i - start); continue;
-            }
-            if (!name_start(static_cast<unsigned char>(text[i]))) { output += text[i++]; continue; }
-            const auto start = i++; while (i < text.size() && name_part(static_cast<unsigned char>(text[i]))) ++i;
-            const auto name = text.substr(start, i - start);
-            const auto found = macros_.find(name);
-            if (found == macros_.end() || disabled.count(name)) { output += name; continue; }
-            const auto macro = found->second;
-            std::string replacement = macro.body;
-            if (macro.function) {
-                auto open = i; while (open < text.size() && std::isspace(static_cast<unsigned char>(text[open]))) ++open;
-                if (open == text.size() || text[open] != '(') { output += name; continue; }
-                std::vector<std::string> arguments; std::size_t begin = open + 1, nesting = 0, end = begin;
-                for (; end < text.size(); ++end) {
-                    if (text[end] == '"' || text[end] == '\'') { end = quoted_end(text, end) - 1; continue; }
-                    if (text[end] == '(') ++nesting;
-                    else if (text[end] == ')' && nesting) --nesting;
-                    else if (text[end] == ')' || (text[end] == ',' && !nesting)) {
-                        arguments.push_back(trim(text.substr(begin, end - begin))); begin = end + 1;
-                        if (text[end] == ')') break;
-                    }
+            } else if (name_start(static_cast<unsigned char>(text[i]))) {
+                while (i < text.size() && name_part(static_cast<unsigned char>(text[i]))) ++i;
+            } else {
+                bool matched = false;
+                for (const auto& punct : {"<<=", ">>=", "...", "##", "->", "++", "--", "<<", ">>", "<=", ">=", "==", "!=", "&&", "||", "*=", "/=", "%=", "+=", "-=", "&=", "^=", "|="}) {
+                    const std::string token = punct;
+                    if (text.compare(i, token.size(), token) == 0) { i += token.size(); matched = true; break; }
                 }
-                if (end == text.size()) throw std::runtime_error("函数宏调用缺少右括号");
-                if (arguments.size() == 1 && arguments[0].empty() && macro.parameters.empty()) arguments.clear();
-                if (arguments.size() != macro.parameters.size()) throw std::runtime_error("函数宏实参数量不匹配：" + name);
-                std::unordered_map<std::string, std::string> substitutions;
-                for (std::size_t a = 0; a < arguments.size(); ++a) substitutions[macro.parameters[a]] = expand(arguments[a], disabled, depth + 1);
-                replacement.clear();
-                for (std::size_t p = 0; p < macro.body.size();) {
-                    if (macro.body[p] == '"' || macro.body[p] == '\'') { const auto q = quoted_end(macro.body, p); replacement += macro.body.substr(p, q - p); p = q; continue; }
-                    if (!name_start(static_cast<unsigned char>(macro.body[p]))) { replacement += macro.body[p++]; continue; }
-                    const auto from = p++; while (p < macro.body.size() && name_part(static_cast<unsigned char>(macro.body[p]))) ++p;
-                    const auto token = macro.body.substr(from, p - from);
-                    const auto argument = substitutions.find(token);
-                    replacement += argument == substitutions.end() ? token : argument->second;
-                }
-                i = end + 1;
+                if (!matched) ++i;
             }
-            ++expansions_; auto nested = disabled; nested.insert(name);
-            output += expand(replacement, std::move(nested), depth + 1);
-            if (output.size() > 16 * 1024 * 1024) throw std::runtime_error("宏展开结果过大");
+            result.push_back({text.substr(begin, i - begin), space, {}});
         }
-        return output;
+        return result;
+    }
+
+    std::string render(const Tokens& tokens) const {
+        std::string result, previous;
+        for (const auto& token : tokens) {
+            if (token.text.empty()) continue;
+            auto space = token.space;
+            if (space.empty() && !previous.empty()) {
+                // 防止替换结果中的两个单词意外变成 ++、名字或注释。
+                const auto pair = tokenize(previous + token.text);
+                if (pair.size() != 2 || pair[0].text != previous || pair[1].text != token.text ||
+                    (previous == "/" && (token.text == "/" || token.text == "*"))) space = " ";
+            }
+            result += space + token.text; previous = token.text;
+            if (result.size() > 16 * 1024 * 1024) throw std::runtime_error("宏展开结果过大");
+        }
+        return result;
+    }
+
+    // 字符串化使用未展开的实参，只合并单词之间的空白。
+    std::string stringify(const Tokens& tokens) const {
+        std::string value;
+        for (const auto& token : tokens) {
+            if (!value.empty() && !token.space.empty()) value += ' ';
+            for (const char c : token.text) {
+                if (c == '"' || c == '\\') value += '\\';
+                value += c;
+            }
+        }
+        return "\"" + value + "\"";
+    }
+
+    Tokens expand_tokens(Tokens tokens, std::size_t depth = 0) {
+        if (depth > 128) throw std::runtime_error("宏展开超过数量或深度限制");
+        for (std::size_t i = 0; i < tokens.size();) {
+            const auto invocation = tokens[i];
+            const auto found = macros_.find(invocation.text);
+            if (found == macros_.end() || invocation.hidden.count(invocation.text)) { ++i; continue; }
+            const auto macro = found->second;
+            auto inherited = invocation.hidden;
+            std::size_t end = i + 1;
+            std::unordered_map<std::string, Tokens> raw, expanded;
+            if (macro.function) {
+                if (end == tokens.size() || tokens[end].text != "(") { ++i; continue; }
+                std::vector<Tokens> arguments(1); std::size_t nesting = 0;
+                for (++end; end < tokens.size(); ++end) {
+                    const auto& token = tokens[end];
+                    if (token.text == ")" && !nesting) break;
+                    if (token.text == "," && !nesting) { arguments.emplace_back(); continue; }
+                    if (token.text == "(") ++nesting;
+                    else if (token.text == ")") --nesting;
+                    arguments.back().push_back(token);
+                }
+                if (end == tokens.size()) throw std::runtime_error("函数宏调用缺少右括号");
+                // 函数宏可能接上宏体以外的括号；只继承首单词和右括号共有的禁用宏。
+                for (auto hidden = inherited.begin(); hidden != inherited.end();) {
+                    if (!tokens[end].hidden.count(*hidden)) hidden = inherited.erase(hidden); else ++hidden;
+                }
+                ++end;
+                if (arguments.size() == 1 && arguments[0].empty() && macro.parameters.empty()) arguments.clear();
+                if (arguments.size() != macro.parameters.size()) throw std::runtime_error("函数宏实参数量不匹配：" + invocation.text);
+                for (std::size_t a = 0; a < arguments.size(); ++a) raw[macro.parameters[a]] = std::move(arguments[a]);
+            }
+            if (++expansions_ > 100000 || invocation.hidden.size() >= 128) throw std::runtime_error("宏展开超过数量或深度限制");
+            const auto body = tokenize(macro.body);
+            Tokens replacement;
+            for (std::size_t b = 0; b < body.size(); ++b) {
+                const auto& token = body[b];
+                if (macro.function && token.text == "#") {
+                    const auto parameter = raw.find(body.at(++b).text);
+                    if (parameter == raw.end()) throw std::runtime_error("字符串化后面必须是宏参数");
+                    replacement.push_back({stringify(parameter->second), token.space, {}}); continue;
+                }
+                const auto argument = raw.find(token.text);
+                if (argument == raw.end()) { auto literal = token; literal.paste = token.text == "##"; replacement.push_back(std::move(literal)); continue; }
+                const bool pasted = (b && body[b - 1].text == "##") || (b + 1 < body.size() && body[b + 1].text == "##");
+                Tokens value;
+                if (pasted) value = argument->second;
+                else {
+                    auto cached = expanded.find(token.text);
+                    if (cached == expanded.end()) cached = expanded.emplace(token.text, expand_tokens(argument->second, depth + 1)).first;
+                    value = cached->second;
+                }
+                if (value.empty()) { if (pasted) replacement.push_back({"", token.space, {}}); }
+                else { value.front().space = token.space; replacement.insert(replacement.end(), value.begin(), value.end()); }
+            }
+            // ## 合并左右各一个单词；空实参保留另一个单词。
+            for (std::size_t b = 0; b < replacement.size();) {
+                if (!replacement[b].paste) { ++b; continue; }
+                if (!b || b + 1 == replacement.size()) throw std::runtime_error("拼接运算符缺少左右单词");
+                auto joined = replacement[b - 1];
+                joined.paste = false;
+                joined.text += replacement[b + 1].text;
+                joined.hidden.insert(replacement[b + 1].hidden.begin(), replacement[b + 1].hidden.end());
+                if (!joined.text.empty()) {
+                    const auto check = tokenize(joined.text);
+                    if (check.size() != 1 || check[0].text != joined.text || joined.text == "/*" || joined.text == "//")
+                        throw std::runtime_error("拼接结果不是一个有效预处理单词");
+                }
+                replacement.erase(replacement.begin() + static_cast<std::ptrdiff_t>(b - 1), replacement.begin() + static_cast<std::ptrdiff_t>(b + 2));
+                replacement.insert(replacement.begin() + static_cast<std::ptrdiff_t>(b - 1), std::move(joined));
+                --b;
+            }
+            for (auto& token : replacement) {
+                token.hidden.insert(inherited.begin(), inherited.end()); token.hidden.insert(invocation.text);
+            }
+            if (!replacement.empty()) replacement.front().space = invocation.space;
+            else if (end < tokens.size()) tokens[end].space = invocation.space + tokens[end].space;
+            tokens.erase(tokens.begin() + static_cast<std::ptrdiff_t>(i), tokens.begin() + static_cast<std::ptrdiff_t>(end));
+            tokens.insert(tokens.begin() + static_cast<std::ptrdiff_t>(i), replacement.begin(), replacement.end());
+            if (tokens.size() > 1000000) throw std::runtime_error("宏展开单词过多");
+            // 从替换起点继续扫描，函数宏可以接上后面源码的括号实参。
+        }
+        return tokens;
+    }
+
+    std::string expand(const std::string& text) {
+        if (text.size() > 16 * 1024 * 1024) throw std::runtime_error("宏展开输入过大");
+        return render(expand_tokens(tokenize(text)));
     }
 
     bool condition(std::string text) {
@@ -242,9 +345,13 @@ class Processor {
             p = end + 1;
         }
         macro.body = trim(text.substr(p));
-        for (std::size_t i = 0; i < macro.body.size(); ++i) {
-            if (macro.body[i] == '"' || macro.body[i] == '\'') i = quoted_end(macro.body, i) - 1;
-            else if (macro.body[i] == '#') throw std::runtime_error("暂不支持宏字符串化和 token 拼接");
+        const auto body = tokenize(macro.body);
+        for (std::size_t i = 0; i < body.size(); ++i) {
+            if (body[i].text == "##" && (!i || i + 1 == body.size() || body[i - 1].text == "##" || body[i + 1].text == "##"))
+                throw std::runtime_error("拼接运算符缺少左右单词");
+            if (macro.function && body[i].text == "#" && (i + 1 == body.size() ||
+                std::find(macro.parameters.begin(), macro.parameters.end(), body[i + 1].text) == macro.parameters.end()))
+                throw std::runtime_error("字符串化后面必须是宏参数");
         }
         const auto previous = macros_.find(name);
         if (previous != macros_.end() && (previous->second.body != macro.body || previous->second.parameters != macro.parameters || previous->second.function != macro.function))

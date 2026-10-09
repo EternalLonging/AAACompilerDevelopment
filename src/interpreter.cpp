@@ -216,7 +216,7 @@ class Machine {
             for (std::size_t i = 0; i < ir_function->parameters.size(); ++i) {
                 const auto& parameter = symbol(ir_function->parameters[i]);
                 if (parameter.kind != SymbolKind::Parameter || !seen.insert(parameter.id).second ||
-                    !same_type(parameter.type, entry.type->params[i])) throw std::runtime_error("IR 形参编号或类型无效");
+                    !same_type(detail::unqualified(parameter.type), entry.type->params[i])) throw std::runtime_error("IR 形参编号或类型无效");
                 operand_type(detail::symbol_name(parameter.id), code, owner);
             }
         }
