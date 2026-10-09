@@ -8,7 +8,7 @@
 
 用户已决定暂不扩展系统头文件和完整标准库，当前优先验证已有功能与准备课堂演示。内建 printf/scanf 和本地头文件继续可用；一键演示与答辩说明见 [演示准备](docs/showcase.md)。
 
-本地[图形工作台](docs/workbench.md)现已提供源码编辑与真实作用域补全、可缩放导出的 AST 图、各阶段表格、优化前后独立执行与结果对比。构建后运行 `python tools/workbench_server.py --open`，或双击 `start-workbench.cmd`。
+本地[图形工作台](docs/workbench.md)现已提供源码编辑与真实作用域补全、可缩放导出的 AST 图、各阶段表格、优化前后独立执行与结果对比。支持 Ctrl+N 新建 .c/.h 文件、Ctrl+S 保存，新文件切换前必须保存或放弃。构建后运行 `python tools/workbench_server.py --open`，或双击 `start-workbench.cmd`。
 
 已完成公共结构体、模块接口、最终词法正则、常量池、符号表、统一诊断、M1/M2 后续流程，以及对象指针、数组传参、typedef、enum、goto、位运算、静态存储和安全常量折叠。本轮进一步实现 union、short/long/unsigned/double、函数指针回调、extern 对象声明、聚合函数传值与返回、字符串指针输入输出，以及独立预处理和总控入口。**正式词法与语法现已接入，可以直接完成“源码 → Token → AST → 语义 → 四元式 → 执行”，并可通过 compile_preprocessed 使用宏和头文件。** 前端采用项目语言范围，C89 仅作参考；控制体必须有花括号，具体范围见 [词法与语法实现](docs/frontend.md)。 完整 C89、跨文件链接、动态内存和完整标准库仍未完成，见 [本轮交付范围](docs/backend-completion.md)。
 
@@ -92,7 +92,7 @@ cmake --build build/cmake
 ctest --test-dir build/cmake --output-on-failure
 ```
 
-验证使用严格 g++ 脚本；CMake/CTest 加入图形工作台回归后共 19 项测试。命令行验收包含 34 项，演示回归包含 11 项；工作台服务另有 18 项检查，并通过桌面和手机尺寸的浏览器验收。minic 命令行和 compile_and_run 已建立并实际运行。前端测试覆盖真实源码编译执行，词法对照验证 3396 组输入及起止位置。Windows 中文路径建议使用 `cmake -S . -B build/frontend -G Ninja`，具体命令见 [frontend.md](docs/frontend.md)。当前支持范围、限制、节点顺序、目标布局、指针边界和新四元式见 [后续模块交接说明](docs/backend-extensions.md) 和 [本轮交付](docs/backend-completion.md)。原公共字段保持不变，新预处理结果及总控接口采用增量扩展。
+验证使用严格 g++ 脚本；CMake/CTest 加入图形工作台回归后共 19 项测试。命令行验收包含 34 项，演示回归包含 11 项；工作台服务含 28 项检查，并通过桌面和手机尺寸的浏览器验收。minic 命令行和 compile_and_run 已建立并实际运行。前端测试覆盖真实源码编译执行，词法对照验证 3396 组输入及起止位置。Windows 中文路径建议使用 `cmake -S . -B build/frontend -G Ninja`，具体命令见 [frontend.md](docs/frontend.md)。当前支持范围、限制、节点顺序、目标布局、指针边界和新四元式见 [后续模块交接说明](docs/backend-extensions.md) 和 [本轮交付](docs/backend-completion.md)。原公共字段保持不变，新预处理结果及总控接口采用增量扩展。
 
 ## 语言目标与协作
 

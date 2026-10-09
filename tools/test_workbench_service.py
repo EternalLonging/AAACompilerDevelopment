@@ -36,6 +36,12 @@ def main():
     project = {"source": '#include "inc/a.h"\nint main(void){printf("%d\\n",N);return 0;}\n',
                "files": {"inc/a.h": '#include "b.h"\n', "inc/b.h": '#define N 7\n'}}
     check(server_module.invoke(driver, project, "run")["optimized"]["run"]["output"] == "7\n", "工作台嵌套头文件读取")
+    named = {"entry": "src/demo.c", "source": '#include "../inc/config.h"\nint main(void){printf("%d\\n",N);return 0;}\n',
+             "files": {"inc/config.h": '#define N 9\nint shared = 0;\n', "main.c": "这份源码不应被编译"}}
+    named_result = server_module.invoke(driver, named, "run")
+    check(named_result["ok"] and named_result["optimized"]["run"]["output"] == "9\n", "只编译所选文件，并允许项目内相对包含")
+    check(any(t["file"] == "src/demo.c" for t in named_result["tokens"]), "源文件保留项目内路径用于定位")
+    check(any(t["file"] == "inc/config.h" for t in named_result["tokens"]), "头文件保留项目内路径用于定位")
     failed = server_module.invoke(driver, {"source": 'int main(void){unknown=1;return 0;}'}, "run")
     check(not failed["ok"] and "baseline" not in failed and failed["diagnostics"][0]["phase"] == "语义", "失败阶段不能继续生成或运行")
     runtime = server_module.invoke(driver, {"source": 'int main(void){int x=0;return 1/x;}'}, "run")
@@ -47,13 +53,19 @@ def main():
     complete_source = "int main(void){int total=1;tot"
     completed = server_module.invoke(driver, {"source": complete_source, "cursor": len(complete_source)}, "complete")
     check(any(item["label"] == "total" for item in completed["items"]), "服务连接真实补全接口")
-    for payload in [{"source": source, "files": {"../outside.h": ""}}, {"source": source, "cursor": -1}]:
+    named_completed = server_module.invoke(driver, {"entry": "练习.c", "source": complete_source, "cursor": len(complete_source)}, "complete")
+    check(any(item["label"] == "total" for item in named_completed["items"]), "自建中文文件名也支持真实补全")
+    for payload in [{"source": source, "files": {"../outside.h": ""}}, {"source": source, "cursor": -1},
+                    {"source": source, "entry": "../demo.c"}, {"source": source, "entry": "config.h"},
+                    {"source": source, "files": {"MAIN.c": ""}}, {"source": source, "files": {"CON.h": ""}},
+                    {"source": source, "entry": "main.c", "files": {"main.c/demo.h": ""}},
+                    {"source": source, "entry": "src/demo.c", "files": {"src\\demo.c": ""}}]:
         try:
             server_module.invoke(driver, payload, "inspect")
         except ValueError:
             check(True, "输入限制")
         else:
-            check(False, "非法路径或光标应拒绝")
+            check(False, "非法路径、重名文件或光标应拒绝")
 
     with ThreadingHTTPServer(("127.0.0.1", 0), server_module.handler(driver)) as server:
         server.daemon_threads = True
