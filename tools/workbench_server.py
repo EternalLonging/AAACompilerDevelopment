@@ -54,11 +54,12 @@ def invoke(driver, payload, action):
         project[path] = text
     with tempfile.TemporaryDirectory(prefix="minic-workbench-") as temporary:
         folder = Path(temporary)
-        (folder / "input.txt").write_text(stdin, encoding="utf-8")
+        (folder / "input.txt").write_bytes(stdin.encode("utf-8"))
         for path, text in project.items():
             target = folder.joinpath(*path.parts)
             target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_text(text, encoding="utf-8")
+            # 原样写入 UTF-8，Windows 自动转换换行会让编辑器光标与源码字节位置错位。
+            target.write_bytes(text.encode("utf-8"))
         cursor = payload.get("cursor", 0)
         if not isinstance(cursor, int) or cursor < 0 or cursor > len(source.encode("utf-8")):
             raise ValueError("光标位置无效")
