@@ -200,6 +200,66 @@ function insertCompletion(i = selected) {
   if (source !== editor.value || cursor !== editor.selectionStart || cursor !== editor.selectionEnd || filename !== activeFile || !body.items[i]) { hideCompletion(); return; }
   editor.setRangeText(body.items[i].label, begin, cursor, "end"); changed(); editor.focus();
 }
+// 扫描光标前的代码块层数，注释和引号里的大括号不参与缩进。
+function editingContext(source, cursor) {
+  let state = "code", depth = 0, escaped = false;
+  for (let i = 0; i < cursor; i++) {
+    const c = source[i], next = i + 1 < cursor ? source[i + 1] : "";
+    if (state === "line") { if (c === "\n") state = "code"; }
+    else if (state === "directive") { if (c === "\n" && source[i - 1] !== "\\") state = "code"; }
+    else if (state === "block") { if (c === "*" && next === "/") { state = "code"; i++; } }
+    else if (state === "string" || state === "char") {
+      if (escaped) escaped = false;
+      else if (c === "\\") escaped = true;
+      else if ((state === "string" && c === '"') || (state === "char" && c === "'")) state = "code";
+    } else if (c === "/" && next === "/") { state = "line"; i++; }
+    else if (c === "/" && next === "*") { state = "block"; i++; }
+    else if (c === '"') state = "string";
+    else if (c === "'") state = "char";
+    else if (c === "#" && !source.slice(source.lastIndexOf("\n", i - 1) + 1, i).trim()) state = "directive";
+    else if (c === "{") depth++;
+    else if (c === "}") depth = Math.max(0, depth - 1);
+  }
+  return {state, depth, escaped};
+}
+function insertEditorText(text, start = editor.selectionStart, end = editor.selectionEnd, selectionStart = start + text.length, selectionEnd = selectionStart) {
+  editor.setRangeText(text, start, end, "end"); editor.setSelectionRange(selectionStart, selectionEnd); changed();
+}
+function editPairOrIndent(e) {
+  if (e.ctrlKey || e.altKey || e.metaKey || e.isComposing) return false;
+  if (!["Enter", "Tab", "Backspace", "{", "}", '"', "'"].includes(e.key)) return false;
+  const source = editor.value, start = editor.selectionStart, end = editor.selectionEnd;
+  const context = editingContext(source, start), lineStart = source.lastIndexOf("\n", start - 1) + 1;
+  const selectedText = source.slice(start, end), next = source[start], before = source.slice(lineStart, start);
+  if (e.key === "Enter") {
+    e.preventDefault();
+    const indent = context.state === "code" ? "\t".repeat(context.depth) : before.match(/^[\t ]*/)[0];
+    const closing = source.slice(end).match(/^[\t ]*}/);
+    if (context.state === "code" && !selectedText && source.slice(0, start).trimEnd().endsWith("{") && closing) {
+      insertEditorText("\n" + indent + "\n" + "\t".repeat(Math.max(0, context.depth - 1)), start, end + closing[0].length - 1, start + 1 + indent.length);
+    } else insertEditorText("\n" + (context.state === "code" && closing ? "\t".repeat(Math.max(0, context.depth - 1)) : indent));
+    return true;
+  }
+  if (e.key === "Tab" && !e.shiftKey) { e.preventDefault(); insertEditorText("\t"); return true; }
+  if (e.key === "Backspace" && start === end && start > 0 &&
+      ((source[start - 1] === "{" && next === "}") || (source[start - 1] === '"' && next === '"') || (source[start - 1] === "'" && next === "'")) && editingContext(source, start - 1).state === "code") {
+    e.preventDefault(); insertEditorText("", start - 1, start + 1); return true;
+  }
+  if ((e.key === '"' || e.key === "'") && start === end && next === e.key && !context.escaped &&
+      ((e.key === '"' && context.state === "string") || (e.key === "'" && context.state === "char"))) {
+    e.preventDefault(); hideCompletion(); editor.setSelectionRange(start + 1, start + 1); updateEditor(); return true;
+  }
+  if (e.key === "}" && context.state === "code") {
+    e.preventDefault(); const closeStart = /^[\t ]*$/.test(before) ? lineStart : start;
+    const indent = closeStart === lineStart ? "\t".repeat(Math.max(0, context.depth - 1)) : "";
+    insertEditorText(indent + "}", closeStart, start === end && next === "}" ? end + 1 : end); return true;
+  }
+  if (context.state === "code" && ["{", '"', "'"].includes(e.key)) {
+    e.preventDefault(); const close = e.key === "{" ? "}" : e.key;
+    insertEditorText(e.key + selectedText + close, start, end, start + 1, start + 1 + selectedText.length); return true;
+  }
+  return false;
+}
 editor.addEventListener("input", () => { changed(); clearTimeout(timer); timer = setTimeout(() => complete(), 280); });
 editor.addEventListener("click", () => { hideCompletion(); updateEditor(); });
 editor.addEventListener("keyup", updateEditor); editor.addEventListener("scroll", () => { $("lines").scrollTop = editor.scrollTop; hideCompletion(); });
@@ -207,6 +267,7 @@ document.addEventListener("selectionchange", () => {
   if (completionData && (editor.selectionStart !== completionData.cursor || editor.selectionEnd !== completionData.cursor)) hideCompletion();
 });
 editor.addEventListener("keydown", e => {
+  if (e.isComposing) return;
   if (e.ctrlKey && e.code === "Space") { e.preventDefault(); complete(true); return; }
   if (e.ctrlKey && e.key === "Enter") { e.preventDefault(); compile(true); return; }
   if (["ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown"].includes(e.key)) hideCompletion();
@@ -215,7 +276,7 @@ editor.addEventListener("keydown", e => {
     if (e.key === "Tab" || e.key === "Enter") { e.preventDefault(); insertCompletion(); return; }
     if (e.key === "Escape") { e.preventDefault(); hideCompletion(); return; }
   }
-  if (e.key === "Tab") { e.preventDefault(); editor.setRangeText("    ", editor.selectionStart, editor.selectionEnd, "end"); changed(); }
+  editPairOrIndent(e);
 });
 editor.addEventListener("blur", () => setTimeout(hideCompletion, 120));
 $("file").onchange = async e => { const name = e.target.value; e.target.value = activeFile; if (name !== activeFile && !await allowFileChange()) return; switchFile(name); };

@@ -50,6 +50,60 @@ def main():
         assert "ast-node" in exported.read_text(encoding="utf-8")
 
         editor = page.locator("#editor")
+        # 成对输入后的光标在中间；已有结束符直接跳过，空配对可一起删除。
+        for opening, closing in (('{', '}'), ('"', '"'), ("'", "'")):
+            editor.fill('')
+            editor.press(opening)
+            expect(editor).to_have_value(opening + closing)
+            assert editor.evaluate('e => e.selectionStart === 1 && e.selectionEnd === 1')
+            editor.press('Backspace')
+            expect(editor).to_have_value('')
+            editor.press(opening)
+            editor.press(closing)
+            expect(editor).to_have_value(opening + closing)
+            assert editor.evaluate('e => e.selectionStart === 2')
+            editor.fill('value')
+            editor.select_text()
+            editor.press(opening)
+            expect(editor).to_have_value(opening + 'value' + closing)
+            assert editor.evaluate('e => e.selectionStart === 1 && e.selectionEnd === 6')
+        # 嵌套代码块每层插入一个真实 Tab，空大括号展开三行。
+        editor.fill('int main(void) ')
+        editor.press('{')
+        editor.press('Enter')
+        expect(editor).to_have_value('int main(void) {\n\t\n}')
+        assert editor.evaluate("e => e.value.slice(0,e.selectionStart) === 'int main(void) {\\n\\t'")
+        page.keyboard.insert_text('if (1) ')
+        editor.press('{')
+        editor.press('Enter')
+        expect(editor).to_have_value('int main(void) {\n\tif (1) {\n\t\t\n\t}\n}')
+        page.keyboard.insert_text('int a;')
+        editor.press('Enter')
+        assert editor.evaluate("e => e.value.slice(0,e.selectionStart).endsWith('int a;\\n\\t\\t')")
+        editor.press('}')
+        assert editor.evaluate("e => e.value.slice(0,e.selectionStart).endsWith('\\n\\t}')"), '输入右大括号应退回上一层缩进'
+        editor.fill('int main(void) {\n    return 0;}')
+        editor.evaluate('e => e.setSelectionRange(e.value.length-1,e.value.length-1)')
+        editor.press('Enter')
+        expect(editor).to_have_value('int main(void) {\n    return 0;\n}')
+        for ignored in ('printf("{");', "char c='{';", '/* { */', '// {\n', '#define OPEN {\n'):
+            source = ignored + '\nint main(void) {\n\tint a;'
+            editor.fill(source)
+            editor.press('Enter')
+            expect(editor).to_have_value(source + '\n\t')
+        for comment in ('// ', '/* '):
+            for key in ('{', '"', "'"):
+                editor.fill(comment)
+                editor.press(key)
+                expect(editor).to_have_value(comment + key)
+        editor.fill('char *s = "";')
+        editor.evaluate('e => {const p=e.value.indexOf(";")-1;e.setSelectionRange(p,p);}')
+        page.keyboard.insert_text('\\')
+        editor.press('"')
+        expect(editor).to_have_value('char *s = "\\"";')
+        editor.fill('')
+        editor.press('Tab')
+        expect(editor).to_have_value('\t')
         editor.fill("int main(void){int score=5; sco")
         editor.press("Control+Space")
         expect(page.locator("#completion")).to_be_visible(timeout=15000)
@@ -250,7 +304,7 @@ def main():
         assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "手机页面横向溢出"
         assert not errors, errors
         browser.close()
-    print("browser: execution, completion, AST export, Ctrl+N/Ctrl+S, save/discard guards, entry selection, project roundtrip, import, diagnostics and responsive layout passed")
+    print("browser: pair insertion/caret, nested Tab indentation, completion, execution, AST export, Ctrl+N/Ctrl+S, save/discard guards, project roundtrip and responsive layout passed")
 
 
 if __name__ == "__main__":
