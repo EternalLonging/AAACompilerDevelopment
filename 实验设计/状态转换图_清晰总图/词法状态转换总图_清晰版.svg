@@ -1,0 +1,850 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2550 9909" width="2550" height="9909">
+<rect width="100%" height="100%" fill="white"/>
+<polyline points="129.00,165.00 160.00,165.00 160.00,370.00 441.00,370.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="441.00,370.00 431.00,366.00 431.00,374.00"/>
+<polyline points="451.00,348.00 445.49,339.57 442.83,335.90 440.71,331.89 439.18,327.62 438.27,323.18 438.00,318.65 438.37,314.13 439.38,309.71 441.00,305.48 443.20,301.51 445.94,297.90 449.16,294.71 452.81,292.01 456.79,289.85 461.05,288.28 465.48,287.32 470.00,287.00 474.52,287.32 478.95,288.28 483.21,289.85 487.19,292.01 490.84,294.71 494.06,297.90 496.80,301.51 499.00,305.48 500.62,309.71 501.63,314.13 502.00,318.65 501.73,323.18 500.82,327.62 499.29,331.89 497.17,335.90 494.51,339.57 489.00,348.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="489.00,348.00 497.82,341.82 491.13,337.44"/>
+<polyline points="129.00,165.00 160.00,165.00 160.00,475.00 441.00,475.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="441.00,475.00 431.00,471.00 431.00,479.00"/>
+<polyline points="129.00,165.00 160.00,165.00 160.00,650.00 441.00,650.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="441.00,650.00 431.00,646.00 431.00,654.00"/>
+<polyline points="451.00,628.00 445.49,619.57 442.83,615.90 440.71,611.89 439.18,607.62 438.27,603.18 438.00,598.65 438.37,594.13 439.38,589.71 441.00,585.48 443.20,581.51 445.94,577.90 449.16,574.71 452.81,572.01 456.79,569.85 461.05,568.28 465.48,567.32 470.00,567.00 474.52,567.32 478.95,568.28 483.21,569.85 487.19,572.01 490.84,574.71 494.06,577.90 496.80,581.51 499.00,585.48 500.62,589.71 501.63,594.13 502.00,598.65 501.73,603.18 500.82,607.62 499.29,611.89 497.17,615.90 494.51,619.57 489.00,628.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="489.00,628.00 497.82,621.82 491.13,617.44"/>
+<polyline points="129.00,165.00 160.00,165.00 160.00,970.00 441.00,970.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="441.00,970.00 431.00,966.00 431.00,974.00"/>
+<polyline points="451.00,948.00 445.49,939.57 442.83,935.90 440.71,931.89 439.18,927.62 438.27,923.18 438.00,918.65 438.37,914.13 439.38,909.71 441.00,905.48 443.20,901.51 445.94,897.90 449.16,894.71 452.81,892.01 456.79,889.85 461.05,888.28 465.48,887.32 470.00,887.00 474.52,887.32 478.95,888.28 483.21,889.85 487.19,892.01 490.84,894.71 494.06,897.90 496.80,901.51 499.00,905.48 500.62,909.71 501.63,914.13 502.00,918.65 501.73,923.18 500.82,927.62 499.29,931.89 497.17,935.90 494.51,939.57 489.00,948.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="489.00,948.00 497.82,941.82 491.13,937.44"/>
+<polyline points="499.00,970.00 1611.00,970.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1611.00,970.00 1601.00,966.00 1601.00,974.00"/>
+<polyline points="492.65,988.12 620.00,1090.00 891.00,1090.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="891.00,1090.00 881.00,1086.00 881.00,1094.00"/>
+<polyline points="920.00,1119.00 920.00,1200.00 470.00,1200.00 470.00,999.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="470.00,999.00 466.00,1009.00 474.00,1009.00"/>
+<polyline points="129.00,165.00 160.00,165.00 160.00,1520.00 441.00,1520.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="441.00,1520.00 431.00,1516.00 431.00,1524.00"/>
+<polyline points="499.00,1520.00 981.00,1520.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="981.00,1520.00 971.00,1516.00 971.00,1524.00"/>
+<polyline points="991.00,1498.00 985.49,1489.57 982.83,1485.90 980.71,1481.89 979.18,1477.62 978.27,1473.18 978.00,1468.65 978.37,1464.13 979.38,1459.71 981.00,1455.48 983.20,1451.51 985.94,1447.90 989.16,1444.71 992.81,1442.01 996.79,1439.85 1001.05,1438.28 1005.48,1437.32 1010.00,1437.00 1014.52,1437.32 1018.95,1438.28 1023.21,1439.85 1027.19,1442.01 1030.84,1444.71 1034.06,1447.90 1036.80,1451.51 1039.00,1455.48 1040.62,1459.71 1041.63,1464.13 1042.00,1468.65 1041.73,1473.18 1040.82,1477.62 1039.29,1481.89 1037.17,1485.90 1034.51,1489.57 1029.00,1498.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1029.00,1498.00 1037.82,1491.82 1031.13,1487.44"/>
+<polyline points="1039.00,1520.00 1731.00,1520.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1731.00,1520.00 1721.00,1516.00 1721.00,1524.00"/>
+<polyline points="129.00,165.00 160.00,165.00 160.00,1970.00 441.00,1970.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="441.00,1970.00 431.00,1966.00 431.00,1974.00"/>
+<polyline points="451.00,1948.00 445.49,1939.57 442.83,1935.90 440.71,1931.89 439.18,1927.62 438.27,1923.18 438.00,1918.65 438.37,1914.13 439.38,1909.71 441.00,1905.48 443.20,1901.51 445.94,1897.90 449.16,1894.71 452.81,1892.01 456.79,1889.85 461.05,1888.28 465.48,1887.32 470.00,1887.00 474.52,1887.32 478.95,1888.28 483.21,1889.85 487.19,1892.01 490.84,1894.71 494.06,1897.90 496.80,1901.51 499.00,1905.48 500.62,1909.71 501.63,1914.13 502.00,1918.65 501.73,1923.18 500.82,1927.62 499.29,1931.89 497.17,1935.90 494.51,1939.57 489.00,1948.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="489.00,1948.00 497.82,1941.82 491.13,1937.44"/>
+<polyline points="498.91,1967.76 1281.09,1907.24" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1281.09,1907.24 1270.81,1904.02 1271.42,1912.00"/>
+<polyline points="498.91,1972.24 1281.09,2032.76" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1281.09,2032.76 1271.42,2028.00 1270.81,2035.98"/>
+<polyline points="1339.00,1905.00 1650.00,1905.00 1773.39,1958.47" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1773.39,1958.47 1765.81,1950.82 1762.62,1958.16"/>
+<polyline points="1339.00,2035.00 1650.00,2035.00 1773.39,1981.53" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1773.39,1981.53 1762.62,1981.84 1765.81,1989.18"/>
+<polyline points="129.00,165.00 160.00,165.00 160.00,2360.00 441.00,2360.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="441.00,2360.00 431.00,2356.00 431.00,2364.00"/>
+<polyline points="451.00,2338.00 445.49,2329.57 442.83,2325.90 440.71,2321.89 439.18,2317.62 438.27,2313.18 438.00,2308.65 438.37,2304.13 439.38,2299.71 441.00,2295.48 443.20,2291.51 445.94,2287.90 449.16,2284.71 452.81,2282.01 456.79,2279.85 461.05,2278.28 465.48,2277.32 470.00,2277.00 474.52,2277.32 478.95,2278.28 483.21,2279.85 487.19,2282.01 490.84,2284.71 494.06,2287.90 496.80,2291.51 499.00,2295.48 500.62,2299.71 501.63,2304.13 502.00,2308.65 501.73,2313.18 500.82,2317.62 499.29,2321.89 497.17,2325.90 494.51,2329.57 489.00,2338.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="489.00,2338.00 497.82,2331.82 491.13,2327.44"/>
+<polyline points="498.91,2357.76 1281.09,2297.24" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1281.09,2297.24 1270.81,2294.02 1271.42,2302.00"/>
+<polyline points="498.91,2362.24 1281.09,2422.76" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1281.09,2422.76 1271.42,2418.00 1270.81,2425.98"/>
+<polyline points="1339.00,2295.00 1650.00,2295.00 1773.39,2348.47" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1773.39,2348.47 1765.81,2340.82 1762.62,2348.16"/>
+<polyline points="1339.00,2425.00 1650.00,2425.00 1773.39,2371.53" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1773.39,2371.53 1762.62,2371.84 1765.81,2379.18"/>
+<polyline points="129.00,165.00 160.00,165.00 160.00,2750.00 441.00,2750.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="441.00,2750.00 431.00,2746.00 431.00,2754.00"/>
+<polyline points="499.00,2750.00 791.00,2750.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="791.00,2750.00 781.00,2746.00 781.00,2754.00"/>
+<polyline points="801.00,2728.00 795.49,2719.57 792.83,2715.90 790.71,2711.89 789.18,2707.62 788.27,2703.18 788.00,2698.65 788.37,2694.13 789.38,2689.71 791.00,2685.48 793.20,2681.51 795.94,2677.90 799.16,2674.71 802.81,2672.01 806.79,2669.85 811.05,2668.28 815.48,2667.32 820.00,2667.00 824.52,2667.32 828.95,2668.28 833.21,2669.85 837.19,2672.01 840.84,2674.71 844.06,2677.90 846.80,2681.51 849.00,2685.48 850.62,2689.71 851.63,2694.13 852.00,2698.65 851.73,2703.18 850.82,2707.62 849.29,2711.89 847.17,2715.90 844.51,2719.57 839.00,2728.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="839.00,2728.00 847.82,2721.82 841.13,2717.44"/>
+<polyline points="848.75,2746.19 1281.25,2688.81" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1281.25,2688.81 1270.81,2686.16 1271.86,2694.09"/>
+<polyline points="848.75,2753.81 1281.25,2811.19" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1281.25,2811.19 1271.86,2805.91 1270.81,2813.84"/>
+<polyline points="1339.00,2685.00 1650.00,2685.00 1773.39,2738.47" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1773.39,2738.47 1765.81,2730.82 1762.62,2738.16"/>
+<polyline points="1339.00,2815.00 1650.00,2815.00 1773.39,2761.53" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1773.39,2761.53 1762.62,2761.84 1765.81,2769.18"/>
+<polyline points="129.00,165.00 160.00,165.00 160.00,3180.00 441.00,3180.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="441.00,3180.00 431.00,3176.00 431.00,3184.00"/>
+<polyline points="499.00,3180.00 1051.00,3180.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1051.00,3180.00 1041.00,3176.00 1041.00,3184.00"/>
+<polyline points="451.00,3158.00 445.49,3149.57 442.83,3145.90 440.71,3141.89 439.18,3137.62 438.27,3133.18 438.00,3128.65 438.37,3124.13 439.38,3119.71 441.00,3115.48 443.20,3111.51 445.94,3107.90 449.16,3104.71 452.81,3102.01 456.79,3099.85 461.05,3098.28 465.48,3097.32 470.00,3097.00 474.52,3097.32 478.95,3098.28 483.21,3099.85 487.19,3102.01 490.84,3104.71 494.06,3107.90 496.80,3111.51 499.00,3115.48 500.62,3119.71 501.63,3124.13 502.00,3128.65 501.73,3133.18 500.82,3137.62 499.29,3141.89 497.17,3145.90 494.51,3149.57 489.00,3158.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="489.00,3158.00 497.82,3151.82 491.13,3147.44"/>
+<polyline points="129.00,165.00 160.00,165.00 160.00,3260.00 1080.00,3260.00 1080.00,3209.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1080.00,3209.00 1076.00,3219.00 1084.00,3219.00"/>
+<polyline points="1061.00,3158.00 1055.49,3149.57 1052.83,3145.90 1050.71,3141.89 1049.18,3137.62 1048.27,3133.18 1048.00,3128.65 1048.37,3124.13 1049.38,3119.71 1051.00,3115.48 1053.20,3111.51 1055.94,3107.90 1059.16,3104.71 1062.81,3102.01 1066.79,3099.85 1071.05,3098.28 1075.48,3097.32 1080.00,3097.00 1084.52,3097.32 1088.95,3098.28 1093.21,3099.85 1097.19,3102.01 1100.84,3104.71 1104.06,3107.90 1106.80,3111.51 1109.00,3115.48 1110.62,3119.71 1111.63,3124.13 1112.00,3128.65 1111.73,3133.18 1110.82,3137.62 1109.29,3141.89 1107.17,3145.90 1104.51,3149.57 1099.00,3158.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1099.00,3158.00 1107.82,3151.82 1101.13,3147.44"/>
+<polyline points="1094.53,3205.10 1190.00,3370.00 1401.00,3370.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1401.00,3370.00 1391.00,3366.00 1391.00,3374.00"/>
+<polyline points="1459.00,3370.00 1741.00,3370.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1741.00,3370.00 1731.00,3366.00 1731.00,3374.00"/>
+<polyline points="1799.00,3370.00 2071.00,3370.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="2071.00,3370.00 2061.00,3366.00 2061.00,3374.00"/>
+<polyline points="2081.00,3348.00 2075.49,3339.57 2072.83,3335.90 2070.71,3331.89 2069.18,3327.62 2068.27,3323.18 2068.00,3318.65 2068.37,3314.13 2069.38,3309.71 2071.00,3305.48 2073.20,3301.51 2075.94,3297.90 2079.16,3294.71 2082.81,3292.01 2086.79,3289.85 2091.05,3288.28 2095.48,3287.32 2100.00,3287.00 2104.52,3287.32 2108.95,3288.28 2113.21,3289.85 2117.19,3292.01 2120.84,3294.71 2124.06,3297.90 2126.80,3301.51 2129.00,3305.48 2130.62,3309.71 2131.63,3314.13 2132.00,3318.65 2131.73,3323.18 2130.82,3327.62 2129.29,3331.89 2127.17,3335.90 2124.51,3339.57 2119.00,3348.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="2119.00,3348.00 2127.82,3341.82 2121.13,3337.44"/>
+<polyline points="1430.00,3399.00 1430.00,3510.00 2100.00,3510.00 2100.00,3399.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="2100.00,3399.00 2096.00,3409.00 2104.00,3409.00"/>
+<polyline points="1109.00,3180.00 1481.00,3180.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1481.00,3180.00 1471.00,3176.00 1471.00,3184.00"/>
+<polyline points="2129.00,3370.00 2210.00,3370.00 2210.00,3620.00 2129.00,3620.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="2129.00,3620.00 2139.00,3624.00 2139.00,3616.00"/>
+<polyline points="129.00,165.00 160.00,165.00 160.00,3940.00 441.00,3940.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="441.00,3940.00 431.00,3936.00 431.00,3944.00"/>
+<polyline points="451.00,3918.00 445.49,3909.57 442.83,3905.90 440.71,3901.89 439.18,3897.62 438.27,3893.18 438.00,3888.65 438.37,3884.13 439.38,3879.71 441.00,3875.48 443.20,3871.51 445.94,3867.90 449.16,3864.71 452.81,3862.01 456.79,3859.85 461.05,3858.28 465.48,3857.32 470.00,3857.00 474.52,3857.32 478.95,3858.28 483.21,3859.85 487.19,3862.01 490.84,3864.71 494.06,3867.90 496.80,3871.51 499.00,3875.48 500.62,3879.71 501.63,3884.13 502.00,3888.65 501.73,3893.18 500.82,3897.62 499.29,3901.89 497.17,3905.90 494.51,3909.57 489.00,3918.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="489.00,3918.00 497.82,3911.82 491.13,3907.44"/>
+<polyline points="486.51,3963.84 560.00,4070.00 1051.00,4070.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1051.00,4070.00 1041.00,4066.00 1041.00,4074.00"/>
+<polyline points="1109.00,4070.00 1381.00,4070.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1381.00,4070.00 1371.00,4066.00 1371.00,4074.00"/>
+<polyline points="1439.00,4070.00 1741.00,4070.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1741.00,4070.00 1731.00,4066.00 1731.00,4074.00"/>
+<polyline points="1751.00,4048.00 1745.49,4039.57 1742.83,4035.90 1740.71,4031.89 1739.18,4027.62 1738.27,4023.18 1738.00,4018.65 1738.37,4014.13 1739.38,4009.71 1741.00,4005.48 1743.20,4001.51 1745.94,3997.90 1749.16,3994.71 1752.81,3992.01 1756.79,3989.85 1761.05,3988.28 1765.48,3987.32 1770.00,3987.00 1774.52,3987.32 1778.95,3988.28 1783.21,3989.85 1787.19,3992.01 1790.84,3994.71 1794.06,3997.90 1796.80,4001.51 1799.00,4005.48 1800.62,4009.71 1801.63,4014.13 1802.00,4018.65 1801.73,4023.18 1800.82,4027.62 1799.29,4031.89 1797.17,4035.90 1794.51,4039.57 1789.00,4048.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1789.00,4048.00 1797.82,4041.82 1791.13,4037.44"/>
+<polyline points="1080.00,4099.00 1080.00,4215.00 1770.00,4215.00 1770.00,4099.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1770.00,4099.00 1766.00,4109.00 1774.00,4109.00"/>
+<polyline points="1799.00,4070.00 2130.00,4070.00 2130.00,4320.00 1799.00,4320.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1799.00,4320.00 1809.00,4324.00 1809.00,4316.00"/>
+<polyline points="129.00,165.00 160.00,165.00 160.00,4600.00 441.00,4600.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="441.00,4600.00 431.00,4596.00 431.00,4604.00"/>
+<polyline points="498.93,4598.00 1021.07,4562.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1021.07,4562.00 1010.82,4558.69 1011.37,4566.67"/>
+<polyline points="1031.00,4538.00 1025.49,4529.57 1022.83,4525.90 1020.71,4521.89 1019.18,4517.62 1018.27,4513.18 1018.00,4508.65 1018.37,4504.13 1019.38,4499.71 1021.00,4495.48 1023.20,4491.51 1025.94,4487.90 1029.16,4484.71 1032.81,4482.01 1036.79,4479.85 1041.05,4478.28 1045.48,4477.32 1050.00,4477.00 1054.52,4477.32 1058.95,4478.28 1063.21,4479.85 1067.19,4482.01 1070.84,4484.71 1074.06,4487.90 1076.80,4491.51 1079.00,4495.48 1080.62,4499.71 1081.63,4504.13 1082.00,4508.65 1081.73,4513.18 1080.82,4517.62 1079.29,4521.89 1077.17,4525.90 1074.51,4529.57 1069.00,4538.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1069.00,4538.00 1077.82,4531.82 1071.13,4527.44"/>
+<polyline points="494.13,4616.09 620.00,4700.00 1611.00,4700.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1611.00,4700.00 1601.00,4696.00 1601.00,4704.00"/>
+<polyline points="482.55,4626.14 590.00,4850.00 791.00,4850.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="791.00,4850.00 781.00,4846.00 781.00,4854.00"/>
+<polyline points="801.00,4828.00 795.49,4819.57 792.83,4815.90 790.71,4811.89 789.18,4807.62 788.27,4803.18 788.00,4798.65 788.37,4794.13 789.38,4789.71 791.00,4785.48 793.20,4781.51 795.94,4777.90 799.16,4774.71 802.81,4772.01 806.79,4769.85 811.05,4768.28 815.48,4767.32 820.00,4767.00 824.52,4767.32 828.95,4768.28 833.21,4769.85 837.19,4772.01 840.84,4774.71 844.06,4777.90 846.80,4781.51 849.00,4785.48 850.62,4789.71 851.63,4794.13 852.00,4798.65 851.73,4803.18 850.82,4807.62 849.29,4811.89 847.17,4815.90 844.51,4819.57 839.00,4828.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="839.00,4828.00 847.82,4821.82 841.13,4817.44"/>
+<polyline points="849.00,4850.00 1271.00,4850.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1271.00,4850.00 1261.00,4846.00 1261.00,4854.00"/>
+<polyline points="1281.00,4828.00 1275.49,4819.57 1272.83,4815.90 1270.71,4811.89 1269.18,4807.62 1268.27,4803.18 1268.00,4798.65 1268.37,4794.13 1269.38,4789.71 1271.00,4785.48 1273.20,4781.51 1275.94,4777.90 1279.16,4774.71 1282.81,4772.01 1286.79,4769.85 1291.05,4768.28 1295.48,4767.32 1300.00,4767.00 1304.52,4767.32 1308.95,4768.28 1313.21,4769.85 1317.19,4772.01 1320.84,4774.71 1324.06,4777.90 1326.80,4781.51 1329.00,4785.48 1330.62,4789.71 1331.63,4794.13 1332.00,4798.65 1331.73,4803.18 1330.82,4807.62 1329.29,4811.89 1327.17,4815.90 1324.51,4819.57 1319.00,4828.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1319.00,4828.00 1327.82,4821.82 1321.13,4817.44"/>
+<polyline points="1329.00,4850.00 1771.00,4850.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1771.00,4850.00 1761.00,4846.00 1761.00,4854.00"/>
+<polyline points="1300.00,4879.00 1300.00,4980.00 820.00,4980.00 820.00,4879.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="820.00,4879.00 816.00,4889.00 824.00,4889.00"/>
+<polyline points="129.00,165.00 160.00,165.00 160.00,5310.00 441.00,5310.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="441.00,5310.00 431.00,5306.00 431.00,5314.00"/>
+<polyline points="499.00,5310.00 1041.00,5310.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1041.00,5310.00 1031.00,5306.00 1031.00,5314.00"/>
+<polyline points="129.00,165.00 160.00,165.00 160.00,5550.00 441.00,5550.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="441.00,5550.00 431.00,5546.00 431.00,5554.00"/>
+<polyline points="499.00,5550.00 1041.00,5550.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1041.00,5550.00 1031.00,5546.00 1031.00,5554.00"/>
+<polyline points="129.00,165.00 160.00,165.00 160.00,5790.00 441.00,5790.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="441.00,5790.00 431.00,5786.00 431.00,5794.00"/>
+<polyline points="499.00,5790.00 1041.00,5790.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1041.00,5790.00 1031.00,5786.00 1031.00,5794.00"/>
+<polyline points="129.00,165.00 160.00,165.00 160.00,6030.00 441.00,6030.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="441.00,6030.00 431.00,6026.00 431.00,6034.00"/>
+<polyline points="498.86,6027.11 1041.14,5972.89" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1041.14,5972.89 1030.80,5969.90 1031.59,5977.86"/>
+<polyline points="498.86,6032.89 1041.14,6087.11" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1041.14,6087.11 1031.59,6082.14 1030.80,6090.10"/>
+<polyline points="129.00,165.00 160.00,165.00 160.00,6270.00 441.00,6270.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="441.00,6270.00 431.00,6266.00 431.00,6274.00"/>
+<polyline points="499.00,6270.00 1041.00,6270.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1041.00,6270.00 1031.00,6266.00 1031.00,6274.00"/>
+<polyline points="129.00,165.00 160.00,165.00 160.00,6510.00 441.00,6510.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="441.00,6510.00 431.00,6506.00 431.00,6514.00"/>
+<polyline points="498.86,6507.11 1041.14,6452.89" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1041.14,6452.89 1030.80,6449.90 1031.59,6457.86"/>
+<polyline points="498.86,6512.89 1041.14,6567.11" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1041.14,6567.11 1031.59,6562.14 1030.80,6570.10"/>
+<polyline points="129.00,165.00 160.00,165.00 160.00,6750.00 441.00,6750.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="441.00,6750.00 431.00,6746.00 431.00,6754.00"/>
+<polyline points="498.75,6746.17 1041.25,6673.83" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1041.25,6673.83 1030.81,6671.19 1031.87,6679.12"/>
+<polyline points="499.00,6750.00 1041.00,6750.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1041.00,6750.00 1031.00,6746.00 1031.00,6754.00"/>
+<polyline points="498.75,6753.83 1041.25,6826.17" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1041.25,6826.17 1031.87,6820.88 1030.81,6828.81"/>
+<polyline points="129.00,165.00 160.00,165.00 160.00,6990.00 441.00,6990.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="441.00,6990.00 431.00,6986.00 431.00,6994.00"/>
+<polyline points="498.86,6987.11 1041.14,6932.89" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1041.14,6932.89 1030.80,6929.90 1031.59,6937.86"/>
+<polyline points="498.86,6992.89 1041.14,7047.11" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1041.14,7047.11 1031.59,7042.14 1030.80,7050.10"/>
+<polyline points="1099.00,6930.00 1631.00,6930.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1631.00,6930.00 1621.00,6926.00 1621.00,6934.00"/>
+<polyline points="129.00,165.00 160.00,165.00 160.00,7230.00 441.00,7230.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="441.00,7230.00 431.00,7226.00 431.00,7234.00"/>
+<polyline points="499.00,7230.00 1041.00,7230.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1041.00,7230.00 1031.00,7226.00 1031.00,7234.00"/>
+<polyline points="129.00,165.00 160.00,165.00 160.00,7470.00 441.00,7470.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="441.00,7470.00 431.00,7466.00 431.00,7474.00"/>
+<polyline points="498.86,7467.11 1041.14,7412.89" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1041.14,7412.89 1030.80,7409.90 1031.59,7417.86"/>
+<polyline points="498.86,7472.89 1041.14,7527.11" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1041.14,7527.11 1031.59,7522.14 1030.80,7530.10"/>
+<polyline points="1099.00,7410.00 1631.00,7410.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1631.00,7410.00 1621.00,7406.00 1621.00,7414.00"/>
+<polyline points="129.00,165.00 160.00,165.00 160.00,7710.00 441.00,7710.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="441.00,7710.00 431.00,7706.00 431.00,7714.00"/>
+<polyline points="499.00,7710.00 1041.00,7710.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1041.00,7710.00 1031.00,7706.00 1031.00,7714.00"/>
+<polyline points="129.00,165.00 160.00,165.00 160.00,7950.00 441.00,7950.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="441.00,7950.00 431.00,7946.00 431.00,7954.00"/>
+<polyline points="498.86,7947.11 1041.14,7892.89" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1041.14,7892.89 1030.80,7889.90 1031.59,7897.86"/>
+<polyline points="498.86,7952.89 1041.14,8007.11" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1041.14,8007.11 1031.59,8002.14 1030.80,8010.10"/>
+<polyline points="129.00,165.00 160.00,165.00 160.00,8290.00 441.00,8290.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="441.00,8290.00 431.00,8286.00 431.00,8294.00"/>
+<polyline points="499.00,8290.00 1041.00,8290.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1041.00,8290.00 1031.00,8286.00 1031.00,8294.00"/>
+<polyline points="1099.00,8290.00 1631.00,8290.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1631.00,8290.00 1621.00,8286.00 1621.00,8294.00"/>
+<polyline points="129.00,165.00 160.00,165.00 160.00,8520.00 441.00,8520.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="441.00,8520.00 431.00,8516.00 431.00,8524.00"/>
+<polyline points="498.39,8964.09 710.00,8920.00 1021.00,8920.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1021.00,8920.00 1011.00,8916.00 1011.00,8924.00"/>
+<polyline points="1031.00,8898.00 1025.49,8889.57 1022.83,8885.90 1020.71,8881.89 1019.18,8877.62 1018.27,8873.18 1018.00,8868.65 1018.37,8864.13 1019.38,8859.71 1021.00,8855.48 1023.20,8851.51 1025.94,8847.90 1029.16,8844.71 1032.81,8842.01 1036.79,8839.85 1041.05,8838.28 1045.48,8837.32 1050.00,8837.00 1054.52,8837.32 1058.95,8838.28 1063.21,8839.85 1067.19,8842.01 1070.84,8844.71 1074.06,8847.90 1076.80,8851.51 1079.00,8855.48 1080.62,8859.71 1081.63,8864.13 1082.00,8868.65 1081.73,8873.18 1080.82,8877.62 1079.29,8881.89 1077.17,8885.90 1074.51,8889.57 1069.00,8898.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1069.00,8898.00 1077.82,8891.82 1071.13,8887.44"/>
+<polyline points="1079.00,8920.00 1631.00,8920.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1631.00,8920.00 1621.00,8916.00 1621.00,8924.00"/>
+<polyline points="493.20,8987.40 710.00,9150.00 1021.00,9150.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1021.00,9150.00 1011.00,9146.00 1011.00,9154.00"/>
+<polyline points="1031.00,9128.00 1025.49,9119.57 1022.83,9115.90 1020.71,9111.89 1019.18,9107.62 1018.27,9103.18 1018.00,9098.65 1018.37,9094.13 1019.38,9089.71 1021.00,9085.48 1023.20,9081.51 1025.94,9077.90 1029.16,9074.71 1032.81,9072.01 1036.79,9069.85 1041.05,9068.28 1045.48,9067.32 1050.00,9067.00 1054.52,9067.32 1058.95,9068.28 1063.21,9069.85 1067.19,9072.01 1070.84,9074.71 1074.06,9077.90 1076.80,9081.51 1079.00,9085.48 1080.62,9089.71 1081.63,9094.13 1082.00,9098.65 1081.73,9103.18 1080.82,9107.62 1079.29,9111.89 1077.17,9115.90 1074.51,9119.57 1069.00,9128.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1069.00,9128.00 1077.82,9121.82 1071.13,9117.44"/>
+<polyline points="1079.00,9150.00 1631.00,9150.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="1631.00,9150.00 1621.00,9146.00 1621.00,9154.00"/>
+<polyline points="25.00,165.00 71.00,165.00" fill="none" stroke="black" stroke-width="1.3"/>
+<polygon points="71.00,165.00 61.00,161.00 61.00,169.00"/>
+<circle cx="100" cy="165" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="100" y="170" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">开始</text>
+<circle cx="470" cy="370" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="470" cy="370" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="470" y="375" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q1</text>
+<circle cx="470" cy="475" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="470" cy="475" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="470" y="480" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q2</text>
+<circle cx="470" cy="650" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="470" cy="650" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="470" y="655" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q3</text>
+<circle cx="470" cy="970" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="470" y="975" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q4</text>
+<circle cx="1640" cy="970" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1640" cy="970" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1640" y="975" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q5</text>
+<circle cx="920" cy="1090" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="920" y="1095" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q6</text>
+<circle cx="470" cy="1520" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="470" y="1525" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q7</text>
+<circle cx="1010" cy="1520" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1010" y="1525" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q8</text>
+<circle cx="1760" cy="1520" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1760" cy="1520" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1760" y="1525" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q9</text>
+<circle cx="470" cy="1970" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="470" cy="1970" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="470" y="1975" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q10</text>
+<circle cx="1310" cy="1905" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1310" cy="1905" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1310" y="1910" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q11</text>
+<circle cx="1310" cy="2035" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1310" cy="2035" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1310" y="2040" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q12</text>
+<circle cx="1800" cy="1970" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1800" cy="1970" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1800" y="1975" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q13</text>
+<circle cx="470" cy="2360" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="470" cy="2360" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="470" y="2365" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q14</text>
+<circle cx="1310" cy="2295" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1310" cy="2295" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1310" y="2300" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q15</text>
+<circle cx="1310" cy="2425" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1310" cy="2425" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1310" y="2430" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q16</text>
+<circle cx="1800" cy="2360" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1800" cy="2360" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1800" y="2365" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q17</text>
+<circle cx="470" cy="2750" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="470" y="2755" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q18</text>
+<circle cx="820" cy="2750" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="820" cy="2750" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="820" y="2755" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q19</text>
+<circle cx="1310" cy="2685" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1310" cy="2685" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1310" y="2690" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q20</text>
+<circle cx="1310" cy="2815" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1310" cy="2815" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1310" y="2820" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q21</text>
+<circle cx="1800" cy="2750" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1800" cy="2750" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1800" y="2755" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q22</text>
+<circle cx="470" cy="3180" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="470" y="3185" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q23</text>
+<circle cx="1080" cy="3180" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1080" cy="3180" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1080" y="3185" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q24</text>
+<circle cx="1430" cy="3370" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1430" y="3375" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q25</text>
+<circle cx="1770" cy="3370" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1770" y="3375" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q26</text>
+<circle cx="2100" cy="3370" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="2100" cy="3370" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="2100" y="3375" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q27</text>
+<circle cx="1510" cy="3180" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1510" cy="3180" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1510" y="3185" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q28</text>
+<circle cx="2100" cy="3620" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="2100" cy="3620" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="2100" y="3625" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q29</text>
+<circle cx="470" cy="3940" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="470" y="3945" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q30</text>
+<circle cx="1080" cy="4070" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1080" y="4075" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q31</text>
+<circle cx="1410" cy="4070" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1410" y="4075" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q32</text>
+<circle cx="1770" cy="4070" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1770" cy="4070" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1770" y="4075" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q33</text>
+<circle cx="1770" cy="4320" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1770" cy="4320" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1770" y="4325" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q34</text>
+<circle cx="470" cy="4600" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="470" cy="4600" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="470" y="4605" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q35</text>
+<circle cx="1050" cy="4560" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1050" cy="4560" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1050" y="4565" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q36</text>
+<circle cx="1640" cy="4700" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1640" cy="4700" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1640" y="4705" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q37</text>
+<circle cx="820" cy="4850" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="820" y="4855" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q38</text>
+<circle cx="1300" cy="4850" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1300" y="4855" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q39</text>
+<circle cx="1800" cy="4850" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1800" cy="4850" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1800" y="4855" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q40</text>
+<circle cx="470" cy="5310" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="470" cy="5310" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="470" y="5315" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q41</text>
+<circle cx="1070" cy="5310" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1070" cy="5310" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1070" y="5315" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q42</text>
+<circle cx="470" cy="5550" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="470" cy="5550" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="470" y="5555" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q43</text>
+<circle cx="1070" cy="5550" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1070" cy="5550" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1070" y="5555" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q44</text>
+<circle cx="470" cy="5790" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="470" cy="5790" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="470" y="5795" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q45</text>
+<circle cx="1070" cy="5790" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1070" cy="5790" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1070" y="5795" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q46</text>
+<circle cx="470" cy="6030" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="470" cy="6030" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="470" y="6035" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q47</text>
+<circle cx="1070" cy="5970" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1070" cy="5970" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1070" y="5975" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q48</text>
+<circle cx="1070" cy="6090" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1070" cy="6090" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1070" y="6095" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q49</text>
+<circle cx="470" cy="6270" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="470" cy="6270" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="470" y="6275" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q50</text>
+<circle cx="1070" cy="6270" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1070" cy="6270" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1070" y="6275" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q51</text>
+<circle cx="470" cy="6510" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="470" cy="6510" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="470" y="6515" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q52</text>
+<circle cx="1070" cy="6450" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1070" cy="6450" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1070" y="6455" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q53</text>
+<circle cx="1070" cy="6570" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1070" cy="6570" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1070" y="6575" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q54</text>
+<circle cx="470" cy="6750" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="470" cy="6750" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="470" y="6755" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q55</text>
+<circle cx="1070" cy="6670" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1070" cy="6670" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1070" y="6675" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q56</text>
+<circle cx="1070" cy="6750" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1070" cy="6750" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1070" y="6755" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q57</text>
+<circle cx="1070" cy="6830" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1070" cy="6830" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1070" y="6835" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q58</text>
+<circle cx="470" cy="6990" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="470" cy="6990" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="470" y="6995" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q59</text>
+<circle cx="1070" cy="6930" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1070" cy="6930" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1070" y="6935" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q60</text>
+<circle cx="1070" cy="7050" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1070" cy="7050" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1070" y="7055" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q61</text>
+<circle cx="1660" cy="6930" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1660" cy="6930" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1660" y="6935" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q62</text>
+<circle cx="470" cy="7230" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="470" cy="7230" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="470" y="7235" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q63</text>
+<circle cx="1070" cy="7230" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1070" cy="7230" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1070" y="7235" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q64</text>
+<circle cx="470" cy="7470" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="470" cy="7470" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="470" y="7475" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q65</text>
+<circle cx="1070" cy="7410" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1070" cy="7410" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1070" y="7415" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q66</text>
+<circle cx="1070" cy="7530" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1070" cy="7530" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1070" y="7535" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q67</text>
+<circle cx="1660" cy="7410" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1660" cy="7410" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1660" y="7415" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q68</text>
+<circle cx="470" cy="7710" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="470" cy="7710" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="470" y="7715" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q69</text>
+<circle cx="1070" cy="7710" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1070" cy="7710" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1070" y="7715" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q70</text>
+<circle cx="470" cy="7950" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="470" cy="7950" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="470" y="7955" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q71</text>
+<circle cx="1070" cy="7890" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1070" cy="7890" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1070" y="7895" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q72</text>
+<circle cx="1070" cy="8010" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1070" cy="8010" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1070" y="8015" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q73</text>
+<circle cx="470" cy="8290" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="470" cy="8290" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="470" y="8295" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q74</text>
+<circle cx="1070" cy="8290" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1070" y="8295" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q75</text>
+<circle cx="1660" cy="8290" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1660" cy="8290" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1660" y="8295" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q76</text>
+<circle cx="470" cy="8520" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="470" cy="8520" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="470" y="8525" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q77</text>
+<circle cx="470" cy="8970" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="470" y="8975" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">H0</text>
+<circle cx="1050" cy="8920" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1050" y="8925" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q79</text>
+<circle cx="1660" cy="8920" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1660" cy="8920" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1660" y="8925" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q80</text>
+<circle cx="1050" cy="9150" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1050" y="9155" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q81</text>
+<circle cx="1660" cy="9150" r="29" fill="white" stroke="black" stroke-width="1.3"/>
+<circle cx="1660" cy="9150" r="25" fill="white" stroke="black" stroke-width="1.3"/>
+<text x="1660" y="9155" font-family="Microsoft YaHei" font-size="16" text-anchor="middle">Q82</text>
+<rect x="211.5" y="339" width="178.0" height="28.5" fill="white"/>
+<text x="300.5" y="359" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">空格 / TAB / VT / FF</text>
+<rect x="381.0" y="260" width="178.0" height="28.5" fill="white"/>
+<text x="470" y="280" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">空格 / TAB / VT / FF</text>
+<rect x="228.5" y="444" width="144.0" height="28.5" fill="white"/>
+<text x="300.5" y="464" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">LF 或 CR 或 CRLF</text>
+<rect x="245.5" y="619" width="110.00000000000001" height="28.5" fill="white"/>
+<text x="300.5" y="639" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">字母或下划线</text>
+<rect x="381.0" y="540" width="178.0" height="28.5" fill="white"/>
+<text x="470" y="560" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">字母 / 数字 / 下划线</text>
+<rect x="279.5" y="939" width="42.0" height="28.5" fill="white"/>
+<text x="300.5" y="959" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">L? &quot;</text>
+<rect x="393.75" y="860" width="152.5" height="28.5" fill="white"/>
+<text x="470" y="880" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">普通字符串字符 Cs</text>
+<rect x="1046.75" y="936.0" width="16.5" height="28.5" fill="white"/>
+<text x="1055.0" y="956.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">&quot;</text>
+<rect x="721.75" y="1051" width="16.5" height="28.5" fill="white"/>
+<text x="730" y="1071" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">\</text>
+<rect x="626.5" y="1162" width="127.00000000000001" height="28.5" fill="white"/>
+<text x="690" y="1182" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">合法转义尾部 T</text>
+<rect x="279.5" y="1489" width="42.0" height="28.5" fill="white"/>
+<text x="300.5" y="1509" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">L? &#x27;</text>
+<rect x="655.25" y="1486.0" width="169.5" height="28.5" fill="white"/>
+<text x="740.0" y="1506.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">Cc 或完整合法转义 E</text>
+<rect x="925.25" y="1410" width="169.5" height="28.5" fill="white"/>
+<text x="1010" y="1430" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">Cc 或完整合法转义 E</text>
+<rect x="1376.75" y="1486.0" width="16.5" height="28.5" fill="white"/>
+<text x="1385.0" y="1506.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">&#x27;</text>
+<rect x="283.75" y="1939" width="33.5" height="28.5" fill="white"/>
+<text x="300.5" y="1959" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">1-9</text>
+<rect x="453.25" y="1860" width="33.5" height="28.5" fill="white"/>
+<text x="470" y="1880" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">0-9</text>
+<rect x="864.75" y="1903.5" width="50.5" height="28.5" fill="white"/>
+<text x="890.0" y="1923.5" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">L / l</text>
+<rect x="864.75" y="1968.5" width="50.5" height="28.5" fill="white"/>
+<text x="890.0" y="1988.5" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">U / u</text>
+<rect x="1544.75" y="1872" width="50.5" height="28.5" fill="white"/>
+<text x="1570" y="1892" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">U / u</text>
+<rect x="1544.75" y="2005" width="50.5" height="28.5" fill="white"/>
+<text x="1570" y="2025" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">L / l</text>
+<rect x="292.25" y="2329" width="16.5" height="28.5" fill="white"/>
+<text x="300.5" y="2349" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">0</text>
+<rect x="453.25" y="2250" width="33.5" height="28.5" fill="white"/>
+<text x="470" y="2270" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">0-7</text>
+<rect x="864.75" y="2293.5" width="50.5" height="28.5" fill="white"/>
+<text x="890.0" y="2313.5" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">L / l</text>
+<rect x="864.75" y="2358.5" width="50.5" height="28.5" fill="white"/>
+<text x="890.0" y="2378.5" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">U / u</text>
+<rect x="1544.75" y="2262" width="50.5" height="28.5" fill="white"/>
+<text x="1570" y="2282" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">U / u</text>
+<rect x="1544.75" y="2395" width="50.5" height="28.5" fill="white"/>
+<text x="1570" y="2415" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">L / l</text>
+<rect x="266.75" y="2719" width="67.5" height="28.5" fill="white"/>
+<text x="300.5" y="2739" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">0x / 0X</text>
+<rect x="636.75" y="2716.0" width="16.5" height="28.5" fill="white"/>
+<text x="645.0" y="2736.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">H</text>
+<rect x="756.5" y="2640" width="127.00000000000001" height="28.5" fill="white"/>
+<text x="820" y="2660" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">十六进制数字 H</text>
+<rect x="1039.75" y="2683.5" width="50.5" height="28.5" fill="white"/>
+<text x="1065.0" y="2703.5" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">L / l</text>
+<rect x="1039.75" y="2748.5" width="50.5" height="28.5" fill="white"/>
+<text x="1065.0" y="2768.5" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">U / u</text>
+<rect x="1544.75" y="2652" width="50.5" height="28.5" fill="white"/>
+<text x="1570" y="2672" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">U / u</text>
+<rect x="1544.75" y="2785" width="50.5" height="28.5" fill="white"/>
+<text x="1570" y="2805" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">L / l</text>
+<rect x="275.25" y="3149" width="50.5" height="28.5" fill="white"/>
+<text x="300.5" y="3169" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">数字+</text>
+<rect x="766.75" y="3146.0" width="16.5" height="28.5" fill="white"/>
+<text x="775.0" y="3166.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">.</text>
+<rect x="449.0" y="3070" width="42.0" height="28.5" fill="white"/>
+<text x="470" y="3090" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">数字</text>
+<rect x="626.25" y="3221" width="67.5" height="28.5" fill="white"/>
+<text x="660" y="3241" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">. 数字+</text>
+<rect x="1059.0" y="3070" width="42.0" height="28.5" fill="white"/>
+<text x="1080" y="3090" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">数字</text>
+<rect x="1244.75" y="3330" width="50.5" height="28.5" fill="white"/>
+<text x="1270" y="3350" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">E / e</text>
+<rect x="1574.75" y="3336.0" width="50.5" height="28.5" fill="white"/>
+<text x="1600.0" y="3356.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">+ / -</text>
+<rect x="1914.0" y="3336.0" width="42.0" height="28.5" fill="white"/>
+<text x="1935.0" y="3356.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">数字</text>
+<rect x="2079.0" y="3260" width="42.0" height="28.5" fill="white"/>
+<text x="2100" y="3280" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">数字</text>
+<rect x="1749.0" y="3473" width="42.0" height="28.5" fill="white"/>
+<text x="1770" y="3493" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">数字</text>
+<rect x="1235.75" y="3146.0" width="118.50000000000001" height="28.5" fill="white"/>
+<text x="1295.0" y="3166.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">F / f / L / l</text>
+<rect x="2150.75" y="3487" width="118.50000000000001" height="28.5" fill="white"/>
+<text x="2210" y="3507" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">F / f / L / l</text>
+<rect x="275.25" y="3909" width="50.5" height="28.5" fill="white"/>
+<text x="300.5" y="3929" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">数字+</text>
+<rect x="449.0" y="3830" width="42.0" height="28.5" fill="white"/>
+<text x="470" y="3850" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">数字</text>
+<rect x="894.75" y="4029" width="50.5" height="28.5" fill="white"/>
+<text x="920" y="4049" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">E / e</text>
+<rect x="1219.75" y="4036.0" width="50.5" height="28.5" fill="white"/>
+<text x="1245.0" y="4056.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">+ / -</text>
+<rect x="1569.0" y="4036.0" width="42.0" height="28.5" fill="white"/>
+<text x="1590.0" y="4056.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">数字</text>
+<rect x="1749.0" y="3960" width="42.0" height="28.5" fill="white"/>
+<text x="1770" y="3980" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">数字</text>
+<rect x="1379.0" y="4179" width="42.0" height="28.5" fill="white"/>
+<text x="1400" y="4199" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">数字</text>
+<rect x="2090.75" y="4177" width="118.50000000000001" height="28.5" fill="white"/>
+<text x="2150" y="4197" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">F / f / L / l</text>
+<rect x="292.25" y="4569" width="16.5" height="28.5" fill="white"/>
+<text x="300.5" y="4589" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">/</text>
+<rect x="751.75" y="4546.0" width="16.5" height="28.5" fill="white"/>
+<text x="760.0" y="4566.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">/</text>
+<rect x="948.25" y="4450" width="203.5" height="28.5" fill="white"/>
+<text x="1050" y="4470" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">除 LF / CR 外的任意字节</text>
+<rect x="1081.75" y="4663" width="16.5" height="28.5" fill="white"/>
+<text x="1090" y="4683" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">=</text>
+<rect x="651.75" y="4811" width="16.5" height="28.5" fill="white"/>
+<text x="660" y="4831" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">*</text>
+<rect x="743.75" y="4740" width="152.5" height="28.5" fill="white"/>
+<text x="820" y="4760" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">除 * 外的任意字节</text>
+<rect x="1051.75" y="4816.0" width="16.5" height="28.5" fill="white"/>
+<text x="1060.0" y="4836.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">*</text>
+<rect x="1291.75" y="4740" width="16.5" height="28.5" fill="white"/>
+<text x="1300" y="4760" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">*</text>
+<rect x="1541.75" y="4816.0" width="16.5" height="28.5" fill="white"/>
+<text x="1550.0" y="4836.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">/</text>
+<rect x="975.25" y="4940" width="169.5" height="28.5" fill="white"/>
+<text x="1060" y="4960" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">除 * / 外的任意字节</text>
+<rect x="292.25" y="5279" width="16.5" height="28.5" fill="white"/>
+<text x="300.5" y="5299" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">!</text>
+<rect x="761.75" y="5276.0" width="16.5" height="28.5" fill="white"/>
+<text x="770.0" y="5296.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">=</text>
+<rect x="292.25" y="5519" width="16.5" height="28.5" fill="white"/>
+<text x="300.5" y="5539" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">#</text>
+<rect x="761.75" y="5516.0" width="16.5" height="28.5" fill="white"/>
+<text x="770.0" y="5536.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">#</text>
+<rect x="292.25" y="5759" width="16.5" height="28.5" fill="white"/>
+<text x="300.5" y="5779" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">%</text>
+<rect x="761.75" y="5756.0" width="16.5" height="28.5" fill="white"/>
+<text x="770.0" y="5776.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">=</text>
+<rect x="292.25" y="5999" width="16.5" height="28.5" fill="white"/>
+<text x="300.5" y="6019" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">&amp;</text>
+<rect x="761.75" y="5966.0" width="16.5" height="28.5" fill="white"/>
+<text x="770.0" y="5986.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">&amp;</text>
+<rect x="761.75" y="6026.0" width="16.5" height="28.5" fill="white"/>
+<text x="770.0" y="6046.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">=</text>
+<rect x="292.25" y="6239" width="16.5" height="28.5" fill="white"/>
+<text x="300.5" y="6259" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">*</text>
+<rect x="761.75" y="6236.0" width="16.5" height="28.5" fill="white"/>
+<text x="770.0" y="6256.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">=</text>
+<rect x="292.25" y="6479" width="16.5" height="28.5" fill="white"/>
+<text x="300.5" y="6499" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">+</text>
+<rect x="761.75" y="6446.0" width="16.5" height="28.5" fill="white"/>
+<text x="770.0" y="6466.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">+</text>
+<rect x="761.75" y="6506.0" width="16.5" height="28.5" fill="white"/>
+<text x="770.0" y="6526.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">=</text>
+<rect x="292.25" y="6719" width="16.5" height="28.5" fill="white"/>
+<text x="300.5" y="6739" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">-</text>
+<rect x="761.75" y="6676.0" width="16.5" height="28.5" fill="white"/>
+<text x="770.0" y="6696.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">-</text>
+<rect x="761.75" y="6716.0" width="16.5" height="28.5" fill="white"/>
+<text x="770.0" y="6736.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">=</text>
+<rect x="761.75" y="6756.0" width="16.5" height="28.5" fill="white"/>
+<text x="770.0" y="6776.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">&gt;</text>
+<rect x="292.25" y="6959" width="16.5" height="28.5" fill="white"/>
+<text x="300.5" y="6979" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">&lt;</text>
+<rect x="761.75" y="6926.0" width="16.5" height="28.5" fill="white"/>
+<text x="770.0" y="6946.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">&lt;</text>
+<rect x="761.75" y="6986.0" width="16.5" height="28.5" fill="white"/>
+<text x="770.0" y="7006.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">=</text>
+<rect x="1356.75" y="6896.0" width="16.5" height="28.5" fill="white"/>
+<text x="1365.0" y="6916.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">=</text>
+<rect x="292.25" y="7199" width="16.5" height="28.5" fill="white"/>
+<text x="300.5" y="7219" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">=</text>
+<rect x="761.75" y="7196.0" width="16.5" height="28.5" fill="white"/>
+<text x="770.0" y="7216.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">=</text>
+<rect x="292.25" y="7439" width="16.5" height="28.5" fill="white"/>
+<text x="300.5" y="7459" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">&gt;</text>
+<rect x="761.75" y="7406.0" width="16.5" height="28.5" fill="white"/>
+<text x="770.0" y="7426.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">&gt;</text>
+<rect x="761.75" y="7466.0" width="16.5" height="28.5" fill="white"/>
+<text x="770.0" y="7486.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">=</text>
+<rect x="1356.75" y="7376.0" width="16.5" height="28.5" fill="white"/>
+<text x="1365.0" y="7396.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">=</text>
+<rect x="292.25" y="7679" width="16.5" height="28.5" fill="white"/>
+<text x="300.5" y="7699" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">^</text>
+<rect x="761.75" y="7676.0" width="16.5" height="28.5" fill="white"/>
+<text x="770.0" y="7696.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">=</text>
+<rect x="292.25" y="7919" width="16.5" height="28.5" fill="white"/>
+<text x="300.5" y="7939" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">|</text>
+<rect x="761.75" y="7886.0" width="16.5" height="28.5" fill="white"/>
+<text x="770.0" y="7906.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">|</text>
+<rect x="761.75" y="7946.0" width="16.5" height="28.5" fill="white"/>
+<text x="770.0" y="7966.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">=</text>
+<rect x="292.25" y="8259" width="16.5" height="28.5" fill="white"/>
+<text x="300.5" y="8279" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">.</text>
+<rect x="761.75" y="8256.0" width="16.5" height="28.5" fill="white"/>
+<text x="770.0" y="8276.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">.</text>
+<rect x="1356.75" y="8256.0" width="16.5" height="28.5" fill="white"/>
+<text x="1365.0" y="8276.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">.</text>
+<rect x="207.25" y="8489" width="186.5" height="28.5" fill="white"/>
+<text x="300.5" y="8509" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">( ) , : ; ? [ ] { } ~</text>
+<rect x="733.5" y="8883" width="93.0" height="28.5" fill="white"/>
+<text x="780" y="8903" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">&quot; 非空内容</text>
+<rect x="948.25" y="8810" width="203.5" height="28.5" fill="white"/>
+<text x="1050" y="8830" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">除 &quot; / LF / CR 外的字节</text>
+<rect x="1346.75" y="8886.0" width="16.5" height="28.5" fill="white"/>
+<text x="1355.0" y="8906.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">&quot;</text>
+<rect x="733.5" y="9110" width="93.0" height="28.5" fill="white"/>
+<text x="780" y="9130" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">&lt; 非空内容</text>
+<rect x="948.25" y="9040" width="203.5" height="28.5" fill="white"/>
+<text x="1050" y="9060" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">除 &gt; / LF / CR 外的字节</text>
+<rect x="1346.75" y="9116.0" width="16.5" height="28.5" fill="white"/>
+<text x="1355.0" y="9136.0" font-family="Microsoft YaHei" font-size="17" text-anchor="middle">&gt;</text>
+<rect x="316" y="225" width="155.0" height="34.5" fill="white"/>
+<text x="320" y="249" font-family="Microsoft YaHei" font-size="21" text-anchor="start">01  空白与换行</text>
+<rect x="436.0" y="410" width="68.0" height="25.5" fill="white"/>
+<text x="470" y="428" font-family="Microsoft YaHei" font-size="15" text-anchor="middle">跳过空白</text>
+<rect x="516" y="462" width="72.0" height="27.0" fill="white"/>
+<text x="520" y="481" font-family="Microsoft YaHei" font-size="16" text-anchor="start">跳过换行</text>
+<rect x="316" y="505" width="197.0" height="34.5" fill="white"/>
+<text x="320" y="529" font-family="Microsoft YaHei" font-size="21" text-anchor="start">02  标识符与关键字</text>
+<rect x="406.0" y="690" width="128.0" height="25.5" fill="white"/>
+<text x="470" y="708" font-family="Microsoft YaHei" font-size="15" text-anchor="middle">ID → 查关键字表</text>
+<rect x="846" y="637" width="271.5" height="28.5" fill="white"/>
+<text x="850" y="657" font-family="Microsoft YaHei" font-size="17" text-anchor="start">32 个关键字通过完整 ID 查表识别</text>
+<rect x="316" y="825" width="249.50000000000003" height="34.5" fill="white"/>
+<text x="320" y="849" font-family="Microsoft YaHei" font-size="21" text-anchor="start">03  字符串（含 L 前缀）</text>
+<rect x="1686" y="957" width="120.0" height="27.0" fill="white"/>
+<text x="1690" y="976" font-family="Microsoft YaHei" font-size="16" text-anchor="start">STRING_LITERAL</text>
+<rect x="316" y="1375" width="375.5" height="34.5" fill="white"/>
+<text x="320" y="1399" font-family="Microsoft YaHei" font-size="21" text-anchor="start">04  字符常量（含 L 前缀；内容非空）</text>
+<rect x="1806" y="1507" width="104.0" height="27.0" fill="white"/>
+<text x="1810" y="1526" font-family="Microsoft YaHei" font-size="16" text-anchor="start">CHAR_LITERAL</text>
+<rect x="316" y="1825" width="218.0" height="34.5" fill="white"/>
+<text x="320" y="1849" font-family="Microsoft YaHei" font-size="21" text-anchor="start">05  十进制整数与后缀</text>
+<rect x="424.75" y="2010" width="90.5" height="25.5" fill="white"/>
+<text x="470" y="2028" font-family="Microsoft YaHei" font-size="15" text-anchor="middle">INT_LITERAL</text>
+<rect x="1264.75" y="1945" width="90.5" height="25.5" fill="white"/>
+<text x="1310" y="1963" font-family="Microsoft YaHei" font-size="15" text-anchor="middle">INT_LITERAL</text>
+<rect x="1264.75" y="2075" width="90.5" height="25.5" fill="white"/>
+<text x="1310" y="2093" font-family="Microsoft YaHei" font-size="15" text-anchor="middle">INT_LITERAL</text>
+<rect x="1846" y="1957" width="96.0" height="27.0" fill="white"/>
+<text x="1850" y="1976" font-family="Microsoft YaHei" font-size="16" text-anchor="start">INT_LITERAL</text>
+<rect x="316" y="2215" width="218.0" height="34.5" fill="white"/>
+<text x="320" y="2239" font-family="Microsoft YaHei" font-size="21" text-anchor="start">06  八进制整数与后缀</text>
+<rect x="424.75" y="2400" width="90.5" height="25.5" fill="white"/>
+<text x="470" y="2418" font-family="Microsoft YaHei" font-size="15" text-anchor="middle">INT_LITERAL</text>
+<rect x="1264.75" y="2335" width="90.5" height="25.5" fill="white"/>
+<text x="1310" y="2353" font-family="Microsoft YaHei" font-size="15" text-anchor="middle">INT_LITERAL</text>
+<rect x="1264.75" y="2465" width="90.5" height="25.5" fill="white"/>
+<text x="1310" y="2483" font-family="Microsoft YaHei" font-size="15" text-anchor="middle">INT_LITERAL</text>
+<rect x="1846" y="2347" width="96.0" height="27.0" fill="white"/>
+<text x="1850" y="2366" font-family="Microsoft YaHei" font-size="16" text-anchor="start">INT_LITERAL</text>
+<rect x="316" y="2605" width="239.00000000000003" height="34.5" fill="white"/>
+<text x="320" y="2629" font-family="Microsoft YaHei" font-size="21" text-anchor="start">07  十六进制整数与后缀</text>
+<rect x="774.75" y="2790" width="90.5" height="25.5" fill="white"/>
+<text x="820" y="2808" font-family="Microsoft YaHei" font-size="15" text-anchor="middle">INT_LITERAL</text>
+<rect x="1264.75" y="2725" width="90.5" height="25.5" fill="white"/>
+<text x="1310" y="2743" font-family="Microsoft YaHei" font-size="15" text-anchor="middle">INT_LITERAL</text>
+<rect x="1264.75" y="2855" width="90.5" height="25.5" fill="white"/>
+<text x="1310" y="2873" font-family="Microsoft YaHei" font-size="15" text-anchor="middle">INT_LITERAL</text>
+<rect x="1846" y="2737" width="96.0" height="27.0" fill="white"/>
+<text x="1850" y="2756" font-family="Microsoft YaHei" font-size="16" text-anchor="start">INT_LITERAL</text>
+<rect x="316" y="3035" width="218.0" height="34.5" fill="white"/>
+<text x="320" y="3059" font-family="Microsoft YaHei" font-size="21" text-anchor="start">08  带小数点的浮点数</text>
+<rect x="1027.25" y="3220" width="105.5" height="25.5" fill="white"/>
+<text x="1080" y="3238" font-family="Microsoft YaHei" font-size="15" text-anchor="middle">FLOAT_LITERAL</text>
+<rect x="2047.25" y="3410" width="105.5" height="25.5" fill="white"/>
+<text x="2100" y="3428" font-family="Microsoft YaHei" font-size="15" text-anchor="middle">FLOAT_LITERAL</text>
+<rect x="1556" y="3167" width="112.0" height="27.0" fill="white"/>
+<text x="1560" y="3186" font-family="Microsoft YaHei" font-size="16" text-anchor="start">FLOAT_LITERAL</text>
+<rect x="2146" y="3607" width="112.0" height="27.0" fill="white"/>
+<text x="2150" y="3626" font-family="Microsoft YaHei" font-size="16" text-anchor="start">FLOAT_LITERAL</text>
+<rect x="316" y="3795" width="218.0" height="34.5" fill="white"/>
+<text x="320" y="3819" font-family="Microsoft YaHei" font-size="21" text-anchor="start">09  只有指数的浮点数</text>
+<rect x="1717.25" y="4110" width="105.5" height="25.5" fill="white"/>
+<text x="1770" y="4128" font-family="Microsoft YaHei" font-size="15" text-anchor="middle">FLOAT_LITERAL</text>
+<rect x="1816" y="4307" width="112.0" height="27.0" fill="white"/>
+<text x="1820" y="4326" font-family="Microsoft YaHei" font-size="16" text-anchor="start">FLOAT_LITERAL</text>
+<rect x="316" y="4455" width="260.0" height="34.5" fill="white"/>
+<text x="320" y="4479" font-family="Microsoft YaHei" font-size="21" text-anchor="start">10  斜杠、注释与除法赋值</text>
+<rect x="447.25" y="4640" width="45.5" height="25.5" fill="white"/>
+<text x="470" y="4658" font-family="Microsoft YaHei" font-size="15" text-anchor="middle">SLASH</text>
+<rect x="1001.0" y="4600" width="98.0" height="25.5" fill="white"/>
+<text x="1050" y="4618" font-family="Microsoft YaHei" font-size="15" text-anchor="middle">跳过 // 注释</text>
+<rect x="1686" y="4687" width="104.0" height="27.0" fill="white"/>
+<text x="1690" y="4706" font-family="Microsoft YaHei" font-size="16" text-anchor="start">SLASH_ASSIGN</text>
+<rect x="1846" y="4837" width="128.0" height="27.0" fill="white"/>
+<text x="1850" y="4856" font-family="Microsoft YaHei" font-size="16" text-anchor="start">跳过 /* */ 注释</text>
+<rect x="316" y="5165" width="239.00000000000003" height="34.5" fill="white"/>
+<text x="320" y="5189" font-family="Microsoft YaHei" font-size="21" text-anchor="start">11  运算符与预处理符号</text>
+<rect x="462.25" y="5350" width="15.5" height="25.5" fill="white"/>
+<text x="470" y="5368" font-family="Microsoft YaHei" font-size="15" text-anchor="middle">!</text>
+<rect x="1116" y="5297" width="24.0" height="27.0" fill="white"/>
+<text x="1120" y="5316" font-family="Microsoft YaHei" font-size="16" text-anchor="start">!=</text>
+<rect x="462.25" y="5590" width="15.5" height="25.5" fill="white"/>
+<text x="470" y="5608" font-family="Microsoft YaHei" font-size="15" text-anchor="middle">#</text>
+<rect x="1116" y="5537" width="24.0" height="27.0" fill="white"/>
+<text x="1120" y="5556" font-family="Microsoft YaHei" font-size="16" text-anchor="start">##</text>
+<rect x="462.25" y="5830" width="15.5" height="25.5" fill="white"/>
+<text x="470" y="5848" font-family="Microsoft YaHei" font-size="15" text-anchor="middle">%</text>
+<rect x="1116" y="5777" width="24.0" height="27.0" fill="white"/>
+<text x="1120" y="5796" font-family="Microsoft YaHei" font-size="16" text-anchor="start">%=</text>
+<rect x="462.25" y="6070" width="15.5" height="25.5" fill="white"/>
+<text x="470" y="6088" font-family="Microsoft YaHei" font-size="15" text-anchor="middle">&amp;</text>
+<rect x="1116" y="5957" width="24.0" height="27.0" fill="white"/>
+<text x="1120" y="5976" font-family="Microsoft YaHei" font-size="16" text-anchor="start">&amp;&amp;</text>
+<rect x="1116" y="6077" width="24.0" height="27.0" fill="white"/>
+<text x="1120" y="6096" font-family="Microsoft YaHei" font-size="16" text-anchor="start">&amp;=</text>
+<rect x="462.25" y="6310" width="15.5" height="25.5" fill="white"/>
+<text x="470" y="6328" font-family="Microsoft YaHei" font-size="15" text-anchor="middle">*</text>
+<rect x="1116" y="6257" width="24.0" height="27.0" fill="white"/>
+<text x="1120" y="6276" font-family="Microsoft YaHei" font-size="16" text-anchor="start">*=</text>
+<rect x="462.25" y="6550" width="15.5" height="25.5" fill="white"/>
+<text x="470" y="6568" font-family="Microsoft YaHei" font-size="15" text-anchor="middle">+</text>
+<rect x="1116" y="6437" width="24.0" height="27.0" fill="white"/>
+<text x="1120" y="6456" font-family="Microsoft YaHei" font-size="16" text-anchor="start">++</text>
+<rect x="1116" y="6557" width="24.0" height="27.0" fill="white"/>
+<text x="1120" y="6576" font-family="Microsoft YaHei" font-size="16" text-anchor="start">+=</text>
+<rect x="462.25" y="6790" width="15.5" height="25.5" fill="white"/>
+<text x="470" y="6808" font-family="Microsoft YaHei" font-size="15" text-anchor="middle">-</text>
+<rect x="1116" y="6657" width="24.0" height="27.0" fill="white"/>
+<text x="1120" y="6676" font-family="Microsoft YaHei" font-size="16" text-anchor="start">--</text>
+<rect x="1116" y="6737" width="24.0" height="27.0" fill="white"/>
+<text x="1120" y="6756" font-family="Microsoft YaHei" font-size="16" text-anchor="start">-=</text>
+<rect x="1116" y="6817" width="24.0" height="27.0" fill="white"/>
+<text x="1120" y="6836" font-family="Microsoft YaHei" font-size="16" text-anchor="start">-&gt;</text>
+<rect x="462.25" y="7030" width="15.5" height="25.5" fill="white"/>
+<text x="470" y="7048" font-family="Microsoft YaHei" font-size="15" text-anchor="middle">&lt;</text>
+<rect x="1058.5" y="6970" width="23.0" height="25.5" fill="white"/>
+<text x="1070" y="6988" font-family="Microsoft YaHei" font-size="15" text-anchor="middle">&lt;&lt;</text>
+<rect x="1116" y="7037" width="24.0" height="27.0" fill="white"/>
+<text x="1120" y="7056" font-family="Microsoft YaHei" font-size="16" text-anchor="start">&lt;=</text>
+<rect x="1706" y="6917" width="32.0" height="27.0" fill="white"/>
+<text x="1710" y="6936" font-family="Microsoft YaHei" font-size="16" text-anchor="start">&lt;&lt;=</text>
+<rect x="462.25" y="7270" width="15.5" height="25.5" fill="white"/>
+<text x="470" y="7288" font-family="Microsoft YaHei" font-size="15" text-anchor="middle">=</text>
+<rect x="1116" y="7217" width="24.0" height="27.0" fill="white"/>
+<text x="1120" y="7236" font-family="Microsoft YaHei" font-size="16" text-anchor="start">==</text>
+<rect x="462.25" y="7510" width="15.5" height="25.5" fill="white"/>
+<text x="470" y="7528" font-family="Microsoft YaHei" font-size="15" text-anchor="middle">&gt;</text>
+<rect x="1058.5" y="7450" width="23.0" height="25.5" fill="white"/>
+<text x="1070" y="7468" font-family="Microsoft YaHei" font-size="15" text-anchor="middle">&gt;&gt;</text>
+<rect x="1116" y="7517" width="24.0" height="27.0" fill="white"/>
+<text x="1120" y="7536" font-family="Microsoft YaHei" font-size="16" text-anchor="start">&gt;=</text>
+<rect x="1706" y="7397" width="32.0" height="27.0" fill="white"/>
+<text x="1710" y="7416" font-family="Microsoft YaHei" font-size="16" text-anchor="start">&gt;&gt;=</text>
+<rect x="462.25" y="7750" width="15.5" height="25.5" fill="white"/>
+<text x="470" y="7768" font-family="Microsoft YaHei" font-size="15" text-anchor="middle">^</text>
+<rect x="1116" y="7697" width="24.0" height="27.0" fill="white"/>
+<text x="1120" y="7716" font-family="Microsoft YaHei" font-size="16" text-anchor="start">^=</text>
+<rect x="462.25" y="7990" width="15.5" height="25.5" fill="white"/>
+<text x="470" y="8008" font-family="Microsoft YaHei" font-size="15" text-anchor="middle">|</text>
+<rect x="1116" y="7877" width="24.0" height="27.0" fill="white"/>
+<text x="1120" y="7896" font-family="Microsoft YaHei" font-size="16" text-anchor="start">||</text>
+<rect x="1116" y="7997" width="24.0" height="27.0" fill="white"/>
+<text x="1120" y="8016" font-family="Microsoft YaHei" font-size="16" text-anchor="start">|=</text>
+<rect x="316" y="8145" width="302.0" height="34.5" fill="white"/>
+<text x="320" y="8169" font-family="Microsoft YaHei" font-size="21" text-anchor="start">12  点号、省略号与其他单字符</text>
+<rect x="462.25" y="8330" width="15.5" height="25.5" fill="white"/>
+<text x="470" y="8348" font-family="Microsoft YaHei" font-size="15" text-anchor="middle">.</text>
+<rect x="1706" y="8277" width="32.0" height="27.0" fill="white"/>
+<text x="1710" y="8296" font-family="Microsoft YaHei" font-size="16" text-anchor="start">...</text>
+<rect x="516" y="8507" width="200.0" height="27.0" fill="white"/>
+<text x="520" y="8526" font-family="Microsoft YaHei" font-size="16" text-anchor="start">按输入字符输出相应 Token</text>
+<rect x="846" y="8507" width="297.0" height="28.5" fill="white"/>
+<text x="850" y="8527" font-family="Microsoft YaHei" font-size="17" text-anchor="start">各字符直接接受；左侧标签是字符集合</text>
+<rect x="316" y="8825" width="396.5" height="34.5" fill="white"/>
+<text x="320" y="8849" font-family="Microsoft YaHei" font-size="21" text-anchor="start">13  #include 头文件上下文（独立入口）</text>
+<rect x="1706" y="8907" width="96.0" height="27.0" fill="white"/>
+<text x="1710" y="8926" font-family="Microsoft YaHei" font-size="16" text-anchor="start">HEADER_NAME</text>
+<rect x="1706" y="9137" width="96.0" height="27.0" fill="white"/>
+<text x="1710" y="9156" font-family="Microsoft YaHei" font-size="16" text-anchor="start">HEADER_NAME</text>
+<rect x="466" y="9257" width="543.5" height="28.5" fill="white"/>
+<text x="470" y="9277" font-family="Microsoft YaHei" font-size="17" text-anchor="start">仅在 #include 的名字位置启用；内容至少 1 字节，不能含 LF / CR。</text>
+<rect x="86" y="9397" width="100.0" height="37.5" fill="white"/>
+<text x="90" y="9423" font-family="Microsoft YaHei" font-size="23" text-anchor="start">读图约定</text>
+<rect x="86" y="9451" width="662.5" height="28.5" fill="white"/>
+<text x="90" y="9471" font-family="Microsoft YaHei" font-size="17" text-anchor="start">圆圈为状态，双圈为正常接受状态；识别完成后按最长匹配选规则，ID 再查关键字表。</text>
+<rect x="86" y="9486" width="654.0" height="28.5" fill="white"/>
+<text x="90" y="9506" font-family="Microsoft YaHei" font-size="17" text-anchor="start">为避免长线，各分支使用局部接受状态。Q 编号仅用于本图，不是 Excel 的 S 编号。</text>
+<rect x="86" y="9521" width="739.0" height="28.5" fill="white"/>
+<text x="90" y="9541" font-family="Microsoft YaHei" font-size="17" text-anchor="start">这是参考书风格的正常识别总图：含宏边、重复的等价末端与重叠入口；不是逐字节确定型 DFA。</text>
+<rect x="86" y="9556" width="713.5" height="28.5" fill="white"/>
+<text x="90" y="9576" font-family="Microsoft YaHei" font-size="17" text-anchor="start">宏边按整个所标序列消费：数字+ 表示至少一位；L? 表示可选 L；CRLF、0x / 0X 也为序列。</text>
+<rect x="86" y="9591" width="781.5" height="28.5" fill="white"/>
+<text x="90" y="9611" font-family="Microsoft YaHei" font-size="17" text-anchor="start">同一字符可能进入多个规则候选；实际扫描器的确定化、优先级和全部错误路径仍以现有 Excel 为准。</text>
+<rect x="86" y="9626" width="688.0" height="28.5" fill="white"/>
+<text x="90" y="9646" font-family="Microsoft YaHei" font-size="17" text-anchor="start">Cs = 除双引号、反斜杠、LF、CR 外的字节；Cc = 除单引号、反斜杠、LF、CR 外的字节。</text>
+<rect x="86" y="9661" width="764.5" height="28.5" fill="white"/>
+<text x="90" y="9681" font-family="Microsoft YaHei" font-size="17" text-anchor="start">E = 反斜杠后接 T；T = 简单转义字符，或 1-3 位八进制数字，或 x 后接至少 1 位十六进制数字。</text>
+<rect x="86" y="9696" width="662.5" height="28.5" fill="white"/>
+<text x="90" y="9716" font-family="Microsoft YaHei" font-size="17" text-anchor="start">简单转义尾部：a b f n r t v、反斜杠、单引号、双引号、?。H = 0-9 / A-F / a-f。</text>
+<rect x="86" y="9731" width="875.0000000000001" height="28.5" fill="white"/>
+<text x="90" y="9751" font-family="Microsoft YaHei" font-size="17" text-anchor="start">空字符常量、非法转义、非法数字、未闭合字符串 / 字符 / 注释和无效字节统一交错误处理，图中省略错误分支。</text>
+<rect x="86" y="9766" width="824.0000000000001" height="28.5" fill="white"/>
+<text x="90" y="9786" font-family="Microsoft YaHei" font-size="17" text-anchor="start">省略错误分支不改变项目规则。例如 08、1e+、0x、1uu 仍报告词法错误，不因正常子图可接受前缀而拆词。</text>
+<rect x="86" y="9801" width="594.5" height="28.5" fill="white"/>
+<text x="90" y="9821" font-family="Microsoft YaHei" font-size="17" text-anchor="start">参考《编译器设计之路》第二章图 2-3、2-4、2-6；项目是自定义类 C 语言。</text>
+<rect x="86" y="32" width="358.0" height="45.0" fill="white"/>
+<text x="90" y="63" font-family="Microsoft YaHei" font-size="28" text-anchor="start">类 C 语言词法状态转换总图</text>
+<rect x="86" y="87" width="540.0" height="31.5" fill="white"/>
+<text x="90" y="109" font-family="Microsoft YaHei" font-size="19" text-anchor="start">参考书布局 · 一条主干 · 分支内局部连线 · 正常识别路径</text>
+</svg>
