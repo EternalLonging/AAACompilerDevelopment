@@ -1,0 +1,304 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "01_circle",
+      "description": "基本声明、浮点运算和输出",
+      "source": "programs/01_circle.c",
+      "stdin": "",
+      "stdout": "c = 6.283180\n",
+      "expect": "run",
+      "exit_code": 0
+    },
+    {
+      "id": "02_input_sum",
+      "description": "输入、for 循环和复合赋值",
+      "source": "programs/02_input_sum.c",
+      "stdin": "5\n",
+      "stdout": "sum = 15\n",
+      "expect": "run",
+      "exit_code": 0
+    },
+    {
+      "id": "03_functions",
+      "description": "函数参数、递归和返回值",
+      "source": "programs/03_functions.c",
+      "stdin": "",
+      "stdout": "factorial = 120\n",
+      "expect": "run",
+      "exit_code": 0
+    },
+    {
+      "id": "04_control",
+      "description": "while、do、continue 和 switch 贯穿",
+      "source": "programs/04_control.c",
+      "stdin": "",
+      "stdout": "control = 12\n",
+      "expect": "run",
+      "exit_code": 0
+    },
+    {
+      "id": "05_arrays",
+      "description": "多维数组和嵌套初始化",
+      "source": "programs/05_arrays.c",
+      "stdin": "",
+      "stdout": "array = 21\n",
+      "expect": "run",
+      "exit_code": 0
+    },
+    {
+      "id": "06_struct",
+      "description": "结构体按值传参、返回值与成员",
+      "source": "programs/06_struct.c",
+      "stdin": "",
+      "stdout": "pair = 1 9 2\n",
+      "expect": "run",
+      "exit_code": 0
+    },
+    {
+      "id": "07_pointers",
+      "description": "数组退化、指针偏移和解引用写入",
+      "source": "programs/07_pointers.c",
+      "stdin": "",
+      "stdout": "pointer = 7 4\n",
+      "expect": "run",
+      "exit_code": 0
+    },
+    {
+      "id": "08_callback",
+      "description": "函数指针声明、传参和间接调用",
+      "source": "programs/08_callback.c",
+      "stdin": "",
+      "stdout": "callback = 12\n",
+      "expect": "run",
+      "exit_code": 0
+    },
+    {
+      "id": "09_static_extern",
+      "description": "extern 复用全局对象与 static 局部保值",
+      "source": "programs/09_static_extern.c",
+      "stdin": "",
+      "stdout": "storage = 3 1 2\n",
+      "expect": "run",
+      "exit_code": 0
+    },
+    {
+      "id": "10_typedef_enum",
+      "description": "typedef、枚举自动编号和 goto 标签",
+      "source": "programs/10_typedef_enum.c",
+      "stdin": "",
+      "stdout": "names = 4\n",
+      "expect": "run",
+      "exit_code": 0
+    },
+    {
+      "id": "11_numeric",
+      "description": "无符号回绕、long 和 double",
+      "source": "programs/11_numeric.c",
+      "stdin": "",
+      "stdout": "numeric = 0 123 1.500000\n",
+      "expect": "run",
+      "exit_code": 0
+    },
+    {
+      "id": "12_strings",
+      "description": "字符数组、字符指针和限宽字符串输入",
+      "source": "programs/12_strings.c",
+      "stdin": "abcdef\n",
+      "stdout": "string = Abcd orld\n",
+      "expect": "run",
+      "exit_code": 0
+    },
+    {
+      "id": "13_macros",
+      "description": "头文件守卫、条件宏、字符串化和拼接",
+      "source": "programs/13_macros.c",
+      "stdin": "",
+      "stdout": "macro = 7 3\n",
+      "expect": "run",
+      "exit_code": 0
+    },
+    {
+      "id": "14_short_circuit",
+      "description": "逻辑短路与三目表达式只执行选中分支",
+      "source": "programs/14_short_circuit.c",
+      "stdin": "",
+      "stdout": "short = 5 0\n",
+      "expect": "run",
+      "exit_code": 0
+    },
+    {
+      "id": "15_union_sizeof",
+      "description": "联合体首成员初始化、拷贝及固定目标大小",
+      "source": "programs/15_union_sizeof.c",
+      "stdin": "",
+      "stdout": "union = 7 4\n",
+      "expect": "run",
+      "exit_code": 0
+    },
+    {
+      "id": "16_temporary_array",
+      "description": "函数返回结构体后读取数组成员",
+      "source": "programs/16_temporary_array.c",
+      "stdin": "",
+      "stdout": "temporary = 8\n",
+      "expect": "run",
+      "exit_code": 0
+    },
+    {
+      "id": "e01_invalid_byte",
+      "description": "词法拒绝非法字符",
+      "source": "errors/e01_invalid_byte.c",
+      "stdin": "",
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Lexer"
+    },
+    {
+      "id": "e02_missing_semi",
+      "description": "语法拒绝缺少分号",
+      "source": "errors/e02_missing_semi.c",
+      "stdin": "",
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Parser"
+    },
+    {
+      "id": "e03_for_declaration",
+      "description": "当前文法不接受 for 内声明",
+      "source": "errors/e03_for_declaration.c",
+      "stdin": "",
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Parser"
+    },
+    {
+      "id": "e04_mixed_declaration",
+      "description": "当前文法不接受语句后声明",
+      "source": "errors/e04_mixed_declaration.c",
+      "stdin": "",
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Parser"
+    },
+    {
+      "id": "e05_unbraced_if",
+      "description": "当前文法要求控制体花括号",
+      "source": "errors/e05_unbraced_if.c",
+      "stdin": "",
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Parser"
+    },
+    {
+      "id": "e06_undeclared",
+      "description": "语义拒绝未声明名字",
+      "source": "errors/e06_undeclared.c",
+      "stdin": "",
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Semantic",
+      "code": "SEM_UNDECLARED"
+    },
+    {
+      "id": "e07_duplicate",
+      "description": "语义拒绝同层重复变量",
+      "source": "errors/e07_duplicate.c",
+      "stdin": "",
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Semantic",
+      "code": "SYM_DECL_CONFLICT"
+    },
+    {
+      "id": "e08_const_write",
+      "description": "语义拒绝修改 const",
+      "source": "errors/e08_const_write.c",
+      "stdin": "",
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Semantic",
+      "code": "SEM_LVALUE"
+    },
+    {
+      "id": "e09_argument_count",
+      "description": "语义拒绝错误实参数量",
+      "source": "errors/e09_argument_count.c",
+      "stdin": "",
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Semantic",
+      "code": "SEM_ARGUMENT_COUNT"
+    },
+    {
+      "id": "e10_format",
+      "description": "语义拒绝格式与实参类型不符",
+      "source": "errors/e10_format.c",
+      "stdin": "",
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Semantic",
+      "code": "SEM_FORMAT"
+    },
+    {
+      "id": "e11_divide_zero",
+      "description": "执行时报告除零",
+      "source": "errors/e11_divide_zero.c",
+      "stdin": "",
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Runtime",
+      "message": "除零"
+    },
+    {
+      "id": "e12_bounds",
+      "description": "执行时报告数组越界",
+      "source": "errors/e12_bounds.c",
+      "stdin": "",
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Runtime",
+      "message": "越界"
+    },
+    {
+      "id": "e13_null",
+      "description": "执行时报告空指针",
+      "source": "errors/e13_null.c",
+      "stdin": "",
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Runtime",
+      "message": "空指针"
+    },
+    {
+      "id": "e14_uninitialized",
+      "description": "执行时报告未初始化读取",
+      "source": "errors/e14_uninitialized.c",
+      "stdin": "",
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Runtime",
+      "message": "初始化"
+    },
+    {
+      "id": "e15_preprocess",
+      "description": "预处理失败阻止后续编译",
+      "source": "errors/e15_preprocess.c",
+      "stdin": "",
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Preprocess",
+      "code": "PP_FAILURE"
+    },
+    {
+      "id": "e16_step_limit",
+      "description": "无限循环受执行步数保护",
+      "source": "errors/e16_step_limit.c",
+      "stdin": "",
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Runtime",
+      "message": "上限"
+    }
+  ]
+}
