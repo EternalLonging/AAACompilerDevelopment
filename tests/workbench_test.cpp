@@ -42,6 +42,14 @@ void completion_tests() {
     const std::string unicode = "/* 中文说明 */ int main(void){int score=2; sco";
     result = complete(unicode, unicode.size());
     require(has(result, "score") && result.end == unicode.size(), "中文注释后的光标应按字节位置补全");
+    const std::string ranked = "int prefix;int main(void){int project;{int prize;pr}}";
+    result = complete(ranked, ranked.find("pr}}") + 2);
+    require(result.items.size() == 4 && result.items[0].label == "prize" && result.items[1].label == "project" &&
+            result.items[2].label == "prefix" && result.items[3].label == "printf", "前缀候选应按当前、外层、全局作用域排序");
+    for (const auto& item : result.items) require(item.label.compare(0, 2, "pr") == 0, "pr 不能混入 a、main 等无关名字");
+    const std::string exact = "int pr;int main(void){int project;pr}";
+    result = complete(exact, exact.find("pr}") + 2);
+    require(!result.items.empty() && result.items[0].label == "pr", "完全匹配应优先于内层作用域的前缀匹配");
 }
 std::size_t instructions(const IRProgram& ir) {
     auto count = ir.global_initializers.size();

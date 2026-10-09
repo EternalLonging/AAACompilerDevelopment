@@ -12,7 +12,7 @@ struct CompletionItem {
 struct CompletionResult {
     std::size_t begin = 0; // 要替换的前缀开始字节位置。
     std::size_t end = 0; // 光标字节位置，不包含此位置。
-    std::vector<CompletionItem> items; // 当前可用的补全候选。
+    std::vector<CompletionItem> items; // 前缀匹配的候选，完全匹配优先，其次按作用域由近到远排列。
     bool recovered = false; // 是否修补未完成的输入后才获得符号信息。
 };
 
