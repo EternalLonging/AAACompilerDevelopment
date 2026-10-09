@@ -35,26 +35,35 @@ void diagnostics(const std::vector<minic::Diagnostic>& entries) {
 }
 }
 
+#ifdef _WIN32
+int wmain(int argc, wchar_t* argv[]) {
+#else
 int main(int argc, char* argv[]) {
+#endif
     if (argc != 2) { std::cerr << "用法：integration_driver <源文件>\n"; return 2; }
     try {
+#ifdef _WIN32
+        // Windows 参数使用 UTF-16，避免中文目录被当前窄字符代码页破坏。
         const auto source_path = std::filesystem::absolute(argv[1]).lexically_normal();
+#else
+        const auto source_path = std::filesystem::absolute(std::filesystem::u8path(argv[1])).lexically_normal();
+#endif
         const auto source = read_file(source_path);
         if (!source) throw std::runtime_error("找不到联调源文件");
         // 仅用于测试夹具的本地头文件。正式系统头文件搜索另行实现。
         const minic::IncludeLoader loader = [&](const std::string& header, const std::string& parent) {
-            const auto directory = std::filesystem::path(parent).is_absolute() ?
-                std::filesystem::path(parent).parent_path() : source_path.parent_path();
-            return read_file(directory / header);
+            const auto parent_path = std::filesystem::u8path(parent);
+            const auto directory = parent_path.is_absolute() ? parent_path.parent_path() : source_path.parent_path();
+            return read_file(directory / std::filesystem::u8path(header));
         };
 #ifdef MINIC_FIXTURE_PREPROCESS_ONLY
-        const auto preprocessing = minic::preprocess(*source, source_path.string(), loader);
+        const auto preprocessing = minic::preprocess(*source, source_path.u8string(), loader);
         diagnostics(preprocessing.diagnostics);
         if (!preprocessing.ok()) return 1;
         std::cout << preprocessing.source;
         return std::cout ? 0 : 2;
 #else
-        auto compilation = minic::compile_preprocessed(*source, source_path.string(), minic::CompileTarget::IR, loader);
+        auto compilation = minic::compile_preprocessed(*source, source_path.u8string(), minic::CompileTarget::IR, loader);
         diagnostics(compilation.diagnostics);
         if (!compilation.ok()) return 1;
         minic::RunOptions options;

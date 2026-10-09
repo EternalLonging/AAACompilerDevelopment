@@ -4,12 +4,13 @@
 
 ## 项目目标与当前进度
 
-使用 **C++17** 实现可展示内部过程的 C 语言编译器：词法分析 → 语法分析 → 语义分析 → 四元式生成 → 解释器执行。符号表与统一诊断服务各阶段，最终词法规则采用 **C89** 范围，并保留项目要求的 `//` 注释扩展。
+使用 **C++17** 实现可展示内部过程的类 C89 项目语言编译器：词法分析 → 语法分析 → 语义分析 → 四元式生成 → 解释器执行。符号表与统一诊断服务各阶段，最终词法规则采用 **C89** 范围，并保留项目要求的 `//` 注释扩展。
 
-已完成公共结构体、模块接口、最终词法正则、常量池、符号表、统一诊断、M1/M2 后续流程，以及对象指针、数组传参、typedef、enum、goto、位运算、静态存储和安全常量折叠。本轮进一步实现 union、short/long/unsigned/double、函数指针回调、extern 对象声明、聚合函数传值与返回、字符串指针输入输出，以及独立预处理和总控入口。**目前可以独立运行“手动 AST → 语义 → 四元式 → 执行”和预处理源码；词法和语法由其他同学交付，接入前还不能直接编译 C 源文件。** 完整 C89、跨文件链接、动态内存和完整标准库仍未完成，见 [本轮交付范围](docs/backend-completion.md)。
+已完成公共结构体、模块接口、最终词法正则、常量池、符号表、统一诊断、M1/M2 后续流程，以及对象指针、数组传参、typedef、enum、goto、位运算、静态存储和安全常量折叠。本轮进一步实现 union、short/long/unsigned/double、函数指针回调、extern 对象声明、聚合函数传值与返回、字符串指针输入输出，以及独立预处理和总控入口。**正式词法与语法现已接入，可以直接完成“源码 → Token → AST → 语义 → 四元式 → 执行”，并可通过 compile_preprocessed 使用宏和头文件。** 前端采用项目语言范围，C89 仅作参考；控制体必须有花括号，具体范围见 [词法与语法实现](docs/frontend.md)。 完整 C89、跨文件链接、动态内存和完整标准库仍未完成，见 [本轮交付范围](docs/backend-completion.md)。
 
 | 已完成内容 | 入口 |
 |---|---|
+| 词法 DFA 扫描器、递归下降解析器及真实源码测试 | [src/lexer.cpp](src/lexer.cpp)、[src/parser.cpp](src/parser.cpp)、[docs/frontend.md](docs/frontend.md)、[tests/frontend_test.cpp](tests/frontend_test.cpp) |
 | 公共结构体，全部成员附中文注释 | [include/minic/interface.hpp](include/minic/interface.hpp) |
 | 五模块、符号表、诊断、解释器、总控及展示接口 | [include/minic/modules.hpp](include/minic/modules.hpp) |
 | 数据与 AST 孩子顺序约定 | [docs/interface.md](docs/interface.md) |
@@ -29,7 +30,7 @@
 | 四元式生成：运算、短路、分支、循环与函数调用 | [src/ir.cpp](src/ir.cpp) |
 | 解释执行：独立调用帧、递归、输入输出与运行错误检查 | [src/interpreter.cpp](src/interpreter.cpp) |
 | Token、AST、符号表、常量池、四元式和诊断展示 | [src/display.cpp](src/display.cpp) |
-| 编译总控与命令行：等待词法/语法链接 | [src/compiler.cpp](src/compiler.cpp)、[src/main.cpp](src/main.cpp) |
+| 编译总控与命令行：真实源码入口 | [src/compiler.cpp](src/compiler.cpp)、[src/main.cpp](src/main.cpp) |
 | M1 联动示例、9 组测试及总控流程测试 | [examples/m1_pipeline_demo.cpp](examples/m1_pipeline_demo.cpp)、[tests/m1_pipeline_test.cpp](tests/m1_pipeline_test.cpp)、[tests/compiler_flow_test.cpp](tests/compiler_flow_test.cpp) |
 | M2 数组/结构体/控制流与指针等扩展说明 | [docs/backend-extensions.md](docs/backend-extensions.md) |
 | M2 示例与 7 组行为测试 | [examples/m2_pipeline_demo.cpp](examples/m2_pipeline_demo.cpp)、[tests/m2_pipeline_test.cpp](tests/m2_pipeline_test.cpp) |
@@ -61,7 +62,7 @@ g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -I include examples/symbol_table
 & build/symbol_table_demo.exe
 ```
 
-compile_and_run.cpp 的总控已有实现，但仍需要词法/语法函数才能链接完整流程，目前可做声明层编译检查。interface_demo.cpp 需链接常量池实现，其输出演示数据组装；symbol_table_demo.cpp 展示作用域遮蔽、前缀查询及重复声明报错。
+compile_and_run.cpp 已能链接并运行真实源码编译流程；执行示例输出 `c = 6.283180`。interface_demo.cpp 需链接常量池实现，其输出演示数据组装；symbol_table_demo.cpp 展示作用域遮蔽、前缀查询及重复声明报错。
 
 基础行为测试分别验证常量池和符号表/诊断/类型规则，扩展类型及 struct/union 布局已接入后续流程；补全目前按单源文件字节位置处理。详细范围见上述模块文档。头文件和实现中的说明采用简短中文注释。
 
@@ -73,7 +74,7 @@ compile_and_run.cpp 的总控已有实现，但仍需要词法/语法函数才�
 & tools/test_backend.ps1 -Compiler 'D:/G++/MinGW/bin/g++.exe'
 ```
 
-脚本严格编译并运行基础测试、M1–M4、预处理、编译总控测试及示例。M1 示例输入 5 输出 `sum = 15`，M2 示例输出 `S = 9`。总控测试中的词法/语法替身只在测试程序中链接，不属于正式编译器实现。
+脚本严格编译并运行基础测试、M1–M4、预处理、编译总控、真实前端测试、词法随机对照及示例。M1 示例输入 5 输出 `sum = 15`，M2 示例输出 `S = 9`。总控测试中的词法/语法替身只在测试程序中链接，不属于正式编译器实现。
 
 安装 CMake 后也可以使用：
 
@@ -83,13 +84,13 @@ cmake --build build/cmake
 ctest --test-dir build/cmake --output-on-failure
 ```
 
-验证使用严格 g++ 脚本及 CMake/CTest 的 9 项回归测试。`src/lexer.cpp`、`src/parser.cpp` 交付后重新配置 CMake，即可建立完整 minic 命令行和 compile_and_run 示例。当前支持范围、限制、节点顺序、目标布局、指针边界和新四元式见 [后续模块交接说明](docs/backend-extensions.md) 和 [本轮交付](docs/backend-completion.md)。原公共字段保持不变，新预处理结果及总控接口采用增量扩展。
+验证使用严格 g++ 脚本及 CMake/CTest 的 14 项测试。minic 命令行和 compile_and_run 已建立并实际运行。前端测试覆盖真实源码编译执行，词法对照验证 3396 组输入及起止位置。Windows 中文路径建议使用 `cmake -S . -B build/frontend -G Ninja`，具体命令见 [frontend.md](docs/frontend.md)。当前支持范围、限制、节点顺序、目标布局、指针边界和新四元式见 [后续模块交接说明](docs/backend-extensions.md) 和 [本轮交付](docs/backend-completion.md)。原公共字段保持不变，新预处理结果及总控接口采用增量扩展。
 
 ## 语言目标与协作
 
-联调准备新增 integration_preparation，CMake/CTest 当前共 10 项检查。32 个夹具已检查预处理和词法规则，16 个正常程序的预期输出通过 GCC 参考执行核实。正式 lexer.cpp/parser.cpp 到位后，重新配置会自动启用 source_integration；准备检查通过不代表本项目真实源码全链路通过。
+新增 source_integration 使用正式前端执行 32 个夹具，逐一检查输出、返回值和最早失败阶段；integration_preparation 继续独立核对预处理和词法规则。
 
-M1：基本类型、函数、控制流与 scanf/printf；M2：数组、struct 和更多控制语句；M3：指针、预处理及扩展类型；M4：完整 C89 核心、存储类别、限定符和标准库对接。词法规则可先识别完整种别，语法与执行能力按里程碑实现。原需求中的 C89/C99 验收口径需组内统一，此仓库最终词法规范明确使用 C89。
+M1：基本类型、函数、控制流与 scanf/printf；M2：数组、struct 和更多控制语句；M3：指针、预处理及扩展类型；M4 原规划：扩展核心语法、存储类别、限定符和标准库对接。词法规则可先识别完整种别，语法与执行能力按里程碑实现。目标是项目定义的类 C89 语言，C89 用于参考，不默认追求完整标准符合性；词法保留已确认的 C89 拼写规则与 // 注释扩展。
 
 采用 Git Flow：main 为稳定分支，dev 为集成分支，feature/模块名用于开发；提交信息使用“类型(模块): 描述”。接口字段或合同变化应更新文档及版本，经组内评审后合入。
 

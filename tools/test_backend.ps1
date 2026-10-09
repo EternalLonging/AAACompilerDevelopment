@@ -29,6 +29,29 @@ try {
         & "./build/${demo}_demo.exe"
         if ($LASTEXITCODE -ne 0) { throw "示例执行失败：$demo" }
     }
+    # 总控替身测试保持隔离，正式前端对象只链接真实源码测试和命令行。
+    $frontendObjects = @()
+    foreach ($source in @('src/lexer.cpp', 'src/parser.cpp', 'src/compiler.cpp')) {
+        $object = 'build/' + [System.IO.Path]::GetFileNameWithoutExtension($source) + '.o'
+        & $Compiler '-std=c++17' '-Wall' '-Wextra' '-Wpedantic' '-Werror' '-I' 'include' '-c' $source '-o' $object
+        if ($LASTEXITCODE -ne 0) { throw "前端编译失败：$source" }
+        $frontendObjects += $object
+    }
+    foreach ($name in @('frontend_test', 'lexer_probe', 'minic', 'compile_and_run')) {
+        $source = if ($name -eq 'minic') { 'src/main.cpp' } elseif ($name -eq 'compile_and_run') {
+            'examples/compile_and_run.cpp'
+        } else { "tests/${name}.cpp" }
+        & $Compiler '-std=c++17' '-Wall' '-Wextra' '-Wpedantic' '-Werror' '-I' 'include' $source @frontendObjects @objects '-o' "build/${name}.exe"
+        if ($LASTEXITCODE -ne 0) { throw "前端链接失败：$name" }
+    }
+    & './build/frontend_test.exe'
+    if ($LASTEXITCODE -ne 0) { throw '前端测试失败' }
+    & './build/minic.exe' 'run' 'examples/frontend_demo.c'
+    if ($LASTEXITCODE -ne 0) { throw '源码示例失败' }
+    python tools/generate_lexer_dfa.py --check
+    if ($LASTEXITCODE -ne 0) { throw 'DFA 表过期' }
+    python tools/test_lexer_dfa.py build/lexer_probe.exe
+    if ($LASTEXITCODE -ne 0) { throw '词法对照测试失败' }
 } finally {
     Pop-Location
 }

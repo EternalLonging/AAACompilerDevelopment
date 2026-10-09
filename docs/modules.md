@@ -2,7 +2,7 @@
 
 日期：2026-10-09。结构体及其字段约定见 [interface.md](interface.md)。本文件定义“各模块怎样调用”，全部函数声明位于 `include/minic/`，均附中文注释。
 
-当前已实现常量池、符号表、统一诊断、M1/M2 后续流程、对象指针等扩展、文本展示及总控。词法和语法入口由其他同学提供；其完成前可以用手动 AST 验证后续模块。支持范围及限制见 [backend-extensions.md](backend-extensions.md)。主程序统一包含 `minic/modules.hpp`；某模块可以只包含自己需要的头文件。
+当前已实现常量池、符号表、统一诊断、M1/M2 后续流程、对象指针等扩展、文本展示及总控。正式词法和语法入口已实现，真实源码验证见 [frontend.md](frontend.md)。支持范围及限制见 [backend-extensions.md](backend-extensions.md)。主程序统一包含 `minic/modules.hpp`；某模块可以只包含自己需要的头文件。
 
 ## 1. 文件与分工
 
@@ -16,10 +16,10 @@
 | 中间代码生成 | ir.hpp | src/ir.cpp | generate（M1/M2 及指针等扩展） |
 | 常量池（IR 公共支持） | constant_pool.hpp | src/constant_pool.cpp | ConstantPool、constant_operand（已实现） |
 | 四元式解释器 | interpreter.hpp | src/interpreter.cpp | run（M1/M2 及指针等扩展） |
-| 主流程整合 | compiler.hpp | src/compiler.cpp、src/compilation_result.cpp | compile、CompilationResult::ok（已实现，compile 等待词法/语法链接） |
+| 主流程整合 | compiler.hpp | src/compiler.cpp、src/compilation_result.cpp | compile、CompilationResult::ok（已实现并接入正式前端） |
 | 文本展示与导出 | display.hpp | src/display.cpp | print_tokens / ast / symbols / ir / diagnostics（已实现） |
 
-词法、语法函数体仍待同学交付；union、扩展数值类型、函数指针、外部对象链接、预处理和标准库等完整 C 功能仍待扩展。基础支持模块见 [symbol-table.md](symbol-table.md) 和 [constant-pool.md](constant-pool.md)。四个编译阶段用普通函数返回明确结果，符号表、常量池和诊断收集器通过类封装状态。
+词法、语法、union、扩展数值类型、函数指针、extern 和预处理均有实现；项目范围与完整 C 的差异见 [frontend.md](frontend.md)、[backend-completion.md](backend-completion.md)。基础支持模块见 [symbol-table.md](symbol-table.md) 和 [constant-pool.md](constant-pool.md)。四个编译阶段用普通函数返回明确结果，符号表、常量池和诊断收集器通过类封装状态。
 
 ## 2. 五个模块怎样交接
 
@@ -179,6 +179,6 @@ IR 显示可用符号表补充用户名字，但同时保留 `%sID`，保证同�
 g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -I include -fsyntax-only examples/compile_and_run.cpp
 ```
 
-这验证头文件、函数参数、返回类型和流程调用是否兼容，不验证编译器行为。compile_and_run.cpp 还需要词法/语法实现才能链接。M1 后续模块已有实际行为测试：运行 `tools/test_backend.ps1`，或使用根目录 CMakeLists.txt 和 CTest。compiler_flow_test.cpp 中的词法/语法替身只检查总控调用顺序，不属于正式扫描器或解析器。
+这验证头文件、函数参数、返回类型和流程调用是否兼容，不验证编译器行为。compile_and_run.cpp 现可链接运行，真实前端行为由 frontend_test 检查。M1 后续模块已有实际行为测试：运行 `tools/test_backend.ps1`，或使用根目录 CMakeLists.txt 和 CTest。compiler_flow_test.cpp 中的词法/语法替身只检查总控调用顺序，不属于正式扫描器或解析器。
 
 v1.1 将四个已有入口迁入各模块头文件；v1.2 新增常量池并在 IRProgram 中保存数据。原来只含 interface.hpp 的调用代码如需调用模块函数，改含对应头文件或 modules.hpp；interface_demo.cpp 从 v1.2 起需同时链接 src/constant_pool.cpp。

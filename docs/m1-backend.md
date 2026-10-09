@@ -1,6 +1,6 @@
 # M1 语义分析、四元式与解释执行
 
-日期：2026-10-09。词法和语法分析由其他同学负责。本次完成后续模块，通过手动组装符合公共合同的 AST，独立运行 `analyze → generate → run`。正式入口没有伪造词法/语法结果，也未修改原有公共结构体字段。
+日期：2026-10-09。本页记录早期后续模块交付，使用手动组装的 AST 独立运行 `analyze → generate → run`。正式入口没有伪造词法/语法结果，也未修改原有公共结构体字段。
 
 本文保留 M1 的起步范围说明。随后已实现数组、结构体、更多控制语句、对象指针、typedef、enum、goto、位运算和静态存储，当前完整支持范围及限制以 [backend-extensions.md](backend-extensions.md) 为准。
 
@@ -12,9 +12,9 @@
 | IR 生成 | `src/ir.cpp` | 共享常量池、按函数分组、数值运算/转换、短路跳转、分支循环、break/continue、实参快照与调用 |
 | 解释执行 | `src/interpreter.cpp` | 全局零初始化、局部声明重置、独立调用帧、递归、printf/scanf、步数/深度限制、运行报错 |
 | 文本展示 | `src/display.cpp` | Token 种别、AST 树、符号/标签/成员/作用域、常量池与四元式、中文诊断 |
-| 总控 | `src/compiler.cpp`、`src/compilation_result.cpp` | 按目标执行阶段，失败停止，保存各阶段产物和诊断；等待词法/语法链接 |
-| 命令行 | `src/main.cpp` | 读取文件，支持 tokens/parse/symbols/check/ir/run，交付词法/语法后可链接使用 |
-| 构建与测试 | `CMakeLists.txt`、`tools/test_backend.ps1` | 独立后续模块库、示例和测试；词法/语法交付后可建立完整流程目标 |
+| 总控 | `src/compiler.cpp`、`src/compilation_result.cpp` | 按目标执行阶段，失败停止，保存各阶段产物和诊断；已接入正式前端 |
+| 命令行 | `src/main.cpp` | 读取文件，支持 tokens/parse/symbols/check/ir/run，已可编译与运行真实源码 |
+| 构建与测试 | `CMakeLists.txt`、`tools/test_backend.ps1` | 独立后续模块库、示例和测试；已建立完整流程目标 |
 
 ## 2. 当前支持范围
 
@@ -73,7 +73,7 @@ cmake --build build/cmake
 ctest --test-dir build/cmake --output-on-failure
 ```
 
-CMake 当前无需 lexer/parser 即可构建 minic_backend 和全部后续模块测试。两个源文件交付后重新配置，即可生成 minic_compiler、minic 命令行与 compile_and_run 目标；若同学将模块拆成多个实现文件，需要同步扩展该目标的源文件列表。接入后命令示例为 `minic run circle.c`；当前只能检查命令行源码的编译兼容性，尚不能对真实 C 文件验证这些命令。
+CMake 可构建 minic_backend、minic_compiler、minic 命令行与 compile_and_run。正式前端已验证真实源码与后端联动，使用命令及语言范围见 [frontend.md](frontend.md)，例如 `minic run examples/frontend_demo.c`。
 
 `tests/compiler_flow_test.cpp` 的 lex/parse 是**仅在测试可执行文件中链接的替身**，用于验证总控阶段顺序及错误传播。它们不属于正式编译器，也不代表完成了词法/语法。生产库 minic_backend 不包含替身。
 

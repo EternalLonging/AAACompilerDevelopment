@@ -85,4 +85,4 @@ typedef 用 TypedefDecl(name="Count", declared_type=Int)，后续 `Count n` 的�
 
 准备阶段已核实清单、实际预处理和词法规则；16 个正常样例的输出通过 GCC 参考执行核实。另用同学的上下文预测核心验证 30 个非词法/预处理错误样例的接受或拒绝；typedef 样例明确给出类型名位置，这不验证完整作用域适配器。
 
-正式 lexer.cpp/parser.cpp 尚未交付，**32 个用例尚未通过本项目真实源码全链路验收**。驱动的两种入口已严格检查 C++17 接口与语法；正式源码执行将由前端交付后的 source_integration 测试验证。准备检查和 GCC 参考通过不能替代该结果。
+正式 lexer.cpp/parser.cpp 已接入，**32 个用例已通过本项目真实源码全链路验收**。source_integration 逐一检查正常输出、main 返回值、失败阶段和指定诊断，清单及预期未修改。Windows 驱动使用 UTF-16 参数和 UTF-8 文件名映射，已在中文目录验证。完整回归现有 14 项 CTest 检查。

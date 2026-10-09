@@ -4,7 +4,7 @@
 
 规则文件：[lexer/patterns.json](../lexer/patterns.json)。Token 名称与 [interface.hpp](../include/minic/interface.hpp) 一致。验证工具：[tools/check_lexer_patterns.py](../tools/check_lexer_patterns.py)。
 
-本次完成正则规范及验证，尚未生成 NFA/DFA 或实现 C++ 扫描器。词法接受某种拼写，不代表语法、语义和解释器已经实现对应功能。
+普通规则的 NFA/DFA 生成器和 C++ 扫描器已经实现，见 [frontend.md](frontend.md)。词法接受某种拼写，不代表语法、语义和解释器已经实现对应功能。
 
 ## 1. 规则文件与正则语法
 
@@ -243,4 +243,4 @@ INVALID_NUMBER 是宽松数字候选串，不是合法数字定义。合法数�
 
     python tools/check_lexer_patterns.py
 
-验证工具使用 Python 字节正则逐规则比较匹配长度，检查规范行为；正式 C++ 词法模块仍通过自研 NFA/DFA 生成器实现。
+验证工具使用 Python 字节正则逐规则比较匹配长度，检查规范行为；正式 C++ 词法模块通过自研 NFA/DFA 生成器实现；另有 3396 组独立正则对照，见 `tools/test_lexer_dfa.py`。

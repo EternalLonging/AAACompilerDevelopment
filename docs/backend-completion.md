@@ -32,10 +32,10 @@ printf/scanf 仍要求字面量格式串，支持 d/u/x/o/f/c/s 和匹配的 h/l
 
 ## 交付边界
 
-正式 `src/lexer.cpp`、`src/parser.cpp` 尚未交付。后端通过手工 AST 验证，预处理通过源码字符串验证；总控用替身验证阶段顺序。真实源码编译与全链路验收待同学交付后进行，不能把替身测试当作完成源码编译。
+正式 `src/lexer.cpp`、`src/parser.cpp` 已交付。原手工 AST 和总控替身回归继续保留，新增 frontend_test 验证真实源码经词法、语法、语义、IR 到执行的完整链路。支持范围见 [frontend.md](frontend.md)，不以完整 C89 作为默认目标。
 
 完整 C89 还有独立扩展工作：位域、宽字面量、旧式函数定义、变参用户函数、完整重声明兼容规则、不完整数组的链接合并、完整预处理规则、跨翻译单元链接、动态内存与标准库、真实机器代码生成。当前没有这些实现，不能把本轮称为完整 C89 或整个项目 100%。
 
-交接入口：`include/minic/modules.hpp`；AST 合同：`docs/interface.md`；预处理约定：`docs/preprocessor.md`。正式词法/语法文件到位后，重新配置 CMake 即可启用 minic 命令行和真实总控构建。
+交接入口：`include/minic/modules.hpp`；AST 合同：`docs/interface.md`；预处理约定：`docs/preprocessor.md`。minic 命令行和真实总控已构建验证。
 
-验证使用 `tools/test_backend.ps1` 的严格无警告构建，以及 CMake/CTest 的 9 项回归测试；覆盖常量池、符号表、M1–M4 后续流程、预处理、总控和词法正则。
+验证使用 `tools/test_backend.ps1` 的严格无警告构建，以及 CMake/CTest 的 14 项测试；覆盖常量池、符号表、M1–M4 后续流程、预处理、总控和词法正则。
