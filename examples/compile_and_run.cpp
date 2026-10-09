@@ -1,4 +1,4 @@
-// 完整流程示例；同学交付 lexer.cpp 和 parser.cpp 后即可链接运行。
+// 真实源码的完整编译与执行示例。
 // 检查命令：g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -I include -fsyntax-only examples/compile_and_run.cpp
 #include "minic/modules.hpp"
 

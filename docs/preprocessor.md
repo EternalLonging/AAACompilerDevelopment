@@ -4,7 +4,7 @@
 
 `preprocess(source, filename, loader)` 返回展开后的源码、每行原始文件和行号、诊断。调用者通过 loader 提供头文件内容，参数是头文件名和包含它的文件名，找不到时返回 `std::nullopt`。模块不自行读取磁盘或提供系统头文件。
 
-`compile_preprocessed(source, filename, target, loader)` 先预处理，再走既有总控；预处理失败不会调用词法。原 `compile` 接口保持直接编译行为。总控已接好入口，真实源文件编译仍需正式词法和语法实现。
+`compile_preprocessed(source, filename, target, loader)` 先预处理，再走既有总控；预处理失败不会调用词法。原 `compile` 接口保持直接编译行为。正式词法与语法已接入总控，宏和头文件到真实源码编译的链路已有 frontend_test 验证。
 
 | 功能 | 当前行为 |
 |---|---|

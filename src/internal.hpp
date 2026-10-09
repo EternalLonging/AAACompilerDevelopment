@@ -3,6 +3,7 @@
 #include "minic/semantic.hpp"
 
 #include <cmath>
+#include <cctype>
 #include <limits>
 #include <stdexcept>
 #include <string>
@@ -230,7 +231,7 @@ inline int hex_digit(char value) {
 }
 
 // 将窄字符或字符串中的转义还原为字节。
-inline std::string decode_string(const std::string& spelling, char quote) {
+inline std::string decode_literal_segment(const std::string& spelling, char quote) {
     if (spelling.size() < 2 || spelling.front() != quote || spelling.back() != quote)
         throw std::runtime_error("字面量缺少正确引号，或使用了尚不支持的宽字符前缀");
     std::string result;
@@ -273,6 +274,28 @@ inline std::string decode_string(const std::string& spelling, char quote) {
         }
         result.push_back(static_cast<char>(value));
     }
+    return result;
+}
+
+// 相邻字符串逐段解码后拼接，避免前一段十六进制转义吞入后一段数字。
+inline std::string decode_string(const std::string& spelling, char quote) {
+    if (quote != '"') return decode_literal_segment(spelling, quote);
+    std::string result;
+    std::size_t pos = 0;
+    while (pos < spelling.size()) {
+        if (spelling[pos] != '"') throw std::runtime_error("字符串需要引号，宽字符串尚不支持");
+        const auto begin = pos++;
+        bool closed = false;
+        while (pos < spelling.size()) {
+            const char c = spelling[pos++];
+            if (c == '\\' && pos < spelling.size()) ++pos;
+            else if (c == '"') { closed = true; break; }
+        }
+        if (!closed) throw std::runtime_error("字符串缺少结束引号");
+        result += decode_literal_segment(spelling.substr(begin, pos - begin), quote);
+        while (pos < spelling.size() && std::isspace(static_cast<unsigned char>(spelling[pos]))) ++pos;
+    }
+    if (spelling.empty()) throw std::runtime_error("字符串缺少引号");
     return result;
 }
 

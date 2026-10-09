@@ -2,7 +2,7 @@
 
 日期：2026-10-09。依据：README 和 `需求分析/00–05` 文档。
 
-本文件是本组编译器的公共接口基线；可编译定义在 `include/minic/interface.hpp`，全部位于 `minic` 命名空间。后续模块引用该头文件，不再各自定义同名结构体。常量池、符号表、诊断、M1/M2 后续流程及对象指针等扩展已有实现；词法和语法由其他同学提供。实际范围见 [backend-extensions.md](backend-extensions.md)。
+本文件是本组编译器的公共接口基线；可编译定义在 `include/minic/interface.hpp`，全部位于 `minic` 命名空间。后续模块引用该头文件，不再各自定义同名结构体。常量池、符号表、诊断、M1/M2 后续流程及对象指针等扩展已有实现；正式词法与语法已实现，范围见 [frontend.md](frontend.md)。实际范围见 [backend-extensions.md](backend-extensions.md)。
 
 v1.1 补齐模块函数合同，见 [modules.md](modules.md)。数据头文件只保留结构体；函数入口分别位于各模块头文件，可统一包含 `minic/modules.hpp`。
 
@@ -145,7 +145,7 @@ Function 节点的 ParamDecl 类型和 declared_type.params 必须一致。无�
 
 比较签名时，数组/函数形参先调整为指针，并忽略形参顶层 const/volatile；函数体中的形参对象仍保留限定符。因此 `f(int)` 与 `f(const int)` 签名兼容，但 const 形参在函数体内不能修改；`f(int*)` 与 `f(const int*)` 不因此兼容。临时 struct/union 的数组成员可读取下标结果，直接结果仍是 RValue，不能把它当可修改左值。
 
-普通窄字符串的 value 保存解码后的字节串（不附终止零），name 保存原文；语义类型是包含终止零的 char 数组，长度为 `value.size()+1`。用于函数实参时，语义插入数组到指针的转换。字符常量的 value 用 int64_t 保存解码码值，M1 先遵循本组 char 规则，后续完整 C 对字符常量类型的调整集中在语义模块。最终词法已能识别 L 前缀、完整转义和多字符常量；宽字符/宽字符串的语义存储需在实现中明确，不能直接套用窄字节串的长度规则。
+普通窄字符串的 value 保存解码后的字节串（不附终止零），name 保存原文；相邻字符串合为一个 StringLiteral，name 以空格分隔各段完整拼写，语义分别解码再拼接；语义类型是包含终止零的 char 数组，长度为 `value.size()+1`。用于函数实参时，语义插入数组到指针的转换。字符常量的 value 用 int64_t 保存解码码值，M1 先遵循本组 char 规则，后续完整 C 对字符常量类型的调整集中在语义模块。最终词法已能识别 L 前缀、完整转义和多字符常量；宽字符/宽字符串的语义存储需在实现中明确，不能直接套用窄字节串的长度规则。
 
 ### 例：printf("%d", s)
 
@@ -170,7 +170,7 @@ SymbolId / ScopeId / RecordId 是各自 vector 的下标，从 0 分配；invali
 
 结构体必须先分配 RecordId 并登记标签，再解析/检查成员；因此 `struct Node *next` 能引用自身。尚未完整定义的记录 is_complete=false，size/alignment/offset 为空；不允许直接作为完整对象分配，也不允许按值包含自身。已完整布局的空偏移与 **offset=0** 含义不同。
 
-布局必须选定目标模型，不能用宿主机器 sizeof。目前 char=1、int=4、float=4、对象指针=8 字节，各自同大小对齐。struct 成员按对齐向上取整后确定 offset，末尾补齐到最大对齐。例如 `{char c; int x;}` 中 c 偏移 0、x 偏移 4，总大小 8，不能简单累计成 5。union 的完整运行语义、long/double 布局仍待实现。
+布局必须选定目标模型，不能用宿主机器 sizeof。目前 char=1、int=4、float=4、对象指针=8 字节，各自同大小对齐。struct 成员按对齐向上取整后确定 offset，末尾补齐到最大对齐。例如 `{char c; int x;}` 中 c 偏移 0、x 偏移 4，总大小 8，不能简单累计成 5。short=2/2、long=4/4、double/long double=8/8，union 按最大成员大小和对齐布局；完整目标约定见 [backend-completion.md](backend-completion.md)。
 
 `ScopeEntry` 内两张映射：
 
@@ -221,7 +221,7 @@ M1 指令合同：
 | `jmp` | - | - | 标号 | 无条件跳转 |
 | `jz / jnz` | 条件值 | - | 标号 | 为零 / 非零跳转 |
 | `arg` | 已求值的实参 | - | - | 将值复制到本次调用的待传参队列 |
-| `call` | 函数 `%sID` | 实参数量（十进制） | 临时量或 - | 直接调用函数，函数指针调用尚未实现 |
+| `call` | 函数 `%sID` | 实参数量（十进制） | 临时量或 - | 直接调用函数；固定签名函数指针使用 callind，见 backend-completion.md |
 | `ret` | 返回值或 - | - | - | 返回当前调用者 |
 | `addr` | 对象 `%sID` | - | 指针临时量 | 取得普通对象的地址，不读取对象值 |
 | `local` | - | - | 局部变量 `%sID` | 每次执行声明时将局部对象重置为未初始化 |
@@ -249,7 +249,7 @@ SemanticResult analyze(Program& program);
 IRResult generate(const Program& program, const SymbolTableData& symbols);
 ```
 
-这四个入口分别在 lexer.hpp、parser.hpp、semantic.hpp、ir.hpp 中声明；analyze 和 generate 已有 M1 实现，lex 和 parse 等待同学交付。详细合同及符号表、诊断、执行与总控接口见 [modules.md](modules.md)。每阶段填完产物/diagnostics 再调用 ok()；默认构造的结果不代表该阶段已经运行。编译驱动负责按顺序调用并保存所有诊断，不能用一个默认 bool ok 隐瞒错误。
+这四个入口分别在 lexer.hpp、parser.hpp、semantic.hpp、ir.hpp 中声明；lex、parse、analyze 和 generate 均有正式实现。详细合同及符号表、诊断、执行与总控接口见 [modules.md](modules.md)。每阶段填完产物/diagnostics 再调用 ok()；默认构造的结果不代表该阶段已经运行。编译驱动负责按顺序调用并保存所有诊断，不能用一个默认 bool ok 隐瞒错误。
 
 - LexResult：Token 序列 + 词法诊断；错误时仍可展示收集到的 Token。
 - ParseResult：AST 根 + 语法诊断；解析恢复可继续收集错误，但只要有语法错误，最终 root 置空。
@@ -277,7 +277,7 @@ IR 生成接收 const AST 与 const 符号表，不登记新源程序符号，�
 
 ## 10. 编译使用示例
 
-`examples/interface_demo.cpp` 演示用真实结构体组装 Token、AST、符号表、结构体成员与函数 IR；它不调用尚未实现的编译器入口，也不冒充完整编译测试。
+`examples/interface_demo.cpp` 演示用真实结构体组装 Token、AST、符号表、结构体成员与函数 IR；它不调用编译器入口，也不冒充完整编译测试。
 
 ```powershell
 g++ -std=c++17 -Wall -Wextra -Wpedantic -I include examples/interface_demo.cpp src/constant_pool.cpp -o interface_demo.exe

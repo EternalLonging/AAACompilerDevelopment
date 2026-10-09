@@ -47,9 +47,9 @@ python tools/test_integration.py --reference-gcc 'D:/G++/MinGW/bin/g++.exe'
 
 Linux/macOS 去掉驱动路径的 `.exe`；多配置生成器在路径中加 Debug/Release。Python 需 3.10+。CMake 现有测试之外新增 integration_preparation；它只代表准备检查通过。
 
-## 前端交付后运行
+## 真实源码联调
 
-当 src/lexer.cpp 和 src/parser.cpp 到位，重新配置 CMake。构建会自动增加 integration_driver，CTest 自动增加 source_integration。
+src/lexer.cpp 和 src/parser.cpp 已实现。integration_driver 链接正式前端，source_integration 已验证全部 32 个用例。
 
 ```powershell
 python tools/test_integration.py --compiler build/cmake/integration_driver.exe
@@ -57,4 +57,4 @@ python tools/test_integration.py --compiler build/cmake/integration_driver.exe
 
 工具逐一比较程序输出、main 返回值、失败阶段及已固定诊断。只统一 CRLF/LF，不去掉空白和尾部换行；失败退出非零。输入通过管道传入，无需人工逐个输入。
 
-当前 16 个正常程序已用 GCC 核实预期结果，32 个用例已通过准备检查；正式词法/语法仍待交付，尚未通过项目源码全链路验收。
+16 个正常程序原已用 GCC 核实预期结果；现在全部 32 个用例也已通过本项目正式源码编译执行和错误阶段验证。
