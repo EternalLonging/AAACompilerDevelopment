@@ -12,6 +12,8 @@
 
 namespace minic {
 
+// ==================== 公共基础：各阶段共用 ====================
+
 // 符号编号。
 using SymbolId = std::uint32_t;
 // 作用域编号。
@@ -37,6 +39,46 @@ struct SourceRange {
     SourceLocation begin; // 开始位置，包含此位置。
     SourceLocation end; // 结束位置，不包含此位置。
 };
+
+// 编译阶段。
+enum class Phase { Preprocess, Lexer, Parser, Semantic, IR, Runtime };
+// 诊断级别。
+enum class Level { Note, Warning, Error, Fatal };
+
+// 一条错误、警告或说明信息。
+struct Diagnostic {
+    Phase phase = Phase::Lexer; // 产生诊断的编译阶段。
+    Level level = Level::Error; // 诊断级别：说明、警告、错误或致命错误。
+    std::uint32_t line = 1; // 报错行号，与 range.begin.line 一致。
+    std::uint32_t col = 1; // 报错列号，与 range.begin.col 一致。
+    std::string message; // 给用户看的中文提示。
+    std::string code; // 错误代码，用于分类和查询。
+    SourceRange range; // 主要报错位置。
+    std::vector<SourceRange> related; // 关联位置，如上一次声明的位置。
+};
+
+// 判断诊断中是否有错误或致命错误。有则返回 true。
+inline bool has_errors(const std::vector<Diagnostic>& diagnostics) {
+    for (const auto& d : diagnostics) {
+        if (d.level == Level::Error || d.level == Level::Fatal) return true;
+    }
+    return false;
+}
+
+struct TypeInfo;
+// 共享的只读类型信息。
+using TypePtr = std::shared_ptr<const TypeInfo>;
+
+// 常量值，可存整数、浮点或字符串；monostate 表示未解码。
+using ConstantValue = std::variant<std::monostate, std::int64_t,
+                                   std::uint64_t, double, std::string>;
+
+// 表达式类别：非表达式、左值、右值或函数。
+enum class ValueCategory { None, LValue, RValue, Function };
+// 存储类别，如 static、extern。
+enum class StorageClass { None, Auto, Register, Static, Extern, Typedef };
+
+// ==================== 1. 词法分析：单词与单词表 ====================
 
 // 单词种别，预留种别不代表语法功能已实现。
 enum class TokenType {
@@ -66,73 +108,15 @@ struct Token {
     SourceRange range; // 单词在源码中的位置范围。
 };
 
-// 编译阶段。
-enum class Phase { Preprocess, Lexer, Parser, Semantic, IR, Runtime };
-// 诊断级别。
-enum class Level { Note, Warning, Error, Fatal };
-
-// 一条错误、警告或说明信息。
-struct Diagnostic {
-    Phase phase = Phase::Lexer; // 产生诊断的编译阶段。
-    Level level = Level::Error; // 诊断级别：说明、警告、错误或致命错误。
-    std::uint32_t line = 1; // 报错行号，与 range.begin.line 一致。
-    std::uint32_t col = 1; // 报错列号，与 range.begin.col 一致。
-    std::string message; // 给用户看的中文提示。
-    std::string code; // 错误代码，用于分类和查询。
-    SourceRange range; // 主要报错位置。
-    std::vector<SourceRange> related; // 关联位置，如上一次声明的位置。
+// 词法分析结果。
+struct LexResult {
+    std::vector<Token> tokens; // 词法分析得到的单词表，末尾包含 EOF。
+    std::vector<Diagnostic> diagnostics; // 词法分析的诊断列表。
+    // 判断本阶段是否成功。成功返回 true，否则返回 false。
+    bool ok() const { return !has_errors(diagnostics); }
 };
 
-// 判断诊断中是否有错误或致命错误。有则返回 true。
-inline bool has_errors(const std::vector<Diagnostic>& diagnostics) {
-    for (const auto& d : diagnostics) {
-        if (d.level == Level::Error || d.level == Level::Fatal) return true;
-    }
-    return false;
-}
-
-// C 数据类型的种类。
-enum class TypeKind {
-    Unknown, Error, Void, Char, Short, Int, Long, Float, Double, LongDouble,
-    Pointer, Array, Function, Struct, Union, Enum, Named
-};
-
-struct TypeInfo;
-// 共享的只读类型信息。
-using TypePtr = std::shared_ptr<const TypeInfo>;
-
-// C 类型信息。
-struct TypeInfo {
-    TypeKind kind = TypeKind::Unknown; // 类型种类，如 int、float、指针、数组。
-    bool is_unsigned = false; // 是否为无符号整型。
-    bool is_const = false; // 当前这一层类型是否带 const。
-    bool is_volatile = false; // 当前这一层类型是否带 volatile。
-    TypePtr base; // 指针的所指类型、数组的元素类型或函数的返回类型。
-    std::optional<std::size_t> array_length; // 本层数组长度；为空表示尚未确定。
-    std::vector<TypePtr> params; // 函数的形参类型表，按声明顺序保存。
-    bool variadic = false; // 函数是否接受可变数量的参数。
-    bool has_prototype = true; // 是否有参数原型；f() 与 f(void) 用此区分。
-    std::string name; // 标签名或尚未解析的类型别名。
-    RecordId record_id = invalid_id; // 对应的结构体、联合体或枚举编号。
-};
-
-// 常量值，可存整数、浮点或字符串；monostate 表示未解码。
-using ConstantValue = std::variant<std::monostate, std::int64_t,
-                                   std::uint64_t, double, std::string>;
-
-// 一条常量信息。
-struct ConstantEntry {
-    ConstantId id = invalid_id; // 常量编号，等于常量表下标。
-    TypePtr type; // 常量的数据类型。
-    ConstantValue value; // 解码后的常量值；字符串不附末尾零。
-    std::string spelling; // 常量第一次出现时的源码写法。
-    SourceRange range; // 常量第一次出现的位置。
-};
-
-// 常量池数据。
-struct ConstantPoolData {
-    std::vector<ConstantEntry> entries; // 常量信息表，按首次登记顺序保存。
-};
+// ==================== 2. 语法分析：语法树 ====================
 
 // 语法树节点的种类。
 enum class NodeType {
@@ -144,11 +128,6 @@ enum class NodeType {
     DoWhile, Conditional, Cast, Sizeof, UnionDef, EnumDef, EnumMember,
     TypedefDecl, InitList, Label, Goto, Error
 };
-
-// 表达式类别：非表达式、左值、右值或函数。
-enum class ValueCategory { None, LValue, RValue, Function };
-// 存储类别，如 static、extern。
-enum class StorageClass { None, Auto, Register, Static, Extern, Typedef };
 
 // 抽象语法树节点。
 struct ASTNode {
@@ -169,6 +148,42 @@ struct ASTNode {
 
 // 程序根节点，其 kind 为 Program。
 using Program = ASTNode;
+
+// 语法分析结果。
+struct ParseResult {
+    std::unique_ptr<ASTNode> root; // 语法树根节点；语法失败时为空。
+    std::vector<Diagnostic> diagnostics; // 语法分析的诊断列表。
+    // 判断本阶段是否成功。成功返回 true，否则返回 false。
+    bool ok() const { return root && !has_errors(diagnostics); }
+};
+
+// ==================== 3. 语义分析：类型检查与类型信息 ====================
+
+// 语义分析会填写 ASTNode 的 type、category、symbol_id 等字段。
+// SemanticResult 用到完整符号表数据，定义在下面的 SymbolTableData 后。
+
+// C 数据类型的种类。
+enum class TypeKind {
+    Unknown, Error, Void, Char, Short, Int, Long, Float, Double, LongDouble,
+    Pointer, Array, Function, Struct, Union, Enum, Named
+};
+
+// C 类型信息。
+struct TypeInfo {
+    TypeKind kind = TypeKind::Unknown; // 类型种类，如 int、float、指针、数组。
+    bool is_unsigned = false; // 是否为无符号整型。
+    bool is_const = false; // 当前这一层类型是否带 const。
+    bool is_volatile = false; // 当前这一层类型是否带 volatile。
+    TypePtr base; // 指针的所指类型、数组的元素类型或函数的返回类型。
+    std::optional<std::size_t> array_length; // 本层数组长度；为空表示尚未确定。
+    std::vector<TypePtr> params; // 函数的形参类型表，按声明顺序保存。
+    bool variadic = false; // 函数是否接受可变数量的参数。
+    bool has_prototype = true; // 是否有参数原型；f() 与 f(void) 用此区分。
+    std::string name; // 标签名或尚未解析的类型别名。
+    RecordId record_id = invalid_id; // 对应的结构体、联合体或枚举编号。
+};
+
+// ==================== 4. 符号表：名字、作用域、记录类型与常量池 ====================
 
 // 普通符号的类别。
 enum class SymbolKind { Variable, Parameter, Array, Function, Typedef, EnumConstant };
@@ -245,6 +260,31 @@ struct SymbolTableData {
     std::vector<ScopeId> active_scopes; // 当前作用域查询栈，从栈顶向外查找名字。
 };
 
+// 一条常量信息。
+struct ConstantEntry {
+    ConstantId id = invalid_id; // 常量编号，等于常量表下标。
+    TypePtr type; // 常量的数据类型。
+    ConstantValue value; // 解码后的常量值；字符串不附末尾零。
+    std::string spelling; // 常量第一次出现时的源码写法。
+    SourceRange range; // 常量第一次出现的位置。
+};
+
+// 常量池数据。
+struct ConstantPoolData {
+    std::vector<ConstantEntry> entries; // 常量信息表，按首次登记顺序保存。
+};
+
+// 以下仍是语义分析的结果；先定义符号表，才能把它作为成员保存。
+// 语义分析结果。
+struct SemanticResult {
+    SymbolTableData symbols; // 语义检查建立的符号表数据。
+    std::vector<Diagnostic> diagnostics; // 语义检查的诊断列表。
+    // 判断本阶段是否成功。成功返回 true，否则返回 false。
+    bool ok() const { return !has_errors(diagnostics); }
+};
+
+// ==================== 5. 中间代码生成：四元式与程序 IR ====================
+
 // 一条四元式指令。
 struct Quadruple {
     std::string op; // 操作码
@@ -284,30 +324,6 @@ struct IRProgram {
     std::vector<TemporaryEntry> global_temporaries; // 全局初始化使用的临时变量表。
     std::vector<IRFunction> functions; // 程序中各函数的中间代码。
     SymbolId entry_function = invalid_id; // 入口 main 的符号编号；未找到时为无效编号。
-};
-
-// 词法分析结果。
-struct LexResult {
-    std::vector<Token> tokens; // 词法分析得到的单词表，末尾包含 EOF。
-    std::vector<Diagnostic> diagnostics; // 词法分析的诊断列表。
-    // 判断本阶段是否成功。成功返回 true，否则返回 false。
-    bool ok() const { return !has_errors(diagnostics); }
-};
-
-// 语法分析结果。
-struct ParseResult {
-    std::unique_ptr<ASTNode> root; // 语法树根节点；语法失败时为空。
-    std::vector<Diagnostic> diagnostics; // 语法分析的诊断列表。
-    // 判断本阶段是否成功。成功返回 true，否则返回 false。
-    bool ok() const { return root && !has_errors(diagnostics); }
-};
-
-// 语义分析结果。
-struct SemanticResult {
-    SymbolTableData symbols; // 语义检查建立的符号表数据。
-    std::vector<Diagnostic> diagnostics; // 语义检查的诊断列表。
-    // 判断本阶段是否成功。成功返回 true，否则返回 false。
-    bool ok() const { return !has_errors(diagnostics); }
 };
 
 // 中间代码生成结果。
