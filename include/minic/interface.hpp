@@ -57,7 +57,7 @@ enum class TokenType {
     ELLIPSIS, HASH, HASH_HASH
 };
 
-// 一个单词的信息。
+// 词法分析
 struct Token {
     TokenType type = TokenType::END_OF_FILE; // 单词种别，如关键字、标识符、运算符。
     std::string lexeme; // 单词原文，保留引号和转义。
