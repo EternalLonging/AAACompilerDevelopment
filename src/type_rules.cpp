@@ -16,8 +16,8 @@ bool compare(const TypePtr& left, const TypePtr& right, std::vector<TypePair>& p
         left->is_const != right->is_const || left->is_volatile != right->is_volatile)
         return false;
     for (const auto& pair : path)
-        if (pair.first == left.get() && pair.second == right.get()) return false;
-    path.emplace_back(left.get(), right.get());
+        if (pair.first == left && pair.second == right) return false;
+    path.emplace_back(left, right);
     bool equal = false;
     switch (left->kind) {
     case TypeKind::Unknown: case TypeKind::Error: case TypeKind::Named:
@@ -36,12 +36,18 @@ bool compare(const TypePtr& left, const TypePtr& right, std::vector<TypePair>& p
                 compare(left->base, right->base, path);
         for (std::size_t i = 0; equal && i < left->params.size(); ++i) {
             const auto adjusted = [](TypePtr parameter) {
-                if (!parameter) return TypePtr{};
-                if (parameter->kind == TypeKind::Array) parameter = detail::pointer(parameter->base);
-                else if (parameter->kind == TypeKind::Function) parameter = detail::pointer(parameter);
-                return detail::unqualified(parameter);
+                TypeInfo result;
+                if (parameter->kind == TypeKind::Array || parameter->kind == TypeKind::Function) {
+                    result.kind = TypeKind::Pointer;
+                    result.base = parameter->kind == TypeKind::Array ? parameter->base : parameter;
+                } else result = *parameter;
+                result.is_const = result.is_volatile = false;
+                return result;
             };
-            equal = compare(adjusted(left->params[i]), adjusted(right->params[i]), path);
+            if (!left->params[i] || !right->params[i]) { equal = false; break; }
+            const auto left_parameter = adjusted(left->params[i]);
+            const auto right_parameter = adjusted(right->params[i]);
+            equal = compare(&left_parameter, &right_parameter, path);
         }
         break;
     case TypeKind::Struct: case TypeKind::Union: case TypeKind::Enum:
@@ -59,7 +65,7 @@ bool compare(const TypePtr& left, const TypePtr& right, std::vector<TypePair>& p
 bool m1_number(const TypePtr& type) { return detail::numeric(type); }
 
 TypePtr basic_type(TypeKind kind) {
-    auto type = std::make_shared<TypeInfo>();
+    auto type = make_type_info();
     type->kind = kind;
     return type;
 }
@@ -76,7 +82,7 @@ TypePtr arithmetic_result(const TypePtr& left, const TypePtr& right) {
     if (left->kind == TypeKind::LongDouble || right->kind == TypeKind::LongDouble) return basic_type(TypeKind::LongDouble);
     if (left->kind == TypeKind::Double || right->kind == TypeKind::Double) return basic_type(TypeKind::Double);
     if (left->kind == TypeKind::Float || right->kind == TypeKind::Float) return basic_type(TypeKind::Float);
-    auto result = std::make_shared<TypeInfo>();
+    auto result = make_type_info();
     result->kind = left->kind == TypeKind::Long || right->kind == TypeKind::Long ? TypeKind::Long : TypeKind::Int;
     result->is_unsigned = (left->is_unsigned && detail::integer_bits(left) == 32) || (right->is_unsigned && detail::integer_bits(right) == 32);
     return result;

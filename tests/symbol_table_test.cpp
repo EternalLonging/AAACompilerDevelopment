@@ -12,14 +12,14 @@ static void require(bool condition, const char* message) {
 }
 
 static TypePtr basic(TypeKind kind) {
-    auto type = std::make_shared<TypeInfo>();
+    auto type = make_type_info();
     type->kind = kind;
     return type;
 }
 
 static TypePtr indirect(TypeKind kind, TypePtr base,
                         std::optional<std::size_t> length = std::nullopt) {
-    auto type = std::make_shared<TypeInfo>();
+    auto type = make_type_info();
     type->kind = kind;
     type->base = std::move(base);
     type->array_length = length;
@@ -27,7 +27,7 @@ static TypePtr indirect(TypeKind kind, TypePtr base,
 }
 
 static TypePtr function(TypePtr result, std::vector<TypePtr> params = {}) {
-    auto type = std::make_shared<TypeInfo>();
+    auto type = make_type_info();
     type->kind = TypeKind::Function;
     type->base = std::move(result);
     type->params = std::move(params);
@@ -97,7 +97,7 @@ static void test_types() {
     require(!same_type(nullptr, nullptr) && !same_type(basic(TypeKind::Error), basic(TypeKind::Error)) &&
             !same_type(basic(TypeKind::Unknown), basic(TypeKind::Unknown)) &&
             !same_type(basic(TypeKind::Named), basic(TypeKind::Named)), "无效或未解析类型不能相等");
-    auto qualified = std::make_shared<TypeInfo>(*integer);
+    auto qualified = make_type_info(*integer);
     qualified->is_const = true;
     require(!same_type(integer, qualified) && can_assign(qualified, integer),
             "结构相等比较限定符，赋值类型规则不检查左值 const");
@@ -128,11 +128,11 @@ static void test_types() {
     require(!same_type(indirect(TypeKind::Array, integer, 2), indirect(TypeKind::Array, integer, 3)) &&
             same_type(indirect(TypeKind::Array, integer, 2), indirect(TypeKind::Array, integer, 2)),
             "数组应比较元素和长度");
-    auto record_type = std::make_shared<TypeInfo>();
+    auto record_type = make_type_info();
     record_type->kind = TypeKind::Struct;
     require(!same_type(record_type, record_type), "记录类型必须有身份");
     record_type->record_id = 0;
-    auto other = std::make_shared<TypeInfo>(*record_type);
+    auto other = make_type_info(*record_type);
     require(same_type(record_type, other), "同记录编号应相同");
     other->record_id = 1;
     require(!same_type(record_type, other), "同名记录不能代替记录编号");
@@ -140,13 +140,13 @@ static void test_types() {
     require(same_type(signature, function(basic(TypeKind::Int), {basic(TypeKind::Char)})) &&
             !same_type(signature, function(integer, {integer})) &&
             !same_type(signature, function(floating, {character})), "函数应比较返回类型和参数");
-    auto different = std::make_shared<TypeInfo>(*signature);
+    auto different = make_type_info(*signature);
     different->variadic = true;
     require(!same_type(signature, different), "可变参数标记参与签名比较");
     different->variadic = false;
     different->has_prototype = false;
     require(!same_type(signature, different), "原型标记参与签名比较");
-    auto constant = std::make_shared<TypeInfo>(*integer); constant->is_const = true;
+    auto constant = make_type_info(*integer); constant->is_const = true;
     require(same_type(function(integer, {integer}), function(integer, {constant})), "形参顶层 const 不影响签名");
     require(!same_type(function(integer, {indirect(TypeKind::Pointer, integer)}),
                        function(integer, {indirect(TypeKind::Pointer, constant)})), "所指对象的 const 仍影响签名");
@@ -222,7 +222,7 @@ static void test_records() {
     require(table.declare_record("Node", RecordKind::Struct, at(20)) == node &&
             !table.declare_record("Node", RecordKind::Union, at(20)), "前向声明应复用，种类冲突应拒绝");
     require(!table.find_member(node, "value") && !table.record(invalid_id), "不完整记录不能查成员");
-    auto node_type = std::make_shared<TypeInfo>();
+    auto node_type = make_type_info();
     node_type->kind = TypeKind::Struct;
     node_type->record_id = node;
     StructEntry definition = *table.record(node);
@@ -336,6 +336,8 @@ static void test_builtins_and_completion() {
 }
 
 int main() {
+    minic::TypeArena types; // 手工类型及语法树借用的内存，保留到示例/测试结束。
+    minic::TypeArenaScope type_scope(types);
     try {
         test_diagnostics();
         test_types();

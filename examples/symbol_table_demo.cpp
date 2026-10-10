@@ -3,12 +3,14 @@
 #include <iostream>
 
 int main() {
+    minic::TypeArena types; // 手工类型及语法树借用的内存，保留到示例/测试结束。
+    minic::TypeArenaScope type_scope(types);
     using namespace minic;
     DiagnosticEngine diagnostics(Phase::Semantic);
     SymbolTable table(diagnostics);
     if (!register_builtins(table)) return 1;
 
-    auto integer = std::make_shared<TypeInfo>();
+    auto integer = make_type_info();
     integer->kind = TypeKind::Int;
     SymbolEntry variable;
     variable.name = "count";

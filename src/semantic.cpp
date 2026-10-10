@@ -13,7 +13,7 @@ namespace {
 class Analyzer {
     DiagnosticEngine diagnostics_{Phase::Semantic}; // 本阶段的报错列表。
     SymbolTable table_{diagnostics_}; // 名字和作用域信息。
-    TypePtr return_type_; // 当前函数的返回类型。
+    TypePtr return_type_ = nullptr; // 当前函数的返回类型。
     std::size_t loop_depth_ = 0; // 当前所在的循环层数。
     std::size_t depth_ = 0; // 防止过深的语法树耗尽调用栈。
     struct SwitchContext {
@@ -60,14 +60,14 @@ class Analyzer {
 
     TypePtr resolve(const TypePtr& source, ASTNode& node, std::size_t depth = 0) {
         if (!source || depth > 128) { error(node, "声明类型为空或嵌套过深", "SEM_DECL_TYPE"); return detail::type(TypeKind::Error); }
-        auto result = std::make_shared<TypeInfo>(*source);
+        auto result = make_type_info(*source);
         if (source->kind == TypeKind::Named) {
             const auto id = table_.lookup(source->name);
             const auto* alias = id ? table_.symbol(*id) : nullptr;
             if (!alias || alias->kind != SymbolKind::Typedef) {
                 error(node, "类型别名尚未声明：" + source->name, "SEM_TYPEDEF"); return detail::type(TypeKind::Error);
             }
-            result = std::make_shared<TypeInfo>(*alias->type);
+            result = make_type_info(*alias->type);
             result->is_const = result->is_const || source->is_const;
             result->is_volatile = result->is_volatile || source->is_volatile;
         } else if (source->kind == TypeKind::Enum) {
@@ -117,7 +117,7 @@ class Analyzer {
         if (node->kind == NodeType::Identifier && table_.symbol(node->symbol_id)->storage == StorageClass::Register) {
             error(*node, "register 数组不能转成地址", "SEM_ADDRESS"); return;
         }
-        auto element = std::make_shared<TypeInfo>(*node->type->base);
+        auto element = make_type_info(*node->type->base);
         element->is_const = element->is_const || node->type->is_const;
         element->is_volatile = element->is_volatile || node->type->is_volatile;
         convert(node, detail::pointer(element));
@@ -175,7 +175,7 @@ class Analyzer {
         const auto id = table_.declare_record(node.name, union_type ? RecordKind::Union : RecordKind::Struct, node.range);
         if (!id) return;
         node.record_id = *id;
-        auto type = std::make_shared<TypeInfo>();
+        auto type = make_type_info();
         type->kind = union_type ? TypeKind::Union : TypeKind::Struct;
         type->name = node.name;
         type->record_id = *id;
@@ -301,7 +301,7 @@ class Analyzer {
                 const auto text = detail::decode_string(node.name,
                     node.kind == NodeType::StringLiteral ? '"' : '\'');
                 if (node.kind == NodeType::StringLiteral) {
-                    auto type = std::make_shared<TypeInfo>();
+                    auto type = make_type_info();
                     type->kind = TypeKind::Array;
                     type->base = detail::type(TypeKind::Char);
                     type->array_length = text.size() + 1;
@@ -318,7 +318,7 @@ class Analyzer {
                 if (!std::regex_match(node.name, match, pattern)) throw std::runtime_error("整数常量写法或后缀无效");
                 const auto value = std::stoull(match[1].str(), nullptr, 0);
                 const auto suffix = match[2].str();
-                auto type = std::make_shared<TypeInfo>(); type->kind = suffix.find_first_of("lL") == std::string::npos ? TypeKind::Int : TypeKind::Long;
+                auto type = make_type_info(); type->kind = suffix.find_first_of("lL") == std::string::npos ? TypeKind::Int : TypeKind::Long;
                 type->is_unsigned = suffix.find_first_of("uU") != std::string::npos;
                 const bool nondecimal = match[1].str().size() > 1 && match[1].str()[0] == '0';
                 if (value > std::numeric_limits<std::int32_t>::max() && nondecimal) type->is_unsigned = true;
@@ -470,7 +470,7 @@ class Analyzer {
                 (address_allowed && (!detail::numeric(child->type) || child->type->is_const))) {
                 error(node, "取地址需要对象左值；scanf 还需要可修改的数值对象", "SEM_ADDRESS"); return;
             }
-            auto pointer = std::make_shared<TypeInfo>();
+            auto pointer = make_type_info();
             pointer->kind = TypeKind::Pointer;
             pointer->base = child->type;
             node.type = pointer;
@@ -602,7 +602,7 @@ class Analyzer {
                 }
                 try { detail::layout(array.type->base, table_.data()); }
                 catch (const std::runtime_error& exception) { error(node, exception.what(), "SEM_INDEX"); break; }
-                auto element = std::make_shared<TypeInfo>(*array.type->base);
+                auto element = make_type_info(*array.type->base);
                 element->is_const = element->is_const || (array.type->kind == TypeKind::Array && array.type->is_const);
                 element->is_volatile = element->is_volatile || (array.type->kind == TypeKind::Array && array.type->is_volatile);
                 node.type = element;
@@ -627,7 +627,7 @@ class Analyzer {
                 if (!index) { error(node, "结构体中没有该成员：" + node.name, "SEM_MEMBER"); break; }
                 node.record_id = object.type->record_id;
                 node.member_index = *index;
-                auto member = std::make_shared<TypeInfo>(*table_.record(node.record_id)->members[*index].type);
+                auto member = make_type_info(*table_.record(node.record_id)->members[*index].type);
                 member->is_const = member->is_const || object.type->is_const;
                 member->is_volatile = member->is_volatile || object.type->is_volatile;
                 node.type = member;
@@ -640,7 +640,7 @@ class Analyzer {
                 if (!node.declared_type) { expression(*node.children[0]); measured = node.children[0]->type; }
                 try {
                     const auto size = detail::layout(measured, table_.data()).size;
-                    node.children.clear(); node.declared_type.reset();
+                    node.children.clear(); node.declared_type = nullptr;
                     node.kind = NodeType::IntLiteral; node.name = std::to_string(size);
                     node.value = static_cast<std::int64_t>(size); node.type = detail::type(TypeKind::Int);
                     node.category = ValueCategory::RValue;
@@ -691,7 +691,7 @@ class Analyzer {
         if (!shape(node, 0, 1)) return;
         auto resolved = resolve(node.declared_type, node);
         if (resolved->kind == TypeKind::Array && !resolved->array_length && !node.children.empty()) {
-            auto inferred = std::make_shared<TypeInfo>(*resolved);
+            auto inferred = make_type_info(*resolved);
             if (node.children[0]->kind == NodeType::InitList) inferred->array_length = node.children[0]->children.size();
             else if (node.children[0]->kind == NodeType::StringLiteral && inferred->base->kind == TypeKind::Char) {
                 try { inferred->array_length = detail::decode_string(node.children[0]->name, '"').size() + 1; }
@@ -850,7 +850,7 @@ class Analyzer {
         const bool definition = node.kind == NodeType::FunctionDef;
         auto declared = node.declared_type;
         if (declared && declared->kind == TypeKind::Function) {
-            auto normalized = std::make_shared<TypeInfo>(*declared);
+            auto normalized = make_type_info(*declared);
             normalized->base = resolve(declared->base, node);
             for (auto& parameter : normalized->params) {
                 parameter = resolve(parameter, node);
@@ -884,7 +884,7 @@ class Analyzer {
         }
         if (definition && node.children.back()->kind != NodeType::Block) { error(node, "函数定义最后一个孩子必须是 Block"); return; }
         // M1 将空参数 f() 按无参函数处理，完整 C 的未指定参数规则留待扩展。
-        auto normalized = std::make_shared<TypeInfo>(*declared);
+        auto normalized = make_type_info(*declared);
         normalized->has_prototype = true;
         SymbolEntry entry;
         entry.name = node.name;
@@ -921,7 +921,7 @@ class Analyzer {
         if (!returned && return_type_->kind != TypeKind::Void)
             error(node, "非 void 函数必须保证所有路径返回；请在末尾添加 return", "SEM_MISSING_RETURN");
         table_.exit_scope();
-        return_type_.reset();
+        return_type_ = nullptr;
     }
 
 public:

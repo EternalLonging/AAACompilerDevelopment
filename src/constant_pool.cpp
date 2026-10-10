@@ -18,14 +18,14 @@ bool integer_kind(TypeKind kind) {
            kind == TypeKind::Int || kind == TypeKind::Long;
 }
 
-// 只快照本池支持的合法类型，避免调用者保留可写 shared_ptr 后更改已登记的类型。
+// 复制合法类型，避免调用者修改原对象后改变已登记常量的类型。
 TypePtr snapshot_type(const TypePtr& type) {
     if (!type || type->base || type->array_length || !type->params.empty() ||
         type->variadic || !type->has_prototype || !type->name.empty() ||
         type->record_id != invalid_id) {
         throw std::invalid_argument("常量标量类型的字段不符合合同");
     }
-    return std::make_shared<const TypeInfo>(*type);
+    return make_type_info(*type);
 }
 
 void append_scalar_type(std::string& key, const TypeInfo& type) {
@@ -83,7 +83,7 @@ ConstantId ConstantPool::intern(TypePtr type, ConstantValue value,
         }
         const auto base = snapshot_type(type->base);
         if (base->is_unsigned) throw std::invalid_argument("字符串元素必须为普通 char");
-        auto copy = std::make_shared<TypeInfo>(*type);
+        auto copy = make_type_info(*type);
         copy->base = base;
         type = std::move(copy);
         append_scalar_type(key, *type);

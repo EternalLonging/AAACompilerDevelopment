@@ -5,7 +5,7 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 Push-Location $projectRoot
 try {
     New-Item -ItemType Directory -Force build | Out-Null
-    $sources = @('src/preprocessor.cpp', 'src/constant_pool.cpp', 'src/diagnostic.cpp', 'src/symbol_table.cpp',
+    $sources = @('src/type_arena.cpp', 'src/preprocessor.cpp', 'src/constant_pool.cpp', 'src/diagnostic.cpp', 'src/symbol_table.cpp',
         'src/type_rules.cpp', 'src/semantic.cpp', 'src/ir.cpp', 'src/interpreter.cpp',
         'src/display.cpp', 'src/compilation_result.cpp')
     $objects = @()
@@ -37,7 +37,7 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "前端编译失败：$source" }
         $frontendObjects += $object
     }
-    foreach ($name in @('frontend_test', 'workbench_test', 'lexer_probe', 'minic', 'compile_and_run', 'workbench_driver')) {
+    foreach ($name in @('type_arena_test', 'frontend_test', 'workbench_test', 'lexer_probe', 'minic', 'compile_and_run', 'workbench_driver')) {
         $source = if ($name -eq 'minic') { 'src/main.cpp' } elseif ($name -eq 'compile_and_run') {
             'examples/compile_and_run.cpp'
         } elseif ($name -eq 'workbench_driver') { 'tools/workbench_driver.cpp' } else { "tests/${name}.cpp" }
@@ -46,6 +46,8 @@ try {
         & $Compiler '-std=c++17' '-Wall' '-Wextra' '-Wpedantic' '-Werror' '-I' 'include' $source @frontendObjects @objects @linkOptions '-o' "build/${name}.exe"
         if ($LASTEXITCODE -ne 0) { throw "前端链接失败：$name" }
     }
+    & './build/type_arena_test.exe'
+    if ($LASTEXITCODE -ne 0) { throw '普通类型指针测试失败' }
     & './build/frontend_test.exe'
     if ($LASTEXITCODE -ne 0) { throw '前端测试失败' }
     & './build/workbench_test.exe'

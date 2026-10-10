@@ -49,6 +49,8 @@ ParseResult parse(const std::vector<Token>& tokens) {
 }
 
 int main() {
+    minic::TypeArena types; // 手工类型及语法树借用的内存，保留到示例/测试结束。
+    minic::TypeArenaScope type_scope(types);
     try {
         using namespace minic;
         for (const auto target : {CompileTarget::Tokens, CompileTarget::Parse, CompileTarget::Check, CompileTarget::IR}) {

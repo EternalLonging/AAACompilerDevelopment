@@ -8,11 +8,11 @@ using namespace minic;
 using namespace minic::examples;
 static void require(bool value, const char* message) { if (!value) throw std::runtime_error(message); }
 static TypePtr type(TypeKind kind, bool unsigned_type = false) {
-    auto result = std::make_shared<TypeInfo>(); result->kind = kind; result->is_unsigned = unsigned_type; return result;
+    auto result = make_type_info(); result->kind = kind; result->is_unsigned = unsigned_type; return result;
 }
-static TypePtr ptr(TypePtr base) { auto result = std::make_shared<TypeInfo>(); result->kind = TypeKind::Pointer; result->base = std::move(base); return result; }
-static TypePtr record(const std::string& name, TypeKind kind = TypeKind::Union) { auto result = std::make_shared<TypeInfo>(); result->kind = kind; result->name = name; return result; }
-static TypePtr signature(TypePtr result, std::vector<TypePtr> params = {}) { auto value = std::make_shared<TypeInfo>(); value->kind = TypeKind::Function; value->base = std::move(result); value->params = std::move(params); return value; }
+static TypePtr ptr(TypePtr base) { auto result = make_type_info(); result->kind = TypeKind::Pointer; result->base = std::move(base); return result; }
+static TypePtr record(const std::string& name, TypeKind kind = TypeKind::Union) { auto result = make_type_info(); result->kind = kind; result->name = name; return result; }
+static TypePtr signature(TypePtr result, std::vector<TypePtr> params = {}) { auto value = make_type_info(); value->kind = TypeKind::Function; value->base = std::move(result); value->params = std::move(params); return value; }
 static Node unary(const std::string& op, Node value) { return tree(NodeType::UnaryOp, op, std::move(value)); }
 static Node cast(TypePtr target, Node value) { auto result = tree(NodeType::Cast, "", std::move(value)); result->declared_type = std::move(target); return result; }
 static Node external(Node value) { value->storage = StorageClass::Extern; return value; }
@@ -107,7 +107,7 @@ static void aggregate_calls() {
     create->declared_type = signature(record("Box", TypeKind::Struct)); arrays->children.push_back(std::move(create));
     arrays->children.push_back(function("main", TypeKind::Int, block(ret(index(field(call("make"), "values"), integer(1))))));
     check(std::move(arrays), 8);
-    auto qualified = std::make_shared<TypeInfo>(); qualified->kind = TypeKind::Int; qualified->is_const = true;
+    auto qualified = make_type_info(); qualified->kind = TypeKind::Int; qualified->is_const = true;
     auto prototype = node(NodeType::FunctionDecl, "f"); prototype->declared_type = signature(type(TypeKind::Int), {type(TypeKind::Int)});
     prototype->children.push_back(parameter("", TypeKind::Int));
     auto arg_const = node(NodeType::ParamDecl, "x"); arg_const->declared_type = qualified;
@@ -172,6 +172,8 @@ static void strings() {
 }
 
 int main() {
+    minic::TypeArena types; // 手工类型及语法树借用的内存，保留到示例/测试结束。
+    minic::TypeArenaScope type_scope(types);
     try { numeric_types(); unions(); function_pointers(); external_objects(); strings(); aggregate_calls(); errors_and_boundaries(); std::cout << "扩展数值、联合体、函数指针、外部声明与字符串：7 组测试全部通过\n"; return 0; }
     catch (const std::exception& error) { std::cerr << "测试失败：" << error.what() << '\n'; return 1; }
 }

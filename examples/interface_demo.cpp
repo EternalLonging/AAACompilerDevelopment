@@ -7,14 +7,14 @@
 using namespace minic;
 
 static TypePtr basic(TypeKind kind) {
-    auto type = std::make_shared<TypeInfo>();
+    auto type = make_type_info();
     type->kind = kind;
     return type;
 }
 
 static TypePtr derived(TypeKind kind, TypePtr base,
                        std::optional<std::size_t> length = std::nullopt) {
-    auto type = std::make_shared<TypeInfo>();
+    auto type = make_type_info();
     type->kind = kind;
     type->base = std::move(base);
     type->array_length = length;
@@ -33,18 +33,20 @@ static std::unique_ptr<ASTNode> node(NodeType kind, std::string name,
 }
 
 int main() {
+    minic::TypeArena types; // 手工类型及语法树借用的内存，保留到示例/测试结束。
+    minic::TypeArenaScope type_scope(types);
     const auto int_type = basic(TypeKind::Int);
     const auto char_type = basic(TypeKind::Char);
     const auto char_pointer = derived(TypeKind::Pointer, char_type);
-    auto printf_type = std::make_shared<TypeInfo>();
+    auto printf_type = make_type_info();
     printf_type->kind = TypeKind::Function;
     printf_type->base = int_type;
-    auto const_char = std::make_shared<TypeInfo>();
+    auto const_char = make_type_info();
     const_char->kind = TypeKind::Char;
     const_char->is_const = true;
     printf_type->params = {derived(TypeKind::Pointer, const_char)};
     printf_type->variadic = true;
-    auto main_type = std::make_shared<TypeInfo>();
+    auto main_type = make_type_info();
     main_type->kind = TypeKind::Function;
     main_type->base = int_type;
 
@@ -149,7 +151,7 @@ int main() {
     record.members.push_back({"x", int_type, 4, {}});
     table.records.push_back(std::move(record));
     table.scopes[0].tags.emplace("Pair", 0);
-    auto record_type = std::make_shared<TypeInfo>();
+    auto record_type = make_type_info();
     record_type->kind = TypeKind::Struct;
     record_type->name = "Pair";
     record_type->record_id = 0;

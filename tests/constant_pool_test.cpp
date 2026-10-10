@@ -13,14 +13,14 @@ static void require(bool condition, const char* message) {
 }
 
 static TypePtr number_type(TypeKind kind, bool is_unsigned = false) {
-    auto type = std::make_shared<TypeInfo>();
+    auto type = make_type_info();
     type->kind = kind;
     type->is_unsigned = is_unsigned;
     return type;
 }
 
 static TypePtr string_type(std::size_t size) {
-    auto type = std::make_shared<TypeInfo>();
+    auto type = make_type_info();
     type->kind = TypeKind::Array;
     type->base = number_type(TypeKind::Char);
     type->array_length = size + 1;
@@ -37,6 +37,8 @@ static void rejects(ConstantPool& pool, F call) {
 }
 
 int main() {
+    minic::TypeArena types; // 手工类型及语法树借用的内存，保留到示例/测试结束。
+    minic::TypeArenaScope type_scope(types);
     try {
         ConstantPool pool;
         const auto integer = number_type(TypeKind::Int);
@@ -97,7 +99,7 @@ int main() {
         rejects(pool, [&] { constant_operand(invalid_id); });
 
         // 修改调用方仍持有的可写类型，不得改变已入池的类型和索引身份。
-        auto mutable_type = std::make_shared<TypeInfo>();
+        auto mutable_type = make_type_info();
         mutable_type->kind = TypeKind::Int;
         const auto snapshot = pool.intern(mutable_type, std::int64_t{99}, "99");
         mutable_type->kind = TypeKind::Float;

@@ -28,6 +28,7 @@ CompilationResult compile_stages(const std::string& source, const std::string& f
         target != CompileTarget::Check && target != CompileTarget::IR)
         throw std::invalid_argument("无效的编译目标");
     CompilationResult result;
+    TypeArenaScope type_scope(result.types);
     result.target = target;
     const auto collect = [&result](const auto& stage) {
         result.diagnostics.insert(result.diagnostics.end(), stage.diagnostics.begin(), stage.diagnostics.end());

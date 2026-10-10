@@ -104,12 +104,12 @@ class Parser {
     }
     // 在原类型外包一层，例如把 int 变成指向 int 的指针类型。
     static TypePtr wrapped(TypeKind kind, TypePtr base) {
-        auto type = std::make_shared<TypeInfo>(); type->kind = kind; type->base = std::move(base);
+        auto type = make_type_info(); type->kind = kind; type->base = std::move(base);
         return type;
     }
     // 声明开头的类型、限定符和存储类别信息。
     struct Specs {
-        TypePtr type; // 声明中的基础类型，例如 int 或 struct S。
+        TypePtr type = nullptr; // 声明中的基础类型，例如 int 或 struct S。
         StorageClass storage = StorageClass::None; // 声明写出的存储类别，例如 static、extern、typedef。
         std::vector<Node> definitions; // 声明中同时定义的结构体、联合体或枚举节点。
     };
@@ -118,7 +118,7 @@ class Parser {
     Specs specs(bool allow_storage = true) {
         Nest nest(*this);
         Specs s;
-        auto type = std::make_shared<TypeInfo>();
+        auto type = make_type_info();
         bool sign = false, unsign = false, short_type = false, long_type = false, int_type = false;
         bool explicit_type = false, saw = false;
         while (specifier()) {
@@ -302,7 +302,7 @@ class Parser {
     // 按声明符的层次组合完整类型，不改变基础类型。
     TypePtr build_type(TypePtr base, const Declarator& d) {
         for (auto i = d.layers.rbegin(); i != d.layers.rend(); ++i) {
-            auto type = std::make_shared<TypeInfo>(); type->kind = i->kind; type->base = base;
+            auto type = make_type_info(); type->kind = i->kind; type->base = base;
             type->is_const = i->is_const; type->is_volatile = i->is_volatile;
             type->array_length = i->length; type->has_prototype = i->prototype; type->variadic = i->variadic;
             for (const auto& param : i->params) type->params.push_back(param->declared_type);

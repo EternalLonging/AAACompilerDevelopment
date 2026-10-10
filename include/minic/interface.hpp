@@ -1,5 +1,6 @@
 #pragma once
 
+#include "minic/type_arena.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -66,8 +67,8 @@ inline bool has_errors(const std::vector<Diagnostic>& diagnostics) {
 }
 
 struct TypeInfo;
-// 共享的只读类型信息。
-using TypePtr = std::shared_ptr<const TypeInfo>;
+// 指向只读类型信息的普通指针；对象由 TypeArena 统一释放。
+using TypePtr = const TypeInfo*;
 
 // 常量值，可存整数、浮点或字符串；monostate 表示未解码。
 using ConstantValue = std::variant<std::monostate, std::int64_t,
@@ -135,8 +136,8 @@ struct ASTNode {
     std::string name; // 名字、运算符、标签或字面量原文。
     ConstantValue value; // 解码后的常量值；非常量时为空。
     SourceRange range; // 节点对应的源码范围。
-    TypePtr declared_type; // 源码中写出的声明或转换目标类型。
-    TypePtr type; // 语义检查后的类型；检查前为空。
+    TypePtr declared_type = nullptr; // 源码中写出的声明或转换目标类型。
+    TypePtr type = nullptr; // 语义检查后的类型；检查前为空。
     ValueCategory category = ValueCategory::None; // 节点是左值、右值、函数还是非表达式。
     StorageClass storage = StorageClass::None; // 声明的存储类别，如 static、extern。
     SymbolId symbol_id = invalid_id; // 对应的变量、形参或函数编号。
@@ -174,7 +175,7 @@ struct TypeInfo {
     bool is_unsigned = false; // 是否为无符号整型。
     bool is_const = false; // 当前这一层类型是否带 const。
     bool is_volatile = false; // 当前这一层类型是否带 volatile。
-    TypePtr base; // 指针的所指类型、数组的元素类型或函数的返回类型。
+    TypePtr base = nullptr; // 指针的所指类型、数组的元素类型或函数的返回类型。
     std::optional<std::size_t> array_length; // 本层数组长度；为空表示尚未确定。
     std::vector<TypePtr> params; // 函数的形参类型表，按声明顺序保存。
     bool variadic = false; // 函数是否接受可变数量的参数。
@@ -195,7 +196,7 @@ struct SymbolEntry {
     SymbolId id = invalid_id; // 符号编号，等于符号表下标。
     std::string name; // 变量、形参或函数等的名字。
     SymbolKind kind = SymbolKind::Variable; // 符号类别，如变量、形参、函数。
-    TypePtr type; // 符号类型；函数类型包含返回类型和形参。
+    TypePtr type = nullptr; // 符号类型；函数类型包含返回类型和形参。
     ScopeId scope = invalid_id; // 声明所在的作用域编号。
     std::uint32_t line = 1; // 声明行号，与 range.begin.line 一致。
     std::uint32_t col = 1; // 声明列号，与 range.begin.col 一致。
@@ -209,7 +210,7 @@ struct SymbolEntry {
 // 一条成员信息。
 struct MemberEntry {
     std::string name; // 成员名字。
-    TypePtr type; // 成员的数据类型。
+    TypePtr type = nullptr; // 成员的数据类型。
     std::optional<std::size_t> offset; // 成员相对对象起点的字节偏移；未计算时为空。
     SourceRange range; // 成员声明的位置。
 };
@@ -263,7 +264,7 @@ struct SymbolTableData {
 // 一条常量信息。
 struct ConstantEntry {
     ConstantId id = invalid_id; // 常量编号，等于常量表下标。
-    TypePtr type; // 常量的数据类型。
+    TypePtr type = nullptr; // 常量的数据类型。
     ConstantValue value; // 解码后的常量值；字符串不附末尾零。
     std::string spelling; // 常量第一次出现时的源码写法。
     SourceRange range; // 常量第一次出现的位置。
@@ -296,14 +297,14 @@ struct Quadruple {
 // 表达式结果所在位置的信息。
 struct Place {
     std::string name; // 结果所在位置，如 %s3、%t2、%c0。
-    TypePtr type; // 结果的数据类型。
+    TypePtr type = nullptr; // 结果的数据类型。
     bool is_const = false; // 结果是否为编译期常量。
 };
 
 // 一条临时变量信息。
 struct TemporaryEntry {
     std::string name; // 临时变量名字，如 %t2。
-    TypePtr type; // 临时变量的数据类型。
+    TypePtr type = nullptr; // 临时变量的数据类型。
 };
 
 // 一个函数的中间代码。

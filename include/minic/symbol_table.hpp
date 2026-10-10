@@ -73,6 +73,7 @@ private:
 };
 
 // 登记 printf 和 scanf。成功返回 true，失败返回 false。
+// 调用前建立 TypeArenaScope，类型管理器须保留到符号表用完。
 bool register_builtins(SymbolTable& table);
 
 }

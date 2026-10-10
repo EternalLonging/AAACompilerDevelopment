@@ -159,6 +159,7 @@ int driver(const std::vector<std::string>& args) {
     }
     std::cout << ']';
     if (compiled.ok()) {
+        minic::TypeArenaScope type_scope(compiled.types);
         const auto& symbols = compiled.semantic->symbols;
         auto baseline = minic::generate(*compiled.syntax->root, symbols, {false});
         auto optimized = minic::generate(*compiled.syntax->root, symbols, {true});

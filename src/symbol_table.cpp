@@ -325,15 +325,15 @@ bool register_builtins(SymbolTable& table) {
                                   "内建函数必须登记在全局作用域", "SYM_BUILTIN_SCOPE");
         return false;
     }
-    auto integer = std::make_shared<TypeInfo>();
+    auto integer = make_type_info();
     integer->kind = TypeKind::Int;
-    auto character = std::make_shared<TypeInfo>();
+    auto character = make_type_info();
     character->kind = TypeKind::Char;
     character->is_const = true;
-    auto pointer = std::make_shared<TypeInfo>();
+    auto pointer = make_type_info();
     pointer->kind = TypeKind::Pointer;
     pointer->base = character;
-    auto function = std::make_shared<TypeInfo>();
+    auto function = make_type_info();
     function->kind = TypeKind::Function;
     function->base = integer;
     function->params = {pointer};

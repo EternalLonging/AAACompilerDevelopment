@@ -12,7 +12,7 @@ namespace minic::detail {
 
 // 建立一个不带限定符的基本类型。
 inline TypePtr type(TypeKind kind) {
-    auto result = std::make_shared<TypeInfo>();
+    auto result = make_type_info();
     result->kind = kind;
     return result;
 }
@@ -28,13 +28,21 @@ inline int integer_bits(const TypePtr& value) {
     return value->kind == TypeKind::Char ? 8 : value->kind == TypeKind::Short ? 16 : 32;
 }
 inline TypePtr unqualified(const TypePtr& value) {
-    auto result = std::make_shared<TypeInfo>(*value); result->is_const = result->is_volatile = false; return result;
+    auto result = make_type_info(*value); result->is_const = result->is_volatile = false; return result;
+}
+
+// 忽略最外层的 const 和 volatile 比较类型；局部副本用完即释放。
+inline bool same_unqualified(TypePtr left, TypePtr right) {
+    if (!left || !right) return false;
+    auto a = *left, b = *right;
+    a.is_const = a.is_volatile = b.is_const = b.is_volatile = false;
+    return same_type(&a, &b);
 }
 
 inline std::string symbol_name(SymbolId id) { return "%s" + std::to_string(id); }
 
 inline TypePtr pointer(TypePtr base) {
-    auto result = std::make_shared<TypeInfo>();
+    auto result = make_type_info();
     result->kind = TypeKind::Pointer;
     result->base = std::move(base);
     return result;
@@ -86,12 +94,12 @@ inline bool pointer_assign(const TypePtr& target, const TypePtr& source) {
         !target->base || !source->base) return false;
     if (source->base->is_const && !target->base->is_const) return false;
     if (source->base->is_volatile && !target->base->is_volatile) return false;
-    auto left = std::make_shared<TypeInfo>(*target->base), right = std::make_shared<TypeInfo>(*source->base);
-    left->is_const = right->is_const = false;
-    left->is_volatile = right->is_volatile = false;
-    if ((left->kind == TypeKind::Void && right->kind != TypeKind::Function) ||
-        (right->kind == TypeKind::Void && left->kind != TypeKind::Function)) return true;
-    return same_type(left, right);
+    auto left = *target->base, right = *source->base;
+    left.is_const = right.is_const = false;
+    left.is_volatile = right.is_volatile = false;
+    if ((left.kind == TypeKind::Void && right.kind != TypeKind::Function) ||
+        (right.kind == TypeKind::Void && left.kind != TypeKind::Function)) return true;
+    return same_type(&left, &right);
 }
 
 // 读取纯整型常量表达式；不执行调用、赋值或变量读取。
@@ -339,7 +347,7 @@ inline std::vector<FormatPart> format_parts(const std::string& format, bool scan
 }
 
 inline TypePtr format_type(const FormatPart& part, bool scanning) {
-    auto result = std::make_shared<TypeInfo>();
+    auto result = make_type_info();
     if (part.conversion == 'f') result->kind = part.length == 'L' ? TypeKind::LongDouble : part.length == 'l' ? TypeKind::Double : TypeKind::Float;
     else if (part.conversion == 'c' || part.conversion == 's') result->kind = TypeKind::Char;
     else result->kind = part.length == 'l' ? TypeKind::Long : part.length == 'h' && scanning ? TypeKind::Short : TypeKind::Int;

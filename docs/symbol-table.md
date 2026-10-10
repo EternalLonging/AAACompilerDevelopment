@@ -24,11 +24,13 @@
 6. 退出时调用 `exit_scope()`。退出只改变查询环境，已经登记的数据会保留，供 IR 和展示层使用。
 
 ```cpp
+minic::TypeArena types; // 保存类型对象，符号表用完后统一释放。
+minic::TypeArenaScope type_scope(types); // 指定当前创建类型的存放位置。
 minic::DiagnosticEngine diagnostics(minic::Phase::Semantic);
 minic::SymbolTable table(diagnostics);
 minic::register_builtins(table);
 
-auto type = std::make_shared<minic::TypeInfo>();
+auto* type = minic::make_type_info();
 type->kind = minic::TypeKind::Int;
 
 minic::SymbolEntry entry;
