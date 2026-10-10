@@ -19,7 +19,7 @@ struct Address {
     std::uint64_t frame = 0; // 0 是全局区，其余是调用帧的唯一编号。
     SymbolId symbol = invalid_id; // 所指对象编号，invalid_id 表示空指针。
     std::size_t offset = 0; // 子对象相对根对象的字节偏移。
-    TypePtr type; // 当前地址所指向的子对象类型。
+    TypePtr type = nullptr; // 当前地址所指向的子对象类型。
     std::size_t first = 0; // 可移动范围的起点，包含此偏移。
     std::size_t last = 0; // 可移动范围的终点，仅允许形成尾后指针。
     std::shared_ptr<const std::string> literal; // 指向常量字符串时保存只读字节。
@@ -84,15 +84,15 @@ bool truth(const Value& value) {
 
 bool assign_type(const TypePtr& target, const TypePtr& source) {
     return same_type(target, source) || can_assign(target, source) || detail::pointer_assign(target, source) ||
-        (target && source && detail::aggregate(target) && same_type(detail::unqualified(target), detail::unqualified(source)));
+        (target && source && detail::aggregate(target) && detail::same_unqualified(target, source));
 }
 
 bool compatible_subobject(const TypePtr& target, const TypePtr& member, bool parent_const, bool parent_volatile) {
     if (!target || !member) return false;
-    auto qualified = std::make_shared<TypeInfo>(*member);
-    qualified->is_const = qualified->is_const || parent_const;
-    qualified->is_volatile = qualified->is_volatile || parent_volatile;
-    return same_type(target, qualified);
+    auto qualified = *member;
+    qualified.is_const = qualified.is_const || parent_const;
+    qualified.is_volatile = qualified.is_volatile || parent_volatile;
+    return same_type(target, &qualified);
 }
 
 Value convert_value(const Value& value, const TypePtr& target) {
@@ -495,10 +495,11 @@ class Machine {
             return static_cast<std::int64_t>(byte > 127 ? byte - 256 : byte);
         }
         auto& root = root_value(address);
-        const auto root_type = address.temporary.empty() ? symbol(address.symbol).type : detail::type(TypeKind::Struct);
+        TypeInfo temporary_root; temporary_root.kind = TypeKind::Struct;
+        const auto root_type = address.temporary.empty() ? symbol(address.symbol).type : &temporary_root;
         if (!detail::aggregate(root_type)) {
             if (std::holds_alternative<std::monostate>(root)) throw std::runtime_error("读取尚未初始化的变量");
-            if (!same_type(detail::unqualified(root_type), detail::unqualified(address.type))) {
+            if (!detail::same_unqualified(root_type, address.type)) {
                 if (address.type->kind != TypeKind::Char || !detail::numeric(root_type)) throw std::runtime_error("指针所指类型与根对象不兼容");
                 std::uint64_t bits;
                 if (detail::integral(root_type)) bits = static_cast<std::uint64_t>(std::get<std::int64_t>(root));
@@ -558,7 +559,7 @@ class Machine {
         auto& root = root_value(address);
         if (address.temporary.empty() && !detail::aggregate(symbol(address.symbol).type)) {
             const auto root_type = symbol(address.symbol).type;
-            if (!same_type(detail::unqualified(root_type), detail::unqualified(address.type))) {
+            if (!detail::same_unqualified(root_type, address.type)) {
                 if (address.type->kind != TypeKind::Char || !detail::numeric(root_type) || std::holds_alternative<std::monostate>(root))
                     throw std::runtime_error("指针写入类型不兼容或原对象未初始化");
                 std::uint64_t bits;
@@ -657,7 +658,7 @@ class Machine {
     }
 
     void write_address(const Address& address, const Value& value, const TypePtr& expected) {
-        if (!address.type || !same_type(detail::unqualified(address.type), expected) || address.type->is_const) throw std::runtime_error("scanf 地址类型不匹配");
+        if (!address.type || !detail::same_unqualified(address.type, expected) || address.type->is_const) throw std::runtime_error("scanf 地址类型不匹配");
         store_address(address, value);
     }
 
@@ -694,6 +695,8 @@ class Machine {
             const auto& value = arguments[index++];
             if (scanning) {
                 if (!std::holds_alternative<Address>(value)) throw std::runtime_error("scanf 实参必须是对象地址");
+                TypeArena conversion_types;
+                TypeArenaScope conversion_scope(conversion_types);
                 Value input_value;
                 const auto expected = detail::format_type(part, true);
                 if (part.conversion == 's') {
@@ -1008,6 +1011,8 @@ public:
 
 RunResult run(const IRProgram& program, const SymbolTableData& symbols,
               std::istream& input, std::ostream& output, const RunOptions& options) {
+    TypeArena types;
+    TypeArenaScope type_scope(types);
     return Machine(program, symbols, input, output, options).run();
 }
 

@@ -1,8 +1,28 @@
-# 模块函数接口 v1.3
+# 模块函数接口 v1.4
 
-日期：2026-10-09。结构体及其字段约定见 [interface.md](interface.md)。本文件定义“各模块怎样调用”，全部函数声明位于 `include/minic/`，均附中文注释。
+日期：2026-10-10。结构体及其字段约定见 [interface.md](interface.md)。本文件定义“各模块怎样调用”，全部函数声明位于 `include/minic/`，均附中文注释。
 
 当前已实现常量池、符号表、统一诊断、M1/M2 后续流程、对象指针等扩展、文本展示及总控。正式词法和语法入口已实现，真实源码验证见 [frontend.md](frontend.md)。支持范围及限制见 [backend-extensions.md](backend-extensions.md)。主程序统一包含 `minic/modules.hpp`；某模块可以只包含自己需要的头文件。
+
+TypePtr 已改成普通指针。compile / compile_preprocessed 返回的 CompilationResult.types 负责保存和释放本次类型对象；不要让单独取出的 AST、符号表或 IR 活得比它更久。run 和 complete 自行管理内部临时类型。
+
+直接调用阶段接口或常量池时，先建立类型管理器和创建范围，所有阶段共用它：
+
+```cpp
+minic::TypeArena types; // 保存类型对象，最后统一释放。
+minic::TypeArenaScope scope(types); // 后续创建的类型放进 types。
+auto lexical = minic::lex("int main(void){return 0;}");
+auto syntax = minic::parse(lexical.tokens);
+if (syntax.ok()) {
+    auto semantic = minic::analyze(*syntax.root);
+    if (semantic.ok()) {
+        auto ir = minic::generate(*syntax.root, semantic.symbols);
+        // 在 types 销毁前使用 ir 和 semantic。
+    }
+}
+```
+
+类型管理器不能复制；移动会转交对象所有权。不要在活动 TypeArenaScope 期间移动或销毁它所指定的管理器。只读类型比较 same_type 不创建类型，不需要 Scope。
 
 ## 1. 文件与分工
 
@@ -17,6 +37,7 @@
 | 常量池（IR 公共支持） | constant_pool.hpp | src/constant_pool.cpp | ConstantPool、constant_operand（已实现） |
 | 四元式解释器 | interpreter.hpp | src/interpreter.cpp | run（M1/M2 及指针等扩展） |
 | 主流程整合 | compiler.hpp | src/compiler.cpp、src/compilation_result.cpp | compile、CompilationResult::ok（已实现并接入正式前端） |
+| 类型内存管理 | type_arena.hpp | src/type_arena.cpp | TypeArena、TypeArenaScope、make_type_info |
 | 文本展示与导出 | display.hpp | src/display.cpp | print_tokens / ast / symbols / ir / diagnostics（已实现） |
 
 词法、语法、union、扩展数值类型、函数指针、extern 和预处理均有实现；项目范围与完整 C 的差异见 [frontend.md](frontend.md)、[backend-completion.md](backend-completion.md)。基础支持模块见 [symbol-table.md](symbol-table.md) 和 [constant-pool.md](constant-pool.md)。四个编译阶段用普通函数返回明确结果，符号表、常量池和诊断收集器通过类封装状态。

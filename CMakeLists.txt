@@ -9,6 +9,7 @@ if(MSVC)
 endif()
 
 add_library(minic_backend STATIC
+    src/type_arena.cpp
     src/preprocessor.cpp
     src/constant_pool.cpp
     src/diagnostic.cpp
@@ -58,6 +59,9 @@ endforeach()
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(type_arena_test tests/type_arena_test.cpp)
+    target_link_libraries(type_arena_test PRIVATE minic_compiler)
+    add_test(NAME type_arena COMMAND type_arena_test)
     add_executable(frontend_test tests/frontend_test.cpp)
     target_link_libraries(frontend_test PRIVATE minic_compiler)
     add_test(NAME frontend COMMAND frontend_test)

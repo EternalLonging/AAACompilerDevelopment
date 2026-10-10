@@ -1,6 +1,6 @@
-# 公共数据结构与模块交接约定 v1.3
+# 公共数据结构与模块交接约定 v1.4
 
-日期：2026-10-09。依据：README 和 `需求分析/00–05` 文档。
+日期：2026-10-10。依据：README 和 `需求分析/00–05` 文档。
 
 本文件是本组编译器的公共接口基线；可编译定义在 `include/minic/interface.hpp`，全部位于 `minic` 命名空间。后续模块引用该头文件，不再各自定义同名结构体。常量池、符号表、诊断、M1/M2 后续流程及对象指针等扩展已有实现；正式词法与语法已实现，范围见 [frontend.md](frontend.md)。实际范围见 [backend-extensions.md](backend-extensions.md)。
 
@@ -9,6 +9,8 @@ v1.1 补齐模块函数合同，见 [modules.md](modules.md)。数据头文件�
 v1.2 增加程序共享的常量池：数据定义位于 interface.hpp，登记接口位于 constant_pool.hpp，登记/去重实现位于 src/constant_pool.cpp。详细规则见 [constant-pool.md](constant-pool.md)。IRProgram 现在拥有 constants，正式 IR 的值常量统一使用 `%c<ID>` 引用。
 
 v1.3 不增删公共字段和 AST 孩子顺序，补充已实现的聚合寻址、数组退化、指针操作和静态存储合同。IRProgram.globals 扩展为静态存储对象清单，包含 static 局部对象；符号的词法作用域保持不变。
+
+v1.4 将 TypePtr 改为普通指针 `const TypeInfo*`，类型对象由 TypeArena 统一创建和释放。CompilationResult 新增 types 成员保存本次编译的类型；AST 孩子顺序不变。
 
 需求文档中曾提到“已冻结”的 interface.md，但项目此前没有该文件。本版首次落地这些定义，并明确解决旧资料中的歧义。新增枚举代表预留表达能力，不代表已支持该语法；M1/M2/M3/M4 的功能范围仍以 README 为准。C89/C99 的最终验收口径另行统一。
 
@@ -63,7 +65,13 @@ Token / Diagnostic 保留需求资料中的 `line`、`col` 简便字段，它们
 
 ## 4. TypeInfo：所有模块共用一套 C 类型描述
 
-`TypePtr = shared_ptr<const TypeInfo>`。类型创建后只读，可以在 AST、符号表和临时变量之间共享。不能使用指针地址判断类型相等；语义模块提供递归的结构比较和兼容性规则。
+`TypePtr = const TypeInfo*`，是指向只读类型信息的普通指针。AST、符号表和临时变量借用同一个类型对象，不能分别 delete。不能使用指针地址判断类型相等；语义模块提供递归的结构比较和兼容性规则。
+
+`TypeArena` 用 `std::vector<TypeInfo*>` 保存它 new 出来的对象，析构时逐个 delete；表扩容不改变类型对象地址。`TypeInfo::base` 和 params 中的子类型指针只借用，不递归释放。`create()` 返回可填写成员的 `TypeInfo*`，填好后交给 TypePtr 只读使用。
+
+调用 compile / compile_preprocessed 时，返回的 CompilationResult.types 持有全部编译类型。保留整份 CompilationResult，直到语法树、符号表和 IR 都不再使用；单独复制某张表不会复制类型对象。移动编译结果会转交类型所有权，并保留对象地址。
+
+单独调用 parse、analyze、generate、register_builtins、ConstantPool::intern 或 arithmetic_result 前，先创建 TypeArena 和 TypeArenaScope；管理器必须比借用它的结果活得更久。再次生成已有编译结果的 IR 时，用 `TypeArenaScope scope(compiled.types)`。make_type_info 在当前管理器中创建类型；没有活动 Scope 时抛 logic_error，避免无人释放的对象。run 自行管理执行时的临时类型。
 
 | kind | 有效字段 | 示例 |
 |---|---|---|
@@ -282,7 +290,7 @@ IR 生成接收 const AST 与 const 符号表，不登记新源程序符号，�
 `examples/interface_demo.cpp` 演示用真实结构体组装 Token、AST、符号表、结构体成员与函数 IR；它不调用编译器入口，也不冒充完整编译测试。
 
 ```powershell
-g++ -std=c++17 -Wall -Wextra -Wpedantic -I include examples/interface_demo.cpp src/constant_pool.cpp -o interface_demo.exe
+g++ -std=c++17 -Wall -Wextra -Wpedantic -I include examples/interface_demo.cpp src/constant_pool.cpp src/type_arena.cpp -o interface_demo.exe
 .\interface_demo.exe
 ```
 

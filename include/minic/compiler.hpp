@@ -9,6 +9,7 @@ enum class CompileTarget { Tokens, Parse, Check, IR };
 
 // 一次编译的结果，各阶段未执行时对应项为空。
 struct CompilationResult {
+    TypeArena types; // 保存本次编译的类型对象，其他结果销毁后再统一释放。
     CompileTarget target = CompileTarget::IR; // 请求编译到哪个阶段。
     std::optional<LexResult> lexical; // 词法分析结果；未执行时为空。
     std::optional<ParseResult> syntax; // 语法分析结果；未执行时为空。

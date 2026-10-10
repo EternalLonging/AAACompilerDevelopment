@@ -34,6 +34,8 @@ static void rejects(const std::string& source, const std::string& code = "") {
     }
 }
 int main() {
+    TypeArena types;
+    TypeArenaScope type_scope(types);
     try {
         auto empty = lex("", "empty.c");
         require(empty.ok() && empty.tokens.size() == 1 && empty.tokens[0].lexeme.empty(), "空源码 EOF");

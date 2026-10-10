@@ -7,6 +7,7 @@ namespace minic {
 class ConstantPool {
 public:
     // 登记常量，返回编号。类型和值相同则复用；非法输入抛出异常。
+    // 类型快照放入当前 TypeArenaScope 的管理器，管理器须保留到常量表用完。
     ConstantId intern(TypePtr type, ConstantValue value,
                       const std::string& spelling, const SourceRange& range = {});
 

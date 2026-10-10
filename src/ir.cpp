@@ -104,7 +104,7 @@ class Generator {
         if (init.kind == NodeType::InitList) {
             for (std::size_t i = 0; i < init.children.size(); ++i) {
                 if (detail::numeric(target) || target->kind == TypeKind::Pointer) { initialize(destination, target, child(init, i)); continue; }
-                TypePtr element;
+                TypePtr element = nullptr;
                 std::string selected;
                 if (target->kind == TypeKind::Array) {
                     element = target->base;

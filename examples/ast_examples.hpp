@@ -9,7 +9,7 @@ namespace minic::examples {
 using Node = std::unique_ptr<ASTNode>;
 
 inline TypePtr basic(TypeKind kind) {
-    auto type = std::make_shared<TypeInfo>();
+    auto type = make_type_info();
     type->kind = kind;
     return type;
 }
@@ -64,7 +64,7 @@ Node call(const std::string& name, Arguments... arguments) {
 template <typename... Parameters>
 Node function(const std::string& name, TypeKind result, Node body, Parameters... parameters) {
     auto value = tree(NodeType::FunctionDef, name, std::move(parameters)...);
-    auto type = std::make_shared<TypeInfo>();
+    auto type = make_type_info();
     type->kind = TypeKind::Function;
     type->base = basic(result);
     for (const auto& entry : value->children) type->params.push_back(entry->declared_type);
@@ -91,12 +91,12 @@ inline Node loop_program() {
 }
 
 inline TypePtr array(TypePtr element, std::optional<std::size_t> length) {
-    auto value = std::make_shared<TypeInfo>();
+    auto value = make_type_info();
     value->kind = TypeKind::Array; value->base = std::move(element); value->array_length = length;
     return value;
 }
 inline TypePtr record_type(const std::string& tag) {
-    auto value = std::make_shared<TypeInfo>(); value->kind = TypeKind::Struct; value->name = tag; return value;
+    auto value = make_type_info(); value->kind = TypeKind::Struct; value->name = tag; return value;
 }
 inline Node object(const std::string& name, TypePtr type, Node init = {}) {
     auto value = node(NodeType::VarDecl, name); value->declared_type = std::move(type);

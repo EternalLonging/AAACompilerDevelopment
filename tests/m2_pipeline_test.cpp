@@ -135,7 +135,7 @@ static void semantic_errors() {
     rejects(main_program(block(tree(NodeType::Switch, "", floating("1.5"), block()), ret(integer(0)))), "SEM_SWITCH");
     rejects(main_program(block(case_node(1, node(NodeType::Empty)), ret(integer(0)))), "SEM_SWITCH");
     rejects(main_program(block(object("a", array(basic(TypeKind::Int), 2)), ret(index(id("a"), floating("1.5"))))), "SEM_INDEX");
-    auto constant = std::make_shared<TypeInfo>(); constant->kind = TypeKind::Int; constant->is_const = true;
+    auto constant = make_type_info(); constant->kind = TypeKind::Int; constant->is_const = true;
     rejects(program(tree(NodeType::StructDef, "S", member("x", constant)),
         function("main", TypeKind::Int, block(object("a", record_type("S"), list(integer(1))),
             object("b", record_type("S"), list(integer(2))), statement(set(id("a"), id("b"))), ret(integer(0))))), "SEM_LVALUE");
@@ -159,6 +159,8 @@ static void folding_and_invalid_ir() {
 }
 
 int main() {
+    minic::TypeArena types; // 手工类型及语法树借用的内存，保留到示例/测试结束。
+    minic::TypeArenaScope type_scope(types);
     try {
         arrays(); structures(); initialization_and_sizeof(); control_flow();
         boundary_errors(); semantic_errors(); folding_and_invalid_ir();

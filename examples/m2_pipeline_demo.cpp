@@ -5,6 +5,8 @@
 #include <sstream>
 
 int main() {
+    minic::TypeArena types; // 手工类型及语法树借用的内存，保留到示例/测试结束。
+    minic::TypeArenaScope type_scope(types);
     auto ast = minic::examples::aggregate_program();
     auto semantic = minic::analyze(*ast);
     minic::print_diagnostics(semantic.diagnostics, std::cerr);

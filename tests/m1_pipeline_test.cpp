@@ -148,7 +148,7 @@ static void test_semantic_errors() {
     semantic_failure(program(function("main", TypeKind::Int, block(ret(node(NodeType::ArrayAccess))))), "SEM_AST_SHAPE");
     semantic_failure(program(variable("g", TypeKind::Int, call("printf", text("\"bad\"")))), "SEM_GLOBAL_INIT");
     auto constant = variable("x", TypeKind::Int, integer(1));
-    auto const_type = std::make_shared<TypeInfo>(*constant->declared_type);
+    auto const_type = make_type_info(*constant->declared_type);
     const_type->is_const = true;
     constant->declared_type = const_type;
     semantic_failure(program(function("main", TypeKind::Int, block(std::move(constant),
@@ -256,6 +256,8 @@ static void test_display_and_result() {
 }
 
 int main() {
+    minic::TypeArena types; // 手工类型及语法树借用的内存，保留到示例/测试结束。
+    minic::TypeArenaScope type_scope(types);
     try {
         test_loop_and_io();
         test_recursion();

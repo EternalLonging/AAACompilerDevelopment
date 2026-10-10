@@ -12,10 +12,10 @@ static void require(bool condition, const char* message) {
     if (!condition) throw std::runtime_error(message);
 }
 static TypePtr pointer(TypePtr base) {
-    auto type = std::make_shared<TypeInfo>(); type->kind = TypeKind::Pointer; type->base = std::move(base); return type;
+    auto type = make_type_info(); type->kind = TypeKind::Pointer; type->base = std::move(base); return type;
 }
 static TypePtr named(const std::string& name, TypeKind kind = TypeKind::Named) {
-    auto type = std::make_shared<TypeInfo>(); type->kind = kind; type->name = name; return type;
+    auto type = make_type_info(); type->kind = kind; type->name = name; return type;
 }
 static Node unary(const std::string& op, Node value) { return tree(NodeType::UnaryOp, op, std::move(value)); }
 static Node alias(const std::string& name, TypePtr type) {
@@ -27,7 +27,7 @@ static Node typed_parameter(const std::string& name, TypePtr type) {
 template <typename... Parameters>
 static Node typed_function(const std::string& name, TypePtr result, Node body, Parameters... parameters) {
     auto value = function(name, TypeKind::Int, std::move(body), std::move(parameters)...);
-    auto type = std::make_shared<TypeInfo>(*value->declared_type); type->base = std::move(result); value->declared_type = type;
+    auto type = make_type_info(*value->declared_type); type->base = std::move(result); value->declared_type = type;
     return value;
 }
 static Node main_program(Node body) { return program(function("main", TypeKind::Int, std::move(body))); }
@@ -104,7 +104,7 @@ static void linked_objects() {
 }
 
 static void qualifiers() {
-    auto constant = std::make_shared<TypeInfo>(); constant->kind = TypeKind::Int; constant->is_const = true;
+    auto constant = make_type_info(); constant->kind = TypeKind::Int; constant->is_const = true;
     succeeds(main_program(block(variable("x", TypeKind::Int, integer(9)),
         object("p", pointer(constant), unary("&", id("x"))), ret(unary("*", id("p"))))), 9);
     rejects(main_program(block(object("x", constant, integer(9)),
@@ -190,6 +190,8 @@ static void labels_and_gotos() {
 }
 
 int main() {
+    minic::TypeArena types; // 手工类型及语法树借用的内存，保留到示例/测试结束。
+    minic::TypeArenaScope type_scope(types);
     try {
         objects_and_pointers(); pointer_calls_and_lifetimes(); linked_objects(); qualifiers(); array_pointers(); aliases_and_enums(); labels_and_gotos(); integer_operators(); static_storage();
         std::cout << "指针、类型别名、枚举、标签、位运算和静态存储：9 组测试全部通过\n"; return 0;

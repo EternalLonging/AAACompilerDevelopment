@@ -58,6 +58,7 @@ std::size_t instructions(const IRProgram& ir) {
 }
 void compare(const std::string& source, const std::string& expected, bool fewer) {
     auto compiled = compile(source, "test.c", CompileTarget::Check);
+    TypeArenaScope type_scope(compiled.types);
     require(compiled.ok(), "对比源码必须先通过语义分析");
     auto before = generate(*compiled.syntax->root, compiled.semantic->symbols, {false});
     auto after = generate(*compiled.syntax->root, compiled.semantic->symbols, {true});
@@ -75,7 +76,8 @@ int main() {
         compare("int main(void){int x=(2+3)*(4+5);printf(\"%d\\n\",x);return 0;}", "45\n", true);
         compare("int main(void){int x=0;int y=1; if(0 && ++x){x=99;} y+=2;printf(\"%d %d\\n\",x,y);return 0;}", "0 3\n", false);
         compare("int bump(int *p){*p+=1;return *p;}int main(void){int x=0;printf(\"%d\\n\",bump(&x));return 0;}", "1\n", false);
-        const auto compiled = compile("int main(void){return 1/0;}", "zero.c", CompileTarget::Check);
+        auto compiled = compile("int main(void){return 1/0;}", "zero.c", CompileTarget::Check);
+        TypeArenaScope type_scope(compiled.types);
         require(compiled.ok(), "除零留到运行期诊断");
         for (bool folded : {false, true}) {
             auto ir = generate(*compiled.syntax->root, compiled.semantic->symbols, {folded});
