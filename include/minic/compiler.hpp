@@ -26,12 +26,10 @@ CompilationResult compile(const std::string& source,
                           const std::string& filename = "<input>",
                           CompileTarget target = CompileTarget::IR);
 
-// 先预处理，再编译；头文件由 loader 读取，错误位置映射到原文件行号。
+// 先展开宏再编译，错误位置映射到原文件行号；不支持 #include。
 // 展开后的列号和字节偏移不能精确还原，映射时列号置 1、偏移置 0。
 CompilationResult compile_preprocessed(const std::string& source,
                                       const std::string& filename = "<input>",
-                                      CompileTarget target = CompileTarget::IR,
-                                      const IncludeLoader& loader = {},
-                                      const IncludePathResolver& resolver = {});
+                                      CompileTarget target = CompileTarget::IR);
 
 }

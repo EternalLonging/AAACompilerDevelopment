@@ -166,16 +166,15 @@ struct ParseResult {
 // C 数据类型的种类。
 enum class TypeKind {
     Unknown, Error, Void, Char, Short, Int, Long, Float, Double, LongDouble,
-    Pointer, Array, Function, Struct, Union, Enum, Named
+    Address, Array, Function, Struct, Union, Enum, Named // Address 只供内部寻址，源码不能声明。
 };
 
 // C 类型信息。
 struct TypeInfo {
-    TypeKind kind = TypeKind::Unknown; // 类型种类，如 int、float、指针、数组。
+    TypeKind kind = TypeKind::Unknown; // 类型种类，如 int、float、数组、结构体。
     bool is_unsigned = false; // 是否为无符号整型。
     bool is_const = false; // 当前这一层类型是否带 const。
-    bool is_volatile = false; // 当前这一层类型是否带 volatile。
-    TypePtr base = nullptr; // 指针的所指类型、数组的元素类型或函数的返回类型。
+    TypePtr base = nullptr; // 内部地址的目标类型、数组的元素类型或函数的返回类型。
     std::optional<std::size_t> array_length; // 本层数组长度；为空表示尚未确定。
     std::vector<TypePtr> params; // 函数的形参类型表，按声明顺序保存。
     bool variadic = false; // 函数是否接受可变数量的参数。

@@ -21,12 +21,12 @@ def project_path(name):
         raise ValueError("文件名必须为文本")
     name = name.strip().replace("\\", "/")
     parts = name.split("/")
-    if len(name) > 180 or not re.fullmatch(r"[\w\u0080-\uffff /.-]+\.(c|h)", name) or any(
+    if len(name) > 180 or not re.fullmatch(r"[\w\u0080-\uffff /.-]+\.c", name) or any(
         not part or part in (".", "..") or part.endswith((".", " ")) or
         re.match(r"^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)", part, re.I)
         for part in parts
     ) or parts[0].lower() == "input.txt":
-        raise ValueError("文件名应为项目内的 .c 或 .h 相对路径")
+        raise ValueError("文件名应为项目内的 .c 相对路径")
     return PurePosixPath(name)
 
 
@@ -60,7 +60,7 @@ def invoke(driver, payload, action):
             target.parent.mkdir(parents=True, exist_ok=True)
             # 原样写入 UTF-8，Windows 自动转换换行会让编辑器光标与源码字节位置错位。
             target.write_bytes(text.encode("utf-8"))
-        cursor = payload.get("cursor", 0)
+        cursor = 0
         if not isinstance(cursor, int) or cursor < 0 or cursor > len(source.encode("utf-8")):
             raise ValueError("光标位置无效")
         result = subprocess.run([str(driver), action, str(folder.joinpath(*entry.parts)), str(folder / "input.txt"), str(cursor), str(folder)],
@@ -85,7 +85,7 @@ def handler(driver):
                 self.end_headers()
                 self.wfile.write(data)
             except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
-                pass  # 页面切换或取消补全后，客户端可能已经断开，无需再次发送错误。
+                pass  # 页面切换后，客户端可能已经断开，无需再次发送错误。
 
         def json(self, status, payload):
             self.send(status, json.dumps(payload, ensure_ascii=False).encode("utf-8"))
@@ -107,7 +107,7 @@ def handler(driver):
                 for file in sorted((ROOT / "examples/showcase").glob("*.c")):
                     demos.append({"name": file.name, "source": file.read_text(encoding="utf-8"),
                                   "input": "5\n" if file.name.startswith("01") else "",
-                                  "files": {"config.h": (ROOT / "examples/showcase/config.h").read_text(encoding="utf-8")} if file.name.startswith("02") else {}})
+                                  "files": {}})
                 demos.insert(0, {"name": "常量折叠与短路", "source": 'int main(void) {\n    int x = (2 + 3) * (4 + 5);\n    int hits = 0;\n    if (0 && ++hits) {\n        hits = 99;\n    }\n    printf("value = %d, hits = %d\\n", x, hits);\n    return 0;\n}\n', "input": "", "files": {}})
                 self.json(200, demos); return
             assets = {"/": ("index.html", "text/html"), "/app.js": ("app.js", "text/javascript"), "/style.css": ("style.css", "text/css")}
@@ -119,7 +119,7 @@ def handler(driver):
         def do_POST(self):
             if not self.allowed():
                 return
-            actions = {"/api/analyze": "inspect", "/api/run": "run", "/api/complete": "complete"}
+            actions = {"/api/analyze": "inspect", "/api/run": "run"}
             if self.path not in actions:
                 self.json(404, {"error": "操作不存在"}); return
             if not slots.acquire(blocking=False):

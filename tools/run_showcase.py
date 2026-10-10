@@ -58,7 +58,7 @@ def main():
         execute("02_run", "02_records_macros.c", "run",
                 expected="Alice: 90\nBob: 55\nChen: 80\npassed = 2\naverage = 75.000000\n")
         execute("02_symbols", "02_records_macros.c", "symbols", contains=("Student", "name", "score"))
-        execute("03_run", "03_callback_static.c", "run", expected="counter = 1 2\ncallback = 12\n")
+        execute("03_run", "03_callback_static.c", "run", expected="counter = 1 2\ntwice = 12\n")
         execute("04_semantic_error", "04_semantic_error.c", "run", expected="", code=1,
                 errors=("[语义/错误]", "SEM_UNDECLARED", "04_semantic_error.c:3:1"))
         execute("05_runtime_error", "05_runtime_error.c", "run", expected="", code=1,
@@ -71,8 +71,8 @@ def main():
     summary.write_text(
         f"演示检查 {len(completed)}/{len(completed)} 通过。\n"
         "01 输入：5；正常输出：sum = 15。\n"
-        "02 展示数组、记录、指针、宏和本地头文件。\n"
-        "03 展示函数指针与静态存储。\n"
+        "02 展示数组、记录和宏。\n"
+        "03 展示直接函数调用与静态存储。\n"
         "04、05 是预期失败的错误演示，脚本已核对错误阶段。\n"
         "文件 .txt 保存阶段结果，.diagnostics.txt 保存诊断。\n", encoding="utf-8")
     print(f"showcase: {len(completed)} checks passed；结果保存到 {output}")

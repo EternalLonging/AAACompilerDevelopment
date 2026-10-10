@@ -51,19 +51,14 @@ int main(int argc, char* argv[]) {
         const auto source = read_file(source_path);
         if (!source) throw std::runtime_error("找不到联调源文件");
         // 仅用于测试夹具的本地头文件。正式系统头文件搜索另行实现。
-        const minic::IncludeLoader loader = [&](const std::string& header, const std::string& parent) {
-            const auto parent_path = std::filesystem::u8path(parent);
-            const auto directory = parent_path.is_absolute() ? parent_path.parent_path() : source_path.parent_path();
-            return read_file(directory / std::filesystem::u8path(header));
-        };
 #ifdef MINIC_FIXTURE_PREPROCESS_ONLY
-        const auto preprocessing = minic::preprocess(*source, source_path.u8string(), loader);
+        const auto preprocessing = minic::preprocess(*source, source_path.u8string());
         diagnostics(preprocessing.diagnostics);
         if (!preprocessing.ok()) return 1;
         std::cout << preprocessing.source;
         return std::cout ? 0 : 2;
 #else
-        auto compilation = minic::compile_preprocessed(*source, source_path.u8string(), minic::CompileTarget::IR, loader);
+        auto compilation = minic::compile_preprocessed(*source, source_path.u8string(), minic::CompileTarget::IR);
         diagnostics(compilation.diagnostics);
         if (!compilation.ok()) return 1;
         minic::RunOptions options;

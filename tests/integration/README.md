@@ -1,5 +1,7 @@
 # 真实 C 源码联调夹具
 
+> 2026-10-10 范围更新：volatile、补全、C 指针及头文件包含已删除；for 内声明和同块执行后声明被拒绝。以下早期示例与里程碑记录供历史参考；当前以 [语言范围](../../docs/language-scope.md) 和测试清单为准。宏夹具已改为同文件声明，指针夹具用于验证拒绝。
+
 共 32 个用例：16 个正常程序，16 个错误与边界用例。输入、预期输出、返回值及失败阶段统一存于 [manifest.json](manifest.json)。AST 对照和交接细节见 [integration-handoff.md](../../docs/integration-handoff.md)。
 
 | 正常程序 | 检查内容 |

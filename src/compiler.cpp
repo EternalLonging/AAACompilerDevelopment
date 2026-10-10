@@ -62,12 +62,11 @@ CompilationResult compile(const std::string& source, const std::string& filename
 }
 
 CompilationResult compile_preprocessed(const std::string& source, const std::string& filename,
-                                      CompileTarget target, const IncludeLoader& loader,
-                                      const IncludePathResolver& resolver) {
+                                      CompileTarget target) {
     if (target != CompileTarget::Tokens && target != CompileTarget::Parse &&
         target != CompileTarget::Check && target != CompileTarget::IR)
         throw std::invalid_argument("无效的编译目标");
-    auto preprocessing = preprocess(source, filename, loader, resolver);
+    auto preprocessing = preprocess(source, filename);
     CompilationResult result;
     result.target = target;
     if (preprocessing.ok()) result = compile_stages(preprocessing.source, filename, target, &preprocessing);

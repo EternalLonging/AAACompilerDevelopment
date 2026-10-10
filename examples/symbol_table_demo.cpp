@@ -31,8 +31,6 @@ int main() {
     table.insert(variable);
     table.exit_scope();
     std::cout << "退出函数后的 count 编号：" << table.lookup("count").value() << '\n';
-    std::cout << "前缀 pri 的查询结果：";
-    for (const auto id : table.prefix_query("pri")) std::cout << table.symbol(id)->name << ' ';
     std::cout << '\n';
 
     for (const auto& error : diagnostics.diagnostics())

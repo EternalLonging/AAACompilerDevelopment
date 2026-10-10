@@ -31,7 +31,7 @@ try {
     }
     # 总控替身测试保持隔离，正式前端对象只链接真实源码测试和命令行。
     $frontendObjects = @()
-    foreach ($source in @('src/lexer.cpp', 'src/parser.cpp', 'src/compiler.cpp', 'src/completion.cpp')) {
+    foreach ($source in @('src/lexer.cpp', 'src/parser.cpp', 'src/compiler.cpp')) {
         $object = 'build/' + [System.IO.Path]::GetFileNameWithoutExtension($source) + '.o'
         & $Compiler '-std=c++17' '-Wall' '-Wextra' '-Wpedantic' '-Werror' '-I' 'include' '-c' $source '-o' $object
         if ($LASTEXITCODE -ne 0) { throw "前端编译失败：$source" }

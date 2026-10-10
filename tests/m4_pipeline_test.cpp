@@ -10,7 +10,6 @@ static void require(bool value, const char* message) { if (!value) throw std::ru
 static TypePtr type(TypeKind kind, bool unsigned_type = false) {
     auto result = make_type_info(); result->kind = kind; result->is_unsigned = unsigned_type; return result;
 }
-static TypePtr ptr(TypePtr base) { auto result = make_type_info(); result->kind = TypeKind::Pointer; result->base = std::move(base); return result; }
 static TypePtr record(const std::string& name, TypeKind kind = TypeKind::Union) { auto result = make_type_info(); result->kind = kind; result->name = name; return result; }
 static TypePtr signature(TypePtr result, std::vector<TypePtr> params = {}) { auto value = make_type_info(); value->kind = TypeKind::Function; value->base = std::move(result); value->params = std::move(params); return value; }
 static Node unary(const std::string& op, Node value) { return tree(NodeType::UnaryOp, op, std::move(value)); }
@@ -71,17 +70,6 @@ static void unions() {
     float_union->children.push_back(function("main", TypeKind::Int, std::move(use))); check(std::move(float_union), 1);
 }
 
-static void function_pointers() {
-    const auto fn = signature(type(TypeKind::Int), {type(TypeKind::Int)});
-    auto ast = program(function("twice", TypeKind::Int, block(ret(binary("*", id("x"), integer(2)))), parameter("x", TypeKind::Int)));
-    auto callback = node(NodeType::ParamDecl, "fn"); callback->declared_type = ptr(fn);
-    ast->children.push_back(function("apply", TypeKind::Int, block(ret(invoke(id("fn"), integer(4)))), std::move(callback)));
-    auto body = block(object("fn", ptr(fn), id("twice")), ret(binary("+", invoke(unary("*", id("fn")), integer(3)), call("apply", id("fn")))));
-    ast->children.push_back(function("main", TypeKind::Int, std::move(body))); check(std::move(ast), 14);
-    auto null_fn = main_program(block(object("fn", ptr(fn), integer(0)), ret(invoke(id("fn"), integer(2)))));
-    check(std::move(null_fn), 0, "", "", "空函数指针");
-}
-
 static void external_objects() {
     auto ast = program(external(variable("x", TypeKind::Int)), function("get", TypeKind::Int, block(ret(id("x")))));
     ast->children.push_back(variable("x", TypeKind::Int, integer(7)));
@@ -124,10 +112,6 @@ static void aggregate_calls() {
 }
 
 static void errors_and_boundaries() {
-    const auto fn = signature(type(TypeKind::Int), {type(TypeKind::Int)});
-    auto bad = program(function("f", TypeKind::Int, block(ret(integer(0))), parameter("x", TypeKind::Float)));
-    bad->children.push_back(function("main", TypeKind::Int, block(object("p", ptr(fn), id("f")), ret(integer(0)))));
-    rejects(std::move(bad), "SEM_INIT_TYPE");
     auto io = block(object("short", type(TypeKind::Short)), object("long", type(TypeKind::Long)), object("d", type(TypeKind::Double)),
         object("u", type(TypeKind::Int, true)),
         statement(call("scanf", text("\"%hd %ld %lf %x\""), unary("&", id("short")), unary("&", id("long")), unary("&", id("d")), unary("&", id("u")))),
@@ -135,27 +119,16 @@ static void errors_and_boundaries() {
     check(main_program(std::move(io)), 0, "123 200000 1.250000 ff", "123 200000 1.25 ff");
     auto text_error = block(object("buffer", array(type(TypeKind::Char), 2), text("\"ab\"")), statement(call("printf", text("\"%s\""), id("buffer"))), ret(integer(0)));
     check(main_program(std::move(text_error)), 0, "", "", "终止零");
-    auto void_pointer = block(variable("x", TypeKind::Int, integer(5)), object("v", ptr(type(TypeKind::Void)), unary("&", id("x"))),
-        object("p", ptr(type(TypeKind::Int)), id("v")), ret(unary("*", id("p"))));
-    check(main_program(std::move(void_pointer)), 5);
-    auto representation = block(variable("x", TypeKind::Int, node(NodeType::IntLiteral, "0x12345678")),
-        object("p", ptr(type(TypeKind::Char, true)), cast(ptr(type(TypeKind::Char, true)), unary("&", id("x")))),
-        statement(set(index(id("p"), integer(0)), integer(1))), ret(binary("==", id("x"), node(NodeType::IntLiteral, "0x12345601"))));
-    check(main_program(std::move(representation)), 1);
-    auto pointer_union = program(tree(NodeType::UnionDef, "U", member("p", ptr(type(TypeKind::Int))), member("n", type(TypeKind::Int))));
-    pointer_union->children.push_back(function("main", TypeKind::Int, block(variable("x", TypeKind::Int, integer(7)), object("u", record("U"), list(unary("&", id("x")))),
-        ret(field(id("u"), "n")))));
-    check(std::move(pointer_union), 0, "", "", "指针表示");
+
 }
 
 static void strings() {
     auto body = block();
     body->children.push_back(object("text", array(type(TypeKind::Char), 6), text("\"hello\"")));
-    body->children.push_back(object("p", ptr(type(TypeKind::Char)), id("text")));
-    body->children.push_back(statement(set(index(id("p"), integer(0)), node(NodeType::CharLiteral, "'H'"))));
-    body->children.push_back(statement(call("printf", text("\"%s %s\""), id("p"), binary("+", text("\"world\""), integer(1)))));
+    body->children.push_back(statement(set(index(id("text"), integer(0)), node(NodeType::CharLiteral, "'H'"))));
+    body->children.push_back(statement(call("printf", text("\"%s %s\""), id("text"), text("\"world\""))));
     body->children.push_back(ret(integer(0)));
-    check(main_program(std::move(body)), 0, "Hello orld");
+    check(main_program(std::move(body)), 0, "Hello world");
     auto input = block(object("buffer", array(type(TypeKind::Char), 5)),
         statement(call("scanf", text("\"%4s\""), id("buffer"))), statement(call("printf", text("\"%s\""), id("buffer"))), ret(integer(0)));
     check(main_program(std::move(input)), 0, "abcd", "abcdef");
@@ -163,17 +136,12 @@ static void strings() {
     check(main_program(std::move(overflow)), 0, "", "abcd", "容量");
     rejects(main_program(block(object("buffer", array(type(TypeKind::Char), 3)),
         statement(call("scanf", text("\"%0s\""), id("buffer"))), ret(integer(0)))), "SEM_FORMAT");
-    auto read_only = block(object("p", ptr(type(TypeKind::Char)), text("\"abc\"")), statement(set(index(id("p"), integer(0)), node(NodeType::CharLiteral, "'X'"))), ret(integer(0)));
-    check(main_program(std::move(read_only)), 0, "", "", "字面量");
-    auto global_string = program(object("message", ptr(type(TypeKind::Char)), text("\"global\"")));
-    global_string->children.push_back(function("main", TypeKind::Int, block(
-        statement(call("printf", text("\"%s\""), id("message"))), ret(integer(0)))));
-    check(std::move(global_string), 0, "global");
+
 }
 
 int main() {
     minic::TypeArena types; // 手工类型及语法树借用的内存，保留到示例/测试结束。
     minic::TypeArenaScope type_scope(types);
-    try { numeric_types(); unions(); function_pointers(); external_objects(); strings(); aggregate_calls(); errors_and_boundaries(); std::cout << "扩展数值、联合体、函数指针、外部声明与字符串：7 组测试全部通过\n"; return 0; }
+    try { numeric_types(); unions(); external_objects(); strings(); aggregate_calls(); errors_and_boundaries(); std::cout << "扩展数值、联合体、外部声明、聚合调用与字符串：6 组测试全部通过\n"; return 0; }
     catch (const std::exception& error) { std::cerr << "测试失败：" << error.what() << '\n'; return 1; }
 }

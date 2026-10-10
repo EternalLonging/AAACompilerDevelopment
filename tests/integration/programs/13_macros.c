@@ -1,5 +1,4 @@
-#include "../headers/config.h"
-#include "../headers/config.h"
+#define BASE 3
 #define STR(x) #x
 #define XSTR(x) STR(x)
 #define CAT(a,b) a ## b

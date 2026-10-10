@@ -1,14 +1,14 @@
-# 公共数据结构与模块交接约定 v1.4
+# 公共数据结构与模块交接约定 v1.5
 
 日期：2026-10-10。依据：README 和 `需求分析/00–05` 文档。
 
-本文件是本组编译器的公共接口基线；可编译定义在 `include/minic/interface.hpp`，全部位于 `minic` 命名空间。后续模块引用该头文件，不再各自定义同名结构体。常量池、符号表、诊断、M1/M2 后续流程及对象指针等扩展已有实现；正式词法与语法已实现，范围见 [frontend.md](frontend.md)。实际范围见 [backend-extensions.md](backend-extensions.md)。
+本文件是本组编译器的公共接口基线；可编译定义在 `include/minic/interface.hpp`，全部位于 `minic` 命名空间。后续模块引用该头文件，不再各自定义同名结构体。常量池、符号表、诊断、数组、记录及控制流已有实现；正式词法与语法已实现，范围见 [frontend.md](frontend.md)。实际范围见 [backend-extensions.md](backend-extensions.md)。
 
 v1.1 补齐模块函数合同，见 [modules.md](modules.md)。数据头文件只保留结构体；函数入口分别位于各模块头文件，可统一包含 `minic/modules.hpp`。
 
 v1.2 增加程序共享的常量池：数据定义位于 interface.hpp，登记接口位于 constant_pool.hpp，登记/去重实现位于 src/constant_pool.cpp。详细规则见 [constant-pool.md](constant-pool.md)。IRProgram 现在拥有 constants，正式 IR 的值常量统一使用 `%c<ID>` 引用。
 
-v1.3 不增删公共字段和 AST 孩子顺序，补充已实现的聚合寻址、数组退化、指针操作和静态存储合同。IRProgram.globals 扩展为静态存储对象清单，包含 static 局部对象；符号的词法作用域保持不变。
+历史 v1.3 补充聚合寻址、数组传参和静态存储合同；本次 v1.5 删除源码指针功能并保留 AST 孩子顺序。IRProgram.globals 扩展为静态存储对象清单，包含 static 局部对象；符号的词法作用域保持不变。
 
 v1.4 将 TypePtr 改为普通指针 `const TypeInfo*`，类型对象由 TypeArena 统一创建和释放。CompilationResult 新增 types 成员保存本次编译的类型；AST 孩子顺序不变。
 
@@ -23,7 +23,7 @@ v1.4 将 TypePtr 改为普通指针 `const TypeInfo*`，类型对象由 TypeAren
 | SourceLocation / SourceRange | 各阶段 | 全模块、展示层 | 文件、行列、字节位置和源码范围 |
 | Token | 词法分析 | 语法分析、Token 展示 | 种别、原文、行列、范围 |
 | Diagnostic | 所有阶段 | 编译驱动、诊断展示 | 阶段、级别、位置、中文消息、错误代码 |
-| TypeInfo | 语法构造声明类型；语义解析与标注 | 语义、符号表、IR | 基本类型、数组、指针、函数、记录类型 |
+| TypeInfo | 语法构造声明类型；语义解析与标注 | 语义、符号表、IR | 基本类型、数组、函数、记录类型及内部地址 |
 | ASTNode | 语法构造；语义补充标注 | 语义、IR、AST 展示 | 节点种类、孩子、原文、常量值、类型和符号引用 |
 | SymbolEntry | 语义调用符号表模块登记 | 语义、IR、符号表展示 | 变量/形参/函数等的唯一身份及声明信息 |
 | MemberEntry / StructEntry | 符号表模块配合语义维护 | 语义、IR | 标签、成员、偏移、大小和对齐 |
@@ -59,7 +59,7 @@ Token / Diagnostic 保留需求资料中的 `line`、`col` 简便字段，它们
 
 词法成功输出恰好一个末尾 END_OF_FILE，即使输入为空也如此。EOF 原文为空；其他 Token 保留源码拼写，包括字符串的双引号、字符常量的单引号和转义。注释、空白不输出 Token；非法字符产生诊断，跳过后继续扫描。
 
-`main`、`printf`、`scanf` 均为 ID。`AMP` 单独表示 `&`，`AND` 表示 `&&`。后续流程已支持普通对象取地址和整型按位与；具体含义由 AST 运算符和操作数类型决定。`KW_VOID` 允许函数返回及 void 指针声明，当前不允许 void 指针解引用。旧资料“39 类”只是旧清单，不再作为接口总数。
+`main`、`printf`、`scanf` 均为 ID。`AMP` 单独表示 `&`，`AND` 表示 `&&`。后续流程已支持scanf 输入专用取地址和整型按位与；具体含义由 AST 运算符和操作数类型决定。`KW_VOID` 用于函数返回或参数列表。KW_VOLATILE 仅识别后拒绝，不是可用限定符。旧资料“39 类”只是旧清单，不再作为接口总数。
 
 最终词法拼写规则见 [lexer-regex.md](lexer-regex.md) 和 `lexer/patterns.json`，采用 C89 范围：包括 32 关键字、各进制整数、科学计数法、后缀及完整转义。词法种别一次识别齐全，语法/语义功能仍按里程碑实现；早期资料的简单数字规则不再作为最终词法规范。
 
@@ -77,16 +77,16 @@ Token / Diagnostic 保留需求资料中的 `line`、`col` 简便字段，它们
 |---|---|---|
 | Char / Short / Int / Long | is_unsigned、限定符 | unsigned int |
 | Void / Float / Double / LongDouble | 限定符 | float |
-| Pointer | base=所指类型，当前层限定符 | int*、const int*、int* const |
+| Address | base=内部地址对应的数据类型 | 数组传参、输入输出；源码不能声明 |
 | Array | base=元素类型，array_length=当前维长度 | int[3][4]：外层 3，base 是长度 4 的数组 |
 | Function | base=返回类型，params、variadic、has_prototype | int(int, float)、printf 可变参数签名 |
 | Struct / Union / Enum | name=标签拼写，record_id=解析后的身份 | struct Node |
 | Named | name=待解析的 typedef 名字 | Size |
 | Unknown / Error | 无 | 尚未确定 / 已判定非法 |
 
-每一层单独携带 const / volatile，不能用“指针层数”代替递归类型，否则无法区分 `int *a[3]` 与 `int (*a)[3]`。array_length 为空表示长度尚未确定，**不代表长度 0**。
+每层类型独立保存 const；数组递归保存各维元素类型和长度。array_length 为空表示尚未确定，不表示 0。volatile 字段已删除。
 
-Function 的 params 存 **形参类型**，Call 的 children 存 **实参表达式**。固定签名函数指针用 Pointer.base=Function 表示，Call 的首孩子也可为函数指针表达式。printf/scanf 的签名标为 variadic，固定参数是格式串；SymbolEntry.builtin 指明需要格式检查。解释器按本组数值约定处理；完整 C 的默认实参提升规则尚未全部实现。`has_prototype=false` 表示 C 风格 `f()` 的未指定参数，与 `f(void)` 的零参数原型不同。
+Function.params 保存形参类型，Call.children 保存函数名字和实参。只允许直接函数调用。printf/scanf 内建签名使用内部 Address 表示字符数据，builtin 标记负责专用格式检查。f() 与 f(void) 用 has_prototype 区分。
 
 解析阶段创建声明中写出的类型：`struct T` 可先只有 name，record_id 为 invalid_id；typedef 名可先为 Named。语义按该声明的作用域解析，递归生成新的、已解析的 TypeInfo，写入 AST.type / SymbolEntry.type。禁止修改已有共享类型，更不能仅按标签字符串全局合并类型。后续重声明处理必须复用同一个记录身份。
 
@@ -127,15 +127,15 @@ M1/M2 的数组长度可直接存确定的整型长度。尚未实现的常量�
 | ExprStmt | — | `[表达式]` |
 | Assign | `=` 或复合赋值运算符 | `[目标表达式, 来源表达式]` |
 | BinaryOp | 运算符，如 `+`、`<`、`&&` | `[左操作数, 右操作数]` |
-| UnaryOp | `+`、`-`、`!`、`&`、`*`、`pre++`、`post++` 等 | `[操作数]` |
+| UnaryOp | `+`、`-`、`!`、`&`（仅 scanf）、`pre++`、`post++` 等 | `[操作数]` |
 | Call | name 可保留直接被调函数名 | `[被调表达式, 实参0, 实参1, …]` |
 | If | — | `[条件, 真分支]`，或 `[条件, 真分支, 假分支]` |
 | While | — | `[条件, 循环体]` |
 | For | — | 固定 `[初始化, 条件, 更新, 循环体]`，缺失分量为 Empty |
 | Return | — | 无，或 `[返回表达式]` |
 | ImplicitCast / Cast | 目标类型；ImplicitCast.type 为目标类型 | `[被转换表达式]` |
-| ArrayAccess | — | `[数组/指针表达式, 下标表达式]`；多维用嵌套节点 |
-| MemberAccess | 成员名 | `[对象表达式]`；`p->m` 在语义阶段降成 `(*p).m` |
+| ArrayAccess | — | `[数组表达式, 下标表达式]`；多维用嵌套节点 |
+| MemberAccess | 成员名 | `[对象表达式]`；只支持 `s.m`，拒绝 `p->m` |
 | DoWhile | — | `[循环体, 条件]` |
 | Switch | — | `[控制表达式, 循环体 Block]` |
 | Case / Default | — | Case 为 `[常量表达式, 所属语句]`，Default 为 `[所属语句]` |
@@ -153,9 +153,9 @@ Case/Default 的链可表示连续标签，Block 表示其后的顺序语句。B
 
 Function 节点的 ParamDecl 类型和 declared_type.params 必须一致。无名原型形参不进符号表；定义中每个具名形参都登记。函数体最外层 Block 与形参共享 Function 作用域，因此 `int f(int x){int x;}` 应报重复声明；只有更内层的 Block 才可遮蔽 x。
 
-比较签名时，数组/函数形参先调整为指针，并忽略形参顶层 const/volatile；函数体中的形参对象仍保留限定符。因此 `f(int)` 与 `f(const int)` 签名兼容，但 const 形参在函数体内不能修改；`f(int*)` 与 `f(const int*)` 不因此兼容。临时 struct/union 的数组成员可读取下标结果，直接结果仍是 RValue，不能把它当可修改左值。
+比较签名时，数组形参调整为内部 Address，忽略形参顶层 const；函数体的 const 形参仍不能修改。临时 struct/union 的数组成员可读取，其结果不是可修改左值。
 
-普通窄字符串的 value 保存解码后的字节串（不附终止零），name 保存原文；相邻字符串合为一个 StringLiteral，name 以空格分隔各段完整拼写，语义分别解码再拼接；语义类型是包含终止零的 char 数组，长度为 `value.size()+1`。用于函数实参时，语义插入数组到指针的转换。字符常量的 value 用 int64_t 保存解码码值，M1 先遵循本组 char 规则，后续完整 C 对字符常量类型的调整集中在语义模块。最终词法已能识别 L 前缀、完整转义和多字符常量；宽字符/宽字符串的语义存储需在实现中明确，不能直接套用窄字节串的长度规则。
+普通窄字符串的 value 保存解码后的字节串（不附终止零），name 保存原文；相邻字符串合为一个 StringLiteral，name 以空格分隔各段完整拼写，语义分别解码再拼接；语义类型是包含终止零的 char 数组，长度为 `value.size()+1`。用于函数实参时，语义插入数组到内部地址的转换。字符常量的 value 用 int64_t 保存解码码值，M1 先遵循本组 char 规则，后续完整 C 对字符常量类型的调整集中在语义模块。最终词法已能识别 L 前缀、完整转义和多字符常量；宽字符/宽字符串的语义存储需在实现中明确，不能直接套用窄字节串的长度规则。
 
 ### 例：printf("%d", s)
 
@@ -163,12 +163,11 @@ Function 节点的 ParamDecl 类型和 declared_type.params 必须一致。无�
 ExprStmt
 └─ Call(name="printf", type=int)
    ├─ Identifier(name="printf", symbol_id=0, category=Function)
-   ├─ ImplicitCast(type=char*)
-   │  └─ StringLiteral(name="\"%d\"", value="%d", type=char[3])
+   ├─ StringLiteral(name="\"%d\"", value="%d", type=char[3])
    └─ Identifier(name="s", symbol_id=3, type=int, category=LValue)
 ```
 
-这里调用有 **2 个实参**，children.size() 是 3，因为第一个孩子是被调表达式。这样能自然扩展到通过函数指针调用。
+这里有 2 个实参，children.size() 为 3，因为第一个孩子保存被调用的函数名字。
 
 ## 6. 符号、标签、成员和作用域
 
@@ -178,9 +177,9 @@ SymbolId / ScopeId / RecordId 是各自 vector 的下标，从 0 分配；invali
 
 `MemberEntry{name, type, offset, range}` 保存成员声明顺序与字节偏移。`StructEntry` 保存 id、tag、kind、scope、is_complete、members、enumerators、size、alignment 和源码范围。
 
-结构体必须先分配 RecordId 并登记标签，再解析/检查成员；因此 `struct Node *next` 能引用自身。尚未完整定义的记录 is_complete=false，size/alignment/offset 为空；不允许直接作为完整对象分配，也不允许按值包含自身。已完整布局的空偏移与 **offset=0** 含义不同。
+结构体先分配 RecordId 并登记标签，再处理成员和布局。不完整记录不能直接分配对象，也不能按值包含自身。尚未布局和 offset=0 不同。
 
-布局必须选定目标模型，不能用宿主机器 sizeof。目前 char=1、int=4、float=4、对象指针=8 字节，各自同大小对齐。struct 成员按对齐向上取整后确定 offset，末尾补齐到最大对齐。例如 `{char c; int x;}` 中 c 偏移 0、x 偏移 4，总大小 8，不能简单累计成 5。short=2/2、long=4/4、double/long double=8/8，union 按最大成员大小和对齐布局；完整目标约定见 [backend-completion.md](backend-completion.md)。
+布局必须选定目标模型，不能用宿主机器 sizeof。目前 char=1、int=4、float=4、内部地址=8 字节，各自同大小对齐。struct 成员按对齐向上取整后确定 offset，末尾补齐到最大对齐。例如 `{char c; int x;}` 中 c 偏移 0、x 偏移 4，总大小 8，不能简单累计成 5。short=2/2、long=4/4、double/long double=8/8，union 按最大成员大小和对齐布局；完整目标约定见 [backend-completion.md](backend-completion.md)。
 
 `ScopeEntry` 内两张映射：
 
@@ -198,8 +197,6 @@ SymbolId / ScopeId / RecordId 是各自 vector 的下标，从 0 分配；invali
 5. AST 上保留 scope_id 和 symbol_id；IR 通过编号读取已绑定条目，不按名字重新查找。
 
 作用域进入/退出由 **语义遍历**统一驱动，解析器负责构造语法结构。M3 typedef 消歧若需解析期环境，应使用独立的解析环境，不破坏语义阶段的持久数据。
-
-prefix_query 应从当前作用域向外收集可见普通符号，按名字去重（内层优先），再排序展示。编译完成后的补全，应从光标对应 scope_id 沿 parent 查找，不能使用已退回全局的 active_scopes。
 
 ## 7. 四元式与解释器交接
 
@@ -231,9 +228,9 @@ M1 指令合同：
 | `jmp` | - | - | 标号 | 无条件跳转 |
 | `jz / jnz` | 条件值 | - | 标号 | 为零 / 非零跳转 |
 | `arg` | 已求值的实参 | - | - | 将值复制到本次调用的待传参队列 |
-| `call` | 函数 `%sID` | 实参数量（十进制） | 临时量或 - | 直接调用函数；固定签名函数指针使用 callind，见 backend-completion.md |
+| `call` | 函数 `%sID` | 实参数量（十进制） | 临时量或 - | 按 SymbolId 直接调用函数 |
 | `ret` | 返回值或 - | - | - | 返回当前调用者 |
-| `addr` | 对象 `%sID` | - | 指针临时量 | 取得普通对象的地址，不读取对象值 |
+| `addr` | 对象 `%sID` | - | 地址临时量 | 取得普通对象的地址，不读取对象值 |
 | `local` | - | - | 局部变量 `%sID` | 每次执行声明时将局部对象重置为未初始化 |
 | `%` | 整数左操作数 | 整数右操作数 | int 临时量 | 整数取余，与除法一样向零截断 |
 
@@ -243,7 +240,7 @@ M1 指令合同：
 
 本组解释器选择实参 **从左到右** 求值。先分别求值并在需要时复制到临时量，保留本次求值的值，再连续 emit 本调用的 arg 和 call。嵌套调用必须在外层 arg 序列开始前完成，避免内外参数混入一个队列；后面的实参若会改变变量，前面读出的值必须先快照。call 将参数转移到新调用帧，局部变量和临时量每个调用帧独立，才能支持递归。C 标准未规定一般实参的求值顺序，本组选择只是解释器行为约定。
 
-已实现 `zero`、`load`、`store`、`indexaddr`、`memberaddr`；元素步长取地址基类型，成员字节偏移取 MemberEntry。另已实现数组转指针的 `decay`、指针偏移的 `ptradd/ptrsub`、指针差值的 `ptrdiff`、整型位运算和 `bnot`。完整操作数表与边界规则见 [backend-extensions.md](backend-extensions.md)，不能仅靠字符串 opcode 推断类型或布局。
+已实现 zero、load、store、indexaddr、memberaddr、tempaddr、decay 和 offsetaddr，服务数组、成员及输入输出。旧指针运算和间接调用指令已删除，详见 [backend-extensions.md](backend-extensions.md)。
 
 `IRFunction` 按函数保存 symbol_id、形参 SymbolId、临时量类型、四元式和逐指令源码范围。locations.size() 必须等于 quads.size()。`IRProgram` 保存共享常量池、静态存储对象、进入 main 前的初始化序列及其位置/临时量、函数集合、入口 main 的 SymbolId。入口未找到时可以查看 IR，执行时必须诊断。
 
@@ -294,9 +291,11 @@ g++ -std=c++17 -Wall -Wextra -Wpedantic -I include examples/interface_demo.cpp s
 .\interface_demo.exe
 ```
 
-示例展示 printf 的“被调表达式 + 实参”、不同作用域的同名变量身份、退出作用域后的记录、二维数组与结构体指针类型，以及字面量/函数分组的四元式用法。
+示例展示 printf 的“被调表达式 + 实参”、不同作用域的同名变量身份、退出作用域后的记录、二维数组与内部结构体地址类型，以及字面量/函数分组的四元式用法。
 
 ## 变更记录
+
+- v1.5（2026-10-10）：删除 volatile 字段、C 语言指针、补全接口和 include 读取接口；内部 Address 仅用于数组和输入输出，AST 孩子顺序保持。
 
 - 2026-10-09：公共数据字段保持 v1.2；落实 M1 后续模块，实现 `local` 局部声明重置指令和整数 `%`，支持边界及联调约定见 m1-backend.md。
 - v1.2（2026-10-08）：增加 ConstantId、ConstantEntry、ConstantPoolData 及 IRProgram.constants；实现类型和值去重；正式四元式值常量改用 `%c<ID>`。

@@ -32,7 +32,6 @@ void append_scalar_type(std::string& key, const TypeInfo& type) {
     append_bytes(key, type.kind);
     append_bytes(key, type.is_unsigned);
     append_bytes(key, type.is_const);
-    append_bytes(key, type.is_volatile);
 }
 
 } // 内部辅助函数不作为跨模块接口。

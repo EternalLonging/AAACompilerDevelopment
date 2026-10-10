@@ -28,22 +28,22 @@ inline int integer_bits(const TypePtr& value) {
     return value->kind == TypeKind::Char ? 8 : value->kind == TypeKind::Short ? 16 : 32;
 }
 inline TypePtr unqualified(const TypePtr& value) {
-    auto result = make_type_info(*value); result->is_const = result->is_volatile = false; return result;
+    auto result = make_type_info(*value); result->is_const = false; return result;
 }
 
-// 忽略最外层的 const 和 volatile 比较类型；局部副本用完即释放。
+// 忽略最外层的 const 比较类型；局部副本用完即释放。
 inline bool same_unqualified(TypePtr left, TypePtr right) {
     if (!left || !right) return false;
     auto a = *left, b = *right;
-    a.is_const = a.is_volatile = b.is_const = b.is_volatile = false;
+    a.is_const = b.is_const = false;
     return same_type(&a, &b);
 }
 
 inline std::string symbol_name(SymbolId id) { return "%s" + std::to_string(id); }
 
-inline TypePtr pointer(TypePtr base) {
+inline TypePtr address_type(TypePtr base) {
     auto result = make_type_info();
-    result->kind = TypeKind::Pointer;
+    result->kind = TypeKind::Address;
     result->base = std::move(base);
     return result;
 }
@@ -66,7 +66,7 @@ inline Layout layout(const TypePtr& value, const SymbolTableData& symbols, std::
     if (!value || depth > 128) throw std::runtime_error("对象类型为空或嵌套过深");
     if (integral(value)) { const auto size = static_cast<std::size_t>(integer_bits(value) / 8); return {size, size}; }
     if (floating(value)) return value->kind == TypeKind::Float ? Layout{4, 4} : Layout{8, 8};
-    if (value->kind == TypeKind::Pointer && value->base) return {8, 8};
+    if (value->kind == TypeKind::Address && value->base) return {8, 8};
     if (value->kind == TypeKind::Array) {
         if (!value->array_length || !*value->array_length) throw std::runtime_error("数组长度必须已确定且大于零");
         const auto element = layout(value->base, symbols, depth + 1);
@@ -89,16 +89,12 @@ inline bool aggregate(const TypePtr& value) {
     return value && (value->kind == TypeKind::Array || value->kind == TypeKind::Struct || value->kind == TypeKind::Union);
 }
 
-inline bool pointer_assign(const TypePtr& target, const TypePtr& source) {
-    if (!target || !source || target->kind != TypeKind::Pointer || source->kind != TypeKind::Pointer ||
+inline bool address_compatible(const TypePtr& target, const TypePtr& source) {
+    if (!target || !source || target->kind != TypeKind::Address || source->kind != TypeKind::Address ||
         !target->base || !source->base) return false;
     if (source->base->is_const && !target->base->is_const) return false;
-    if (source->base->is_volatile && !target->base->is_volatile) return false;
     auto left = *target->base, right = *source->base;
     left.is_const = right.is_const = false;
-    left.is_volatile = right.is_volatile = false;
-    if ((left.kind == TypeKind::Void && right.kind != TypeKind::Function) ||
-        (right.kind == TypeKind::Void && left.kind != TypeKind::Function)) return true;
     return same_type(&left, &right);
 }
 

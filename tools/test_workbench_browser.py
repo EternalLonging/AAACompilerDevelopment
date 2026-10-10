@@ -1,4 +1,4 @@
-"""在已启动的工作台上验证编辑、补全、图形展示与优化对比。需 Playwright。"""
+"""在已启动的工作台上验证编辑、图形展示与优化对比。需 Playwright。"""
 
 import argparse
 import json
@@ -108,90 +108,28 @@ def main():
         editor.evaluate('e => e.setSelectionRange(1,1)')
         editor.press('(')
         expect(editor).to_have_value('"("')
-        editor.fill('char *s = "";')
+        editor.fill('char s[] = "";')
         editor.evaluate('e => {const p=e.value.indexOf(";")-1;e.setSelectionRange(p,p);}')
         page.keyboard.insert_text('\\')
         editor.press('"')
-        expect(editor).to_have_value('char *s = "\\"";')
+        expect(editor).to_have_value('char s[] = "\\"";')
         editor.fill('')
         editor.press('Tab')
         expect(editor).to_have_value('\t')
-        editor.fill("int main(void){int score=5; sco")
-        editor.press("Control+Space")
-        expect(page.locator("#completion")).to_be_visible(timeout=15000)
-        expect(page.locator("#completion")).to_contain_text("score")
-        editor.press("Tab")
-        assert editor.input_value().endswith("score")
-        editor.fill("struct S{int score;};int main(void){struct S item;item.sc")
-        editor.press("Control+Space")
-        expect(page.locator("#completion")).to_be_visible(timeout=15000)
-        expect(page.locator("#completion")).to_contain_text("score", timeout=15000)
-        editor.press("Enter")
-        assert editor.input_value().endswith("item.score")
-        # 真实键入多行源码中的 pr，Enter/Tab/点击都应替换前缀，不能追加 prprintf。
-        for comment in ('', '/* 中文说明 😀 */\n'):
-            for accept in ('Enter', 'Tab', 'click'):
-                source = comment + 'int main(void) {\n    int a;\n    \n}'
-                editor.fill(source)
-                editor.evaluate("e => {const p=e.value.lastIndexOf('\\n}');e.setSelectionRange(p,p);}")
-                editor.press('p')
-                editor.press('r')
-                expect(page.locator('#completion')).to_be_visible(timeout=15000)
-                assert page.locator('#completion button > span:nth-child(2)').all_text_contents() == ['printf']
-                if accept == 'click':
-                    page.locator('#completion button').first.click()
-                else:
-                    editor.press(accept)
-                expect(editor).to_have_value(source.replace('    \n}', '    printf\n}'))
-        # pr 只显示匹配前缀，按当前、外层、全局作用域排序。
-        ranked = 'int prefix;int main(void){int project;int a;{int prize;pr}}'
-        editor.fill(ranked)
-        editor.evaluate("e => { const p=e.value.lastIndexOf('pr}}')+2; e.setSelectionRange(p,p); }")
-        editor.press("Control+Space")
-        expect(page.locator("#completion")).to_be_visible(timeout=15000)
-        candidate_labels = page.locator('#completion button > span:nth-child(2)').all_text_contents()
-        assert candidate_labels == ["prize", "project", "prefix", "printf"], candidate_labels
-        editor.press("Tab")
-        assert editor.input_value().endswith('prize}}')
-        exact = 'int pr;int main(void){int project;pr}'
-        editor.fill(exact)
-        editor.evaluate("e => e.setSelectionRange(e.value.length-1,e.value.length-1)")
-        editor.press("Control+Space")
-        expect(page.locator("#completion")).to_be_visible(timeout=15000)
-        assert page.locator('#completion button > span:nth-child(2)').first.text_content() == 'pr'
-        editor.fill('int main(void){int a;pr}')
-        editor.evaluate("e => e.setSelectionRange(e.value.length-1,e.value.length-1)")
-        # 直接输入 pr 时，第一个且唯一的候选应是 printf。
-        editor.press("Control+Space")
-        expect(page.locator("#completion")).to_be_visible(timeout=15000)
-        assert page.locator('#completion button > span:nth-child(2)').all_text_contents() == ['printf']
-        editor.press("ArrowLeft")
-        expect(page.locator("#completion")).to_be_hidden()
-        editor.press("Tab")
-        assert 'printf' not in editor.input_value(), '光标移动后不能插入旧候选'
-        # 空前缀可以显示 a/main，移动回 pr 后必须清除这份旧列表。
-        editor.fill('int main(void){int a;pr; }')
-        editor.evaluate("e => e.setSelectionRange(e.value.length-1,e.value.length-1)")
-        editor.press("Control+Space")
-        expect(page.locator("#completion")).to_be_visible(timeout=15000)
-        assert 'a' in page.locator('#completion button > span:nth-child(2)').all_text_contents()
-        editor.press("ArrowLeft")
-        editor.press("ArrowLeft")
-        expect(page.locator("#completion")).to_be_hidden()
-        editor.fill('int main(void){ printf("sco')
-        editor.press("Control+Space")
-        expect(page.locator("#completion")).to_be_hidden(timeout=15000)
+        editor.fill('pr')
+        editor.press('Control+Space')
+        assert page.locator('#completion').count() == 0
+        editor.press('Enter')
+        expect(editor).to_have_value('pr\n')
+        editor.press('Tab')
+        expect(editor).to_have_value('pr\n\t')
 
         page.locator("#example").select_option("3")
         expect(page.locator("#editor")).to_have_value(page.locator("#editor").input_value())
         page.locator("#run").click()
         expect(page.locator("#status")).to_have_text("运行完成", timeout=20000)
         expect(page.locator("#output")).to_contain_text("average = 75.000000")
-        page.locator("#file").select_option("config.h")
-        expect(editor).to_have_value(editor.input_value())
-        assert "PASS_SCORE" in editor.input_value()
-        editor.fill("#define PASS_SCORE 85\n#define STUDENT_COUNT 3\n")
-        page.locator("#file").select_option("main.c")
+        editor.fill(editor.input_value().replace('#define PASS_SCORE 60', '#define PASS_SCORE 85'))
         page.locator("#run").click()
         expect(page.locator("#status")).to_have_text("运行完成", timeout=20000)
         expect(page.locator("#output")).to_contain_text("passed = 1")
@@ -202,7 +140,7 @@ def main():
         page.locator(".diagnostic").click()
         expect(page.locator("#position")).to_contain_text("行 3")
 
-        # 从界面新建源文件与头文件，验证实际编译、保存和重新导入。
+        # 从界面新建多份源文件，验证实际编译、保存和重新导入。
         editor.press("Control+n")
         expect(page.locator("#new-file-dialog")).to_be_visible()
         page.locator("#new-file-name").fill("../demo.c")
@@ -217,14 +155,8 @@ def main():
         expect(page.locator("#file")).to_have_value("src/demo.c")
         expect(page.locator("#entry")).to_have_value("src/demo.c")
         expect(editor).to_have_value("int main(void) {\n    return 0;\n}\n")
-        editor.fill('int main(void){int score=5; sco')
-        editor.press("Control+Space")
-        expect(page.locator("#completion")).to_be_visible(timeout=15000)
-        expect(page.locator("#completion")).to_contain_text("score")
-        editor.press("Tab")
-        assert editor.input_value().endswith("score")
-        editor.fill('#include "../inc/config.h"\nint main(void){printf("%d\\n",N);return 0;}\n')
-        # 未保存的新源文件不能直接切换到新建头文件。
+        editor.fill('#define N 42\nint main(void){printf("%d\\n",N);return 0;}\n')
+        # 未保存的新源文件不能直接切换到新建另一源文件。
         page.locator("#add-file").click()
         expect(page.locator("#unsaved-file-dialog")).to_be_visible()
         page.locator("#stay-file").click()
@@ -237,22 +169,20 @@ def main():
         assert source_path.read_text(encoding="utf-8") == editor.input_value()
         page.locator("#add-file").click()
         expect(page.locator("#new-file-dialog")).to_be_visible()
-        page.locator("#new-file-name").fill("inc/config.h")
+        page.locator("#new-file-name").fill("src/other.c")
         page.locator("#new-file-form button[type=submit]").click()
-        expect(page.locator("#file")).to_have_value("inc/config.h")
-        expect(page.locator("#entry")).to_have_value("src/demo.c")
-        editor.fill("#define N 42\n")
+        expect(page.locator("#file")).to_have_value("src/other.c")
+        expect(page.locator("#entry")).to_have_value("src/other.c")
+        editor.fill("int main(void){printf(\"42\\n\");return 0;}\n")
         page.locator("#run").click()
         expect(page.locator("#status")).to_have_text("运行完成", timeout=20000)
         expect(page.locator("#output")).to_have_text("42\n")
-        page.locator(".ast-node").first.click()
-        expect(page.locator("#unsaved-file-dialog")).to_be_visible()
-        with page.expect_download() as header_download:
-            page.locator("#save-file-and-continue").click()
-        header_path = args.output / "config.h"
-        header_download.value.save_as(str(header_path))
-        assert header_path.read_text(encoding="utf-8") == "#define N 42\n"
-        expect(page.locator("#file")).to_have_value("src/demo.c")
+        with page.expect_download() as other_download:
+            editor.press("Control+s")
+        other_path = args.output / "other.c"
+        other_download.value.save_as(str(other_path))
+        assert other_path.read_text(encoding="utf-8") == editor.input_value()
+        page.locator("#file").select_option("src/demo.c")
         page.locator("#entry").select_option("main.c")
         page.locator("#run").click()
         expect(page.locator("#status")).to_have_text("编译失败 · 查看诊断", timeout=20000)
@@ -316,7 +246,7 @@ def main():
         assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth"), "手机页面横向溢出"
         assert not errors, errors
         browser.close()
-    print("browser: pair insertion/caret, nested Tab indentation, completion, execution, AST export, Ctrl+N/Ctrl+S, save/discard guards, project roundtrip and responsive layout passed")
+    print("browser: pair insertion/caret, nested Tab indentation, completion removed, execution, AST export, Ctrl+N/Ctrl+S, save/discard guards, project roundtrip and responsive layout passed")
 
 
 if __name__ == "__main__":

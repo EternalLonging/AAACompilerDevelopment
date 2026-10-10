@@ -33,15 +33,13 @@ def main():
     check(len(data["optimized"]["quads"]) < len(data["baseline"]["quads"]), "真实生成的指令数应减少")
     check(data["tokens"] and data["ast"] and data["symbols"], "各阶段数据不能为演示假数据")
     check(all(n["parent"] == -1 or n["parent"] < n["id"] for n in data["ast"]), "图形AST父子编号有效")
-    project = {"source": '#include "inc/a.h"\nint main(void){printf("%d\\n",N);return 0;}\n',
-               "files": {"inc/a.h": '#include "b.h"\n', "inc/b.h": '#define N 7\n'}}
-    check(server_module.invoke(driver, project, "run")["optimized"]["run"]["output"] == "7\n", "工作台嵌套头文件读取")
-    named = {"entry": "src/demo.c", "source": '#include "../inc/config.h"\nint main(void){printf("%d\\n",N);return 0;}\n',
-             "files": {"inc/config.h": '#define N 9\nint shared = 0;\n', "main.c": "这份源码不应被编译"}}
+    project = {"source": '#include "inc/a.h"\nint main(void){return 0;}\n'}
+    rejected = server_module.invoke(driver, project, "run")
+    check(not rejected["ok"] and "baseline" not in rejected and rejected["diagnostics"][0]["phase"] == "预处理", "工作台拒绝头文件包含")
+    named = {"entry": "src/demo.c", "source": '#define N 9\nint main(void){printf("%d\\n",N);return 0;}\n', "files": {"main.c": "这份源码不应被编译"}}
     named_result = server_module.invoke(driver, named, "run")
-    check(named_result["ok"] and named_result["optimized"]["run"]["output"] == "9\n", "只编译所选文件，并允许项目内相对包含")
-    check(any(t["file"] == "src/demo.c" for t in named_result["tokens"]), "源文件保留项目内路径用于定位")
-    check(any(t["file"] == "inc/config.h" for t in named_result["tokens"]), "头文件保留项目内路径用于定位")
+    check(named_result["ok"] and named_result["optimized"]["run"]["output"] == "9\n", "只编译所选源文件")
+    check(any(t["file"] == "src/demo.c" for t in named_result["tokens"]), "源文件保留项目内路径")
     failed = server_module.invoke(driver, {"source": 'int main(void){unknown=1;return 0;}'}, "run")
     check(not failed["ok"] and "baseline" not in failed and failed["diagnostics"][0]["phase"] == "语义", "失败阶段不能继续生成或运行")
     runtime = server_module.invoke(driver, {"source": 'int main(void){int x=0;return 1/x;}'}, "run")
@@ -50,26 +48,7 @@ def main():
     check(not limited["optimized"]["run"]["ok"] and limited["optimized"]["run"]["steps"] == 100000, "工作台运行受指令上限限制")
     inspected = server_module.invoke(driver, {"source": source}, "inspect")
     check(inspected["optimized"]["run"] is None and inspected["equivalent"] is None, "分析不自动执行")
-    complete_source = "int main(void){int total=1;tot"
-    completed = server_module.invoke(driver, {"source": complete_source, "cursor": len(complete_source)}, "complete")
-    check(any(item["label"] == "total" for item in completed["items"]), "服务连接真实补全接口")
-    prefix_source = 'int main(void){int a;pr}'
-    prefix_completed = server_module.invoke(driver, {"source": prefix_source, "cursor": len(prefix_source)-1}, "complete")
-    check([item["label"] for item in prefix_completed["items"]] == ["printf"], "pr 只匹配 printf，不能混入 a 或 main")
-    for newline in ("\n", "\r\n"):
-        for comment in ("", "/* 中文说明 😀 */" + newline):
-            multiline = comment + newline.join(['int main(void) {', '    int a;', '    pr', '}'])
-            cursor = len(multiline[:multiline.index('pr')+2].encode('utf-8'))
-            response = server_module.invoke(driver, {"source": multiline, "cursor": cursor}, "complete")
-            check(response["begin"] == cursor-2 and response["end"] == cursor and
-                  [item["label"] for item in response["items"]] == ["printf"],
-                  "多行源码的换行、中文和表情不能改变 pr 的字节范围或候选")
-    ranked_source = 'int prefix;int main(void){int project;{int prize;pr}}'
-    ranked_completed = server_module.invoke(driver, {"source": ranked_source, "cursor": len(ranked_source)-2}, "complete")
-    check([item["label"] for item in ranked_completed["items"]] == ["prize", "project", "prefix", "printf"], "前缀匹配后按作用域由近到远排序")
-    named_completed = server_module.invoke(driver, {"entry": "练习.c", "source": complete_source, "cursor": len(complete_source)}, "complete")
-    check(any(item["label"] == "total" for item in named_completed["items"]), "自建中文文件名也支持真实补全")
-    for payload in [{"source": source, "files": {"../outside.h": ""}}, {"source": source, "cursor": -1},
+    for payload in [{"source": source, "files": {"../outside.h": ""}},
                     {"source": source, "entry": "../demo.c"}, {"source": source, "entry": "config.h"},
                     {"source": source, "files": {"MAIN.c": ""}}, {"source": source, "files": {"CON.h": ""}},
                     {"source": source, "entry": "main.c", "files": {"main.c/demo.h": ""}},
@@ -79,7 +58,7 @@ def main():
         except ValueError:
             check(True, "输入限制")
         else:
-            check(False, "非法路径、重名文件或光标应拒绝")
+            check(False, "非法路径或重名文件应拒绝")
 
     with ThreadingHTTPServer(("127.0.0.1", 0), server_module.handler(driver)) as server:
         server.daemon_threads = True
@@ -103,6 +82,7 @@ def main():
             check(status == 200 and len(json.loads(body)) == 6, "实际示例列表")
             status, body = request("/api/run", {"source": source})
             check(status == 200 and json.loads(body)["equivalent"], "HTTP执行真实编译器")
+            check(request("/api/complete", {"source": source})[0] == 404, "自动补全接口已移除")
             check(request("/api/analyze", {"source": source}, {"Origin": "http://other-site.test"})[0] == 403, "仅允许本地工作台页面调用")
             check(request("/../README.md")[0] == 404, "静态页面不能读取仓库任意文件")
         finally:

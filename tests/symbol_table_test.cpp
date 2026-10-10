@@ -102,9 +102,6 @@ static void test_types() {
     require(!same_type(integer, qualified) && can_assign(qualified, integer),
             "结构相等比较限定符，赋值类型规则不检查左值 const");
     qualified->is_const = false;
-    qualified->is_volatile = true;
-    require(!same_type(integer, qualified), "volatile 参与类型比较");
-    qualified->is_volatile = false;
     qualified->is_unsigned = true;
     require(!same_type(integer, qualified) && can_assign(integer, qualified) &&
             arithmetic_result(integer, qualified)->is_unsigned,
@@ -122,8 +119,8 @@ static void test_types() {
     }
     require(arithmetic_result(nullptr, integer)->kind == TypeKind::Error &&
             !can_assign(integer, basic(TypeKind::Void)), "非法和非数值类型应拒绝");
-    require(same_type(indirect(TypeKind::Pointer, integer), indirect(TypeKind::Pointer, basic(TypeKind::Int))) &&
-            !same_type(indirect(TypeKind::Pointer, integer), indirect(TypeKind::Pointer, character)),
+    require(same_type(indirect(TypeKind::Address, integer), indirect(TypeKind::Address, basic(TypeKind::Int))) &&
+            !same_type(indirect(TypeKind::Address, integer), indirect(TypeKind::Address, character)),
             "指针应比较所指类型");
     require(!same_type(indirect(TypeKind::Array, integer, 2), indirect(TypeKind::Array, integer, 3)) &&
             same_type(indirect(TypeKind::Array, integer, 2), indirect(TypeKind::Array, integer, 2)),
@@ -148,10 +145,10 @@ static void test_types() {
     require(!same_type(signature, different), "原型标记参与签名比较");
     auto constant = make_type_info(*integer); constant->is_const = true;
     require(same_type(function(integer, {integer}), function(integer, {constant})), "形参顶层 const 不影响签名");
-    require(!same_type(function(integer, {indirect(TypeKind::Pointer, integer)}),
-                       function(integer, {indirect(TypeKind::Pointer, constant)})), "所指对象的 const 仍影响签名");
+    require(!same_type(function(integer, {indirect(TypeKind::Address, integer)}),
+                       function(integer, {indirect(TypeKind::Address, constant)})), "所指对象的 const 仍影响签名");
     require(same_type(function(integer, {indirect(TypeKind::Array, integer, 3)}),
-                      function(integer, {indirect(TypeKind::Pointer, integer)})), "数组形参应按指针比较");
+                      function(integer, {indirect(TypeKind::Address, integer)})), "数组形参应按指针比较");
 }
 
 static void test_scopes_and_functions() {
@@ -229,7 +226,7 @@ static void test_records() {
     definition.size = 16;
     definition.alignment = 8;
     definition.members = {{"value", basic(TypeKind::Int), 0, at(30)},
-                          {"next", indirect(TypeKind::Pointer, node_type), 8, at(40)}};
+                          {"next", indirect(TypeKind::Address, node_type), 8, at(40)}};
     auto bad = definition;
     bad.members[1].name = "value";
     require(!table.complete_record(node, bad) && !table.record(node)->is_complete &&
@@ -280,7 +277,7 @@ static void test_records() {
     require(!table.complete_record(invalid_id, definition), "非法记录编号不能越界");
 }
 
-static void test_builtins_and_completion() {
+static void test_builtins() {
     DiagnosticEngine diagnostics(Phase::Semantic, 100);
     SymbolTable table(diagnostics);
     require(register_builtins(table) && register_builtins(table) && table.data().symbols.size() == 2,
@@ -295,26 +292,6 @@ static void test_builtins_and_completion() {
             table.symbol(printf_id)->builtin == BuiltinKind::Printf, "兼容原型不能丢掉内建标记");
     redeclaration.is_defined = true;
     require(!table.insert(redeclaration), "用户定义不能覆盖内建函数");
-    const auto global_x = table.insert(declaration("x", 10)).value();
-    const auto alpha = table.insert(declaration("alpha", 11)).value();
-    const auto scope = table.enter_scope(ScopeKind::Function, at(20));
-    require(!register_builtins(table), "内建不能登记到函数作用域");
-    const auto local_x = table.insert(declaration("x", 50)).value();
-    table.insert(declaration("alpine", 30));
-    const auto matches = table.prefix_query("al");
-    require(matches.size() == 2 && matches[0] == alpha &&
-            table.symbol(matches[1])->name == "alpine", "补全结果应按名字排序");
-    require(table.prefix_query("x") == std::vector<SymbolId>{local_x}, "当前补全应去掉被遮蔽名字");
-    require(table.prefix_query("x", scope, {3, 5, 40}) == std::vector<SymbolId>{global_x},
-            "光标前尚未声明的内层名字不能遮蔽外层");
-    require(table.prefix_query("x", scope, {3, 5, 50}) == std::vector<SymbolId>{local_x},
-            "到声明位置后内层应遮蔽外层");
-    require(table.prefix_query("pri", scope, {1, 1, 0}) == std::vector<SymbolId>{printf_id},
-            "内建应始终可见");
-    table.exit_scope();
-    require(table.prefix_query("x", scope, {3, 5, 60}) == std::vector<SymbolId>{local_x} &&
-            table.prefix_query("", invalid_id, {1, 1, 0}).empty(),
-            "持久作用域补全应支持退出后的查询及非法编号");
     SymbolTable conflict(diagnostics);
     conflict.insert(declaration("scanf"));
     require(!register_builtins(conflict) && conflict.data().symbols.size() == 1 &&
@@ -343,7 +320,7 @@ int main() {
         test_types();
         test_scopes_and_functions();
         test_records();
-        test_builtins_and_completion();
+        test_builtins();
         std::cout << "符号表、诊断与类型规则：5 组测试全部通过\n";
         return 0;
     } catch (const std::exception& error) {

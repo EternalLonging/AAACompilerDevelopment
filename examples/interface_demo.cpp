@@ -37,14 +37,14 @@ int main() {
     minic::TypeArenaScope type_scope(types);
     const auto int_type = basic(TypeKind::Int);
     const auto char_type = basic(TypeKind::Char);
-    const auto char_pointer = derived(TypeKind::Pointer, char_type);
+    const auto char_pointer = derived(TypeKind::Address, char_type);
     auto printf_type = make_type_info();
     printf_type->kind = TypeKind::Function;
     printf_type->base = int_type;
     auto const_char = make_type_info();
     const_char->kind = TypeKind::Char;
     const_char->is_const = true;
-    printf_type->params = {derived(TypeKind::Pointer, const_char)};
+    printf_type->params = {derived(TypeKind::Address, const_char)};
     printf_type->variadic = true;
     auto main_type = make_type_info();
     main_type->kind = TypeKind::Function;
@@ -155,8 +155,8 @@ int main() {
     record_type->kind = TypeKind::Struct;
     record_type->name = "Pair";
     record_type->record_id = 0;
-    const auto record_pointer = derived(TypeKind::Pointer, record_type);
-    std::cout << "record pointer target: " << record_pointer->base->name
+    const auto record_address = derived(TypeKind::Address, record_type);
+    std::cout << "internal record address target: " << record_address->base->name
               << ", x offset=" << *table.records[0].members[1].offset
               << ", size=" << *table.records[0].size << '\n';
 

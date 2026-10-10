@@ -3,10 +3,6 @@
 
 namespace minic {
 
-// 从已保存的表按作用域和光标位置查找可见名字，用于编辑器补全。
-std::vector<SymbolId> visible_symbols(const SymbolTableData& data, const std::string& prefix,
-                                      ScopeId scope, const SourceLocation& cursor);
-
 // 符号表管理类，详细规则见 docs/modules.md。
 class SymbolTable {
 public:
@@ -52,13 +48,6 @@ public:
     // 查找记录中的成员。找到返回成员表下标，未找到返回空值。
     std::optional<std::size_t> find_member(RecordId id,
                                           const std::string& name) const;
-
-    // 按前缀查询当前可见的普通名字，返回排序后的符号编号表。
-    std::vector<SymbolId> prefix_query(const std::string& prefix) const;
-    // 从指定作用域和光标位置查询前缀，返回可见的符号编号表。（重载）
-    std::vector<SymbolId> prefix_query(const std::string& prefix,
-                                       ScopeId scope,
-                                       const SourceLocation& cursor) const;
 
     // 查看全部符号表数据，只读。
     const SymbolTableData& data() const noexcept;

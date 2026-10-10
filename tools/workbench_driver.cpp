@@ -103,36 +103,15 @@ void ir(std::ostream& out, const minic::IRResult& result, const minic::SymbolTab
 }
 
 int driver(const std::vector<std::string>& args) {
-    if (args.size() != 5 && args.size() != 6) throw std::runtime_error("用法：workbench_driver inspect|run|complete 源文件 输入文件 光标字节位置 [项目目录]");
+    if (args.size() != 5 && args.size() != 6) throw std::runtime_error("用法：workbench_driver inspect|run 源文件 输入文件 光标字节位置 [项目目录]");
     const auto file = std::filesystem::absolute(std::filesystem::u8path(args[2])).lexically_normal();
     workspace_root = args.size() == 6 ? std::filesystem::absolute(std::filesystem::u8path(args[5])).lexically_normal() : file.parent_path();
     const auto relative_source = file.lexically_relative(workspace_root);
     if (relative_source.empty() || relative_source.is_absolute() || *relative_source.begin() == "..") throw std::runtime_error("源文件必须位于工作台项目内");
     const auto source = read(file);
     if (!source) throw std::runtime_error("找不到编辑器源码");
-    if (args[1] == "complete") {
-        const auto result = minic::complete(*source, std::stoull(args[4]));
-        std::cout << "{\"begin\":" << result.begin << ",\"end\":" << result.end
-                  << ",\"recovered\":" << (result.recovered ? "true" : "false") << ",\"items\":[";
-        bool first = true;
-        for (const auto& item : result.items) {
-            if (!first) std::cout << ',';
-            first = false;
-            std::cout << "{\"label\":" << quoted(item.label) << ",\"kind\":" << quoted(item.kind)
-                      << ",\"detail\":" << quoted(item.detail) << '}';
-        }
-        std::cout << "]}"; return 0;
-    }
     if (args[1] != "inspect" && args[1] != "run") throw std::runtime_error("未知工作台操作");
-    const auto root = workspace_root;
-    const minic::IncludePathResolver resolver = [&](const std::string& name, const std::string& parent) {
-        auto target = (std::filesystem::u8path(parent).parent_path() / std::filesystem::u8path(name)).lexically_normal();
-        const auto relative = target.lexically_relative(root);
-        if (relative.empty() || relative.is_absolute() || *relative.begin() == "..") throw std::runtime_error("头文件必须位于工作台项目内");
-        return target.generic_u8string();
-    };
-    const minic::IncludeLoader loader = [](const std::string& name, const std::string&) { return read(std::filesystem::u8path(name)); };
-    auto compiled = minic::compile_preprocessed(*source, file.generic_u8string(), minic::CompileTarget::Check, loader, resolver);
+    auto compiled = minic::compile_preprocessed(*source, file.generic_u8string(), minic::CompileTarget::Check);
     std::cout << "{\"ok\":" << (compiled.ok() ? "true" : "false") << ",\"diagnostics\":";
     diagnostics(std::cout, compiled.diagnostics);
     std::cout << ",\"preprocessed\":" << quoted(compiled.preprocessing ? compiled.preprocessing->source : "") << ",\"tokens\":[";
