@@ -22,20 +22,11 @@ int main() {
         require(result.ok() && result.source.find("arithmetic") != std::string::npos, "条件算术、优先级和短路错误");
         rejects("#if 1/0\n#endif\n", "除零");
         rejects("#if 2147483647 + 1\n#endif\n", "32 位");
-        int loads = 0;
-        result = preprocess("#include \"a.h\"\nVALUE\n", "main.c", [&](const std::string& header, const std::string&) -> std::optional<std::string> {
-            ++loads; if (header != "a.h") return std::nullopt;
-            return "#ifndef GUARD\n#define GUARD\n#define VALUE 7\n#include \"a.h\"\nint h;\n#endif\n";
-        });
-        require(result.ok() && loads == 2 && result.source.find("int h;") != std::string::npos && result.source.find("7") != std::string::npos, "包含守卫应阻止递归内容重复");
-        bool mapped = false;
-        for (const auto& line : result.lines) if (line.file == "a.h" && line.line == 5) mapped = true;
-        require(mapped && result.lines.back().file == "main.c" && result.lines.back().line == 2, "头文件和主文件应保留原始行号");
         result = preprocess("#define X X\n#define Y Z\n#define Z Y\nX Y\n");
         require(result.ok() && result.source.find("X Y") != std::string::npos, "递归宏应停止重新展开");
         result = preprocess("#define xFF 7\n0xFF\n");
         require(result.ok() && result.source.find("0xFF") != std::string::npos, "数字中的名字不能展开宏");
-        rejects("#include \"missing.h\"\n", "读取接口");
+        rejects("#include \"missing.h\"\n", "不支持 #include");
         rejects("#if 1\n", "endif"); rejects("#endif\n", "缺少 if");
         rejects("#ifdef X Y\n#endif\n", "宏名");
         rejects("#define F(a,a) a\n", "重复"); rejects("#define F(a,) a\n", "不能为空");
@@ -56,9 +47,7 @@ int main() {
         require(result.ok() && result.source.find("2*9*g") != std::string::npos, "跨宏边界的函数调用不能错误禁用后续宏");
         rejects("/* unfinished", "注释"); rejects("#error stop\n", "stop");
         rejects("#if " + std::string(140, '!') + "1\n#endif\n", "过深");
-        result = preprocess("#include \"gone.h\"\n", "main.c", [](const std::string&, const std::string&) -> std::optional<std::string> { return std::nullopt; });
-        require(!result.ok(), "不存在的头文件必须拒绝");
-        std::cout << "预处理：宏、条件、包含、行映射和错误边界全部通过\n";
+        std::cout << "预处理：宏、条件、拒绝包含、行映射和错误边界全部通过\n";
         return 0;
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }
 }

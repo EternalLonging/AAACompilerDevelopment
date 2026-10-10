@@ -8,12 +8,12 @@
 <section class="workspace">
 <div class="editor-panel">
 <div class="panel-heading"><span><b class="step-index">01</b> 源码编辑</span><select id="example" aria-label="载入示例"><option value="">选择演示程序</option></select></div>
-<div class="file-bar"><select id="file" aria-label="正在编辑的文件"><option>main.c</option></select><button id="add-file" title="新建源文件或头文件（Ctrl+N）">＋ 新建文件</button><button id="import" title="打开电脑上的 C、头文件或项目">打开文件</button><button id="save-source" title="保存当前文件到电脑（Ctrl+S）">保存文件</button><input id="upload" type="file" accept=".c,.h,.json" hidden></div>
-<div class="entry-bar"><label for="entry">编译文件</label><select id="entry" aria-label="编译的源文件"><option>main.c</option></select><span>每次编译所选源文件及其包含的头文件</span></div>
-<div class="code-wrap"><div id="lines" aria-hidden="true">1</div><textarea id="editor" spellcheck="false" aria-label="源码编辑器" autocomplete="off" autocapitalize="off" wrap="off"></textarea><div id="completion" class="completion" role="listbox" aria-label="代码补全" hidden></div></div>
+<div class="file-bar"><select id="file" aria-label="正在编辑的文件"><option>main.c</option></select><button id="add-file" title="新建源文件（Ctrl+N）">＋ 新建文件</button><button id="import" title="打开电脑上的 C 源文件或项目">打开文件</button><button id="save-source" title="保存当前文件到电脑（Ctrl+S）">保存文件</button><input id="upload" type="file" accept=".c,.json" hidden></div>
+<div class="entry-bar"><label for="entry">编译文件</label><select id="entry" aria-label="编译的源文件"><option>main.c</option></select><span>每次只编译所选源文件</span></div>
+<div class="code-wrap"><div id="lines" aria-hidden="true">1</div><textarea id="editor" spellcheck="false" aria-label="源码编辑器" autocomplete="off" autocapitalize="off" wrap="off"></textarea></div>
 <div class="editor-footer"><span id="position">行 1 · 列 1</span><span>Ctrl+N 新建 · Ctrl+S 保存 · Ctrl+Space 补全 · Ctrl+Enter 运行</span></div>
 <div class="input-box"><label for="stdin">程序输入 <small>供 scanf 读取，两侧执行使用相同输入</small></label><textarea id="stdin" rows="2" placeholder="例如：5" aria-label="程序输入"></textarea></div>
-<div class="project-actions"><button id="save-project">保存项目</button><button id="reset">清空编辑器</button><span id="completion-note">补全使用当前作用域中的名字</span></div>
+<div class="project-actions"><button id="save-project">保存项目</button><button id="reset">清空编辑器</button></div>
 </div>
 <div class="result-panel">
 <nav class="stage-tabs" aria-label="编译阶段"><button data-view="ast" class="active">语法树</button><button data-view="tokens">单词表</button><button data-view="symbols">符号表</button><button data-view="ir">四元式</button><button data-view="compare">优化对比</button><button data-view="preprocessed">预处理</button></nav>
@@ -23,14 +23,14 @@
 <div class="diagnostics"><div class="diagnostic-title">诊断 <span id="diagnostic-count">0</span></div><div id="diagnostics"><span class="muted">尚未分析。</span></div></div>
 </div>
 </section>
-<footer><span>项目语言 · C++17 编译器 / 四元式解释执行</span><span>本地头文件可用 · 不包含系统标准库</span></footer>
+<footer><span>项目语言 · C++17 编译器 / 四元式解释执行</span><span>内建 printf / scanf · 支持同文件宏</span></footer>
 </main>
 <div id="toast" role="alert" hidden></div>
 <dialog id="new-file-dialog" aria-labelledby="new-file-title">
 <form id="new-file-form">
 <span class="eyebrow">PROJECT / NEW FILE</span><h2 id="new-file-title">新建文件</h2>
-<label for="new-file-name">文件名</label><input id="new-file-name" placeholder="例如 demo.c 或 inc/config.h" autocomplete="off" required maxlength="180">
-<p class="file-help">.c 是源文件，.h 是头文件。新建源文件后会自动选中它进行编译。</p>
+<label for="new-file-name">文件名</label><input id="new-file-name" placeholder="例如 demo.c" autocomplete="off" required maxlength="180">
+<p class="file-help">.c 是源文件。新建源文件后会自动选中它进行编译。</p>
 <p id="new-file-error" role="alert"></p><div class="dialog-actions"><button type="button" id="cancel-new-file" class="secondary">取消</button><button type="submit" class="primary">创建文件</button></div>
 </form></dialog>
 <dialog id="unsaved-file-dialog" aria-labelledby="unsaved-file-title">

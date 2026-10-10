@@ -2,9 +2,9 @@
 
 日期：2026-10-10。结构体及其字段约定见 [interface.md](interface.md)。本文件定义“各模块怎样调用”，全部函数声明位于 `include/minic/`，均附中文注释。
 
-当前已实现常量池、符号表、统一诊断、M1/M2 后续流程、对象指针等扩展、文本展示及总控。正式词法和语法入口已实现，真实源码验证见 [frontend.md](frontend.md)。支持范围及限制见 [backend-extensions.md](backend-extensions.md)。主程序统一包含 `minic/modules.hpp`；某模块可以只包含自己需要的头文件。
+当前已实现常量池、符号表、统一诊断、M1/M2 后续流程、数组与记录扩展、文本展示及总控。正式词法和语法入口已实现，真实源码验证见 [frontend.md](frontend.md)。支持范围及限制见 [backend-extensions.md](backend-extensions.md)。主程序统一包含 `minic/modules.hpp`；某模块可以只包含自己需要的头文件。
 
-TypePtr 已改成普通指针。compile / compile_preprocessed 返回的 CompilationResult.types 负责保存和释放本次类型对象；不要让单独取出的 AST、符号表或 IR 活得比它更久。run 和 complete 自行管理内部临时类型。
+TypePtr 已改成普通指针。compile / compile_preprocessed 返回的 CompilationResult.types 负责保存和释放本次类型对象；不要让单独取出的 AST、符号表或 IR 活得比它更久。run 自行管理内部临时类型。
 
 直接调用阶段接口或常量池时，先建立类型管理器和创建范围，所有阶段共用它：
 
@@ -32,15 +32,15 @@ if (syntax.ok()) {
 | 语法分析 | parser.hpp | src/parser.cpp | parse |
 | 符号表管理 | symbol_table.hpp | src/symbol_table.cpp | SymbolTable、register_builtins（已实现） |
 | 统一出错处理 | diagnostic.hpp | src/diagnostic.cpp | DiagnosticEngine（已实现） |
-| 语义分析 | semantic.hpp | src/semantic.cpp、src/type_rules.cpp | analyze（M1/M2 及指针等扩展）；共用类型规则 |
-| 中间代码生成 | ir.hpp | src/ir.cpp | generate（M1/M2 及指针等扩展） |
+| 语义分析 | semantic.hpp | src/semantic.cpp、src/type_rules.cpp | analyze（当前教学范围）；共用类型规则 |
+| 中间代码生成 | ir.hpp | src/ir.cpp | generate（当前教学范围） |
 | 常量池（IR 公共支持） | constant_pool.hpp | src/constant_pool.cpp | ConstantPool、constant_operand（已实现） |
-| 四元式解释器 | interpreter.hpp | src/interpreter.cpp | run（M1/M2 及指针等扩展） |
+| 四元式解释器 | interpreter.hpp | src/interpreter.cpp | run（当前教学范围） |
 | 主流程整合 | compiler.hpp | src/compiler.cpp、src/compilation_result.cpp | compile、CompilationResult::ok（已实现并接入正式前端） |
 | 类型内存管理 | type_arena.hpp | src/type_arena.cpp | TypeArena、TypeArenaScope、make_type_info |
 | 文本展示与导出 | display.hpp | src/display.cpp | print_tokens / ast / symbols / ir / diagnostics（已实现） |
 
-词法、语法、union、扩展数值类型、函数指针、extern 和预处理均有实现；项目范围与完整 C 的差异见 [frontend.md](frontend.md)、[backend-completion.md](backend-completion.md)。基础支持模块见 [symbol-table.md](symbol-table.md) 和 [constant-pool.md](constant-pool.md)。四个编译阶段用普通函数返回明确结果，符号表、常量池和诊断收集器通过类封装状态。
+词法、语法、union、扩展数值类型、extern 和宏预处理均有实现；项目范围与完整 C 的差异见 [frontend.md](frontend.md)、[backend-completion.md](backend-completion.md)。基础支持模块见 [symbol-table.md](symbol-table.md) 和 [constant-pool.md](constant-pool.md)。四个编译阶段用普通函数返回明确结果，符号表、常量池和诊断收集器通过类封装状态。
 
 ## 2. 五个模块怎样交接
 
@@ -92,15 +92,13 @@ SymbolTable 构造时借用一个语义 DiagnosticEngine，创建全局作用域
 | lookup_tag_current(tag) | 标签名 | 只查当前层标签 | 同上 |
 | record(id) | 记录编号 | 条目的只读指针 | 非法编号返回 nullptr |
 | find_member(id, name) | 记录编号、成员名 | members 中的下标 | 非法/不完整/没有成员返回 nullopt |
-| prefix_query(prefix) | 普通名字前缀 | 活动环境中可见符号编号 | 内层同名优先；按名字排序 |
-| prefix_query(prefix, scope, cursor) | 前缀、持久作用域、光标位置 | 编译结束后的补全列表 | 非法作用域返回空列表 |
 | data() | 无 | 全部数据的 const 引用 | 禁止通过该引用修改表 |
 | std::move(table).release() | 无 | 移动出持久数据 | 之后本对象只可析构，不再调用其他方法 |
 | register_builtins(table) | 全局环境中的符号表 | 登记 printf/scanf，返回 bool | 非全局/签名冲突报告错误；重复调用不重复插入 |
 
 insert 的 id/scope 由表分配，line/col 从 entry.range.begin 同步，调用者不预先指定身份。M1 同层局部对象重复声明报错；类型兼容的函数原型重声明、原型后定义复用编号，重复定义和签名不兼容报错。插入失败不能覆写原符号或破坏名字映射。后续 extern、typedef 等按里程碑扩展重声明规则。
 
-declare_record 查当前层，外层同名标签不会阻止新标签遮蔽；空标签表示匿名类型，仅分配编号、不加入 tags。定义前先取得编号再处理成员，保证自引用指针可以绑定身份。
+declare_record 查当前层，外层同名标签不会阻止新标签遮蔽；空标签表示匿名类型，仅分配编号、不加入 tags。定义前先取得编号再处理成员，保证记录类型使用统一身份。
 
 complete_record 的 definition.id/tag/kind/scope 必须与旧条目一致。语义模块先检查成员类型并计算布局，填写 size/alignment 和所有成员 offset；符号表校验身份、重复成员及布局完整性后提交定义。失败不能把条目标为完整；枚举项的普通符号登记仍通过 insert，不能只填 enumerators 后假定其名字已经可见。
 
@@ -139,9 +137,9 @@ diagnostics.report(Level::Error, node.range,
 
 这三个函数不打印、不登记符号、不收集诊断，也不检查左值属性；调用者结合 AST 的 category 和 const 限定符诊断。Error 子表达式向父节点传播时应抑制重复报错。比较与逻辑表达式结果类型为 int，不能把结果类型当成两个操作数的公共算术类型。M1 以外的转换按后续语言规格统一扩展。
 
-实现位于 src/type_rules.cpp。same_type 对 Unknown、Error、未解析 Named 及缺失记录编号返回 false；函数签名中调整数组/函数形参并忽略形参顶层 const/volatile，所指类型的限定符仍保留。函数体中的形参对象保留自己的限定符。完整 C 的旧式函数兼容和全部重声明规则尚未实现。算术和赋值支持扩展数值类型，忽略顶层 const / volatile；原 MiniC 的 char/int/float 隐式缩窄限制保留。指针、数组、聚合转换由 analyze 结合 AST 处理。
+实现位于 src/type_rules.cpp。same_type 比较类型结构及记录身份；函数签名中将数组形参调整为内部地址，忽略形参顶层 const。函数体内的 const 对象仍不可修改。can_assign 和 arithmetic_result 处理数值转换及算术提升；保留 MiniC 的 char/int/float 隐式缩窄限制。
 
-上述 can_assign 保留基础数值类型判断。analyze 另外按 AST 检查兼容对象指针、整型零空指针常量、结构体同型拷贝和数组退化；generate/run 使用私有类型辅助函数保持一致。这些规则不能只根据来源 TypeKind 判断，例如 int 类型的普通变量并不自动成为空指针常量。
+analyze 另外检查结构体同型拷贝、数组实参及 scanf 输入地址，generate/run 使用一致的内部类型规则。源码不能声明内部地址类型，不能进行普通取地址或函数间接调用。
 
 ## 6. 四元式执行接口
 
@@ -165,9 +163,7 @@ RunResult 保存 executed_steps、diagnostics 和可选 exit_code。正常完成
 
 compile(source, filename, target) 保存所有已执行阶段的产物并汇总诊断，不读取文件、不打印、不运行代码。CompilationResult 的阶段字段采用 optional，以区分“未运行”和“已运行但失败”。
 
-新增 compile_preprocessed(source, filename, target, loader)，先展开宏和头文件再调用后续阶段。CompilationResult.preprocessing 保存源码、行映射及预处理诊断；失败时不调用词法。原 compile 不自动预处理。宏与头文件后的定位只保证原始行号，映射列号置 1、偏移置 0。接口与范围见 [preprocessor.md](preprocessor.md)。
-
-第五个可选参数 resolver 将 include 名字解析为实际路径，用于 loader 读取、嵌套包含和诊断定位；省略时保留既有行为。minic 默认调用 compile_preprocessed，`minic <命令> --raw <源文件>` 使用原 compile。头文件查找以包含者所在目录为起点，不读取系统头文件，详见 [command-line.md](command-line.md)。
+compile_preprocessed(source, filename, target) 先展开同文件宏，再进入后续阶段。preprocessing 保存源码、行映射和诊断；失败不调用词法。compile 保持直接编译，命令行默认展开宏，--raw 使用 compile。#include 已拒绝，详见 [preprocessor.md](preprocessor.md)。
 
 | 用户命令 | CompileTarget | 使用的结果 |
 |---|---|---|
@@ -191,8 +187,6 @@ ParseResult 拥有 AST，SemanticResult 拥有符号表，IRResult 拥有中间�
 ## 8. 展示和导出
 
 新增图形工作台读取 workbench_driver 的真实 JSON 产物，节点类型、Token 种别与类型描述通过 ast_node_name、token_type_name、describe_type 与文本展示共用；操作方法见 [workbench.md](workbench.md)。generate 新增带 IRGenerationOptions 的重载，constant_folding=false 可生成未折叠四元式，原重载保持默认折叠行为。
-
-complete(source,cursor) 接收原始源码和字节光标，返回前缀替换范围、带类型候选和恢复标记；visible_symbols 对保存后的 SymbolTableData 提供相同的作用域、声明顺序与遮蔽查询。补全的修补仅用于候选分析，不作为正式编译结果，也不宣称完整 LL(1) 预测补全。
 
 print_tokens、print_ast、print_symbols、print_ir、print_diagnostics 均向调用者提供的 ostream 输出，只读产物。打印函数不会重新编译，也不会关闭流。输出流失败由调用者检查流状态；文本展示不把文件 I/O 问题当成用户 C 程序诊断。
 

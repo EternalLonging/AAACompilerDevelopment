@@ -57,21 +57,23 @@
     },
     {
       "id": "07_pointers",
-      "description": "数组退化、指针偏移和解引用写入",
+      "description": "拒绝已移除的 C 语言指针",
       "source": "programs/07_pointers.c",
       "stdin": "",
-      "stdout": "pointer = 7 4\n",
-      "expect": "run",
-      "exit_code": 0
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Parser",
+      "code": "PARSE_POINTER_REMOVED"
     },
     {
       "id": "08_callback",
-      "description": "函数指针声明、传参和间接调用",
+      "description": "拒绝已移除的 C 语言指针",
       "source": "programs/08_callback.c",
       "stdin": "",
-      "stdout": "callback = 12\n",
-      "expect": "run",
-      "exit_code": 0
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Parser",
+      "code": "PARSE_POINTER_REMOVED"
     },
     {
       "id": "09_static_extern",
@@ -262,13 +264,13 @@
     },
     {
       "id": "e13_null",
-      "description": "执行时报告空指针",
+      "description": "拒绝已移除的 C 语言指针",
       "source": "errors/e13_null.c",
       "stdin": "",
       "stdout": "",
       "expect": "reject",
-      "phase": "Runtime",
-      "message": "空指针"
+      "phase": "Parser",
+      "code": "PARSE_POINTER_REMOVED"
     },
     {
       "id": "e14_uninitialized",

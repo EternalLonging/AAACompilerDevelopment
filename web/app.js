@@ -1,8 +1,8 @@
 "use strict";
 const $ = id => document.getElementById(id);
-const editor = $("editor"), result = $("result"), popup = $("completion");
+const editor = $("editor"), result = $("result");
 let files = {"main.c": ""}, activeFile = "main.c", entryFile = "main.c", data = null, view = "ast", examples = [], dirty = false;
-let revision = 0, completionTicket = 0, completionData = null, selected = 0, timer = null, busy = false;
+let revision = 0, busy = false;
 const newFiles = new Set(); // 还没保存到电脑的新文件，切换前必须保存或放弃。
 let resolveFileChoice = null; // 保存提示等待中的选择，避免同时执行多个切换操作。
 let savingFile = false; // 正在保存时保留当前文件，防止保存与放弃同时发生。
@@ -12,7 +12,7 @@ const labels = {
   symbols: ["SYMBOL TABLE", "符号表", "变量、函数与形参的类型和作用域。不同编号区分同名符号。"],
   ir: ["INTERMEDIATE REPRESENTATION", "四元式与常量池", "默认开启常量折叠；操作数引用符号、临时变量或常量编号。"],
   compare: ["CONSTANT FOLDING", "优化前后对比", "同一棵语义树分别生成四元式。运行时分别执行，检查输出与退出码。"],
-  preprocessed: ["PREPROCESSOR", "预处理源码", "查看宏和本地头文件展开后，交给词法分析的实际内容。"]
+  preprocessed: ["PREPROCESSOR", "预处理源码", "查看宏展开后，交给词法分析的实际内容。"]
 };
 function toast(message) { $("toast").textContent = message; $("toast").hidden = false; clearTimeout(toast.timer); toast.timer = setTimeout(() => $("toast").hidden = true, 4500); }
 function textElement(tag, text, cls) { const e = document.createElement(tag); e.textContent = text; if (cls) e.className = cls; return e; }
@@ -30,7 +30,7 @@ function refreshFiles() {
 // 统一检查创建和导入的名字，避免同名覆盖或使用项目外的路径。
 function fileName(raw) {
   const name = raw.trim().replaceAll("\\", "/");
-  if (name.length > 180 || !/^[\w\u0080-\uffff /.-]+\.(c|h)$/.test(name) || name.split("/").some(p => !p || p === "." || p === ".." || /[. ]$/.test(p) || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)/i.test(p))) throw new Error("请填写项目内的 .c 或 .h 文件名，例如 demo.c、inc/config.h");
+  if (name.length > 180 || !/^[\w\u0080-\uffff /.-]+\.c$/.test(name) || name.split("/").some(p => !p || p === "." || p === ".." || /[. ]$/.test(p) || /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)/i.test(p))) throw new Error("请填写项目内的 .c 文件名，例如 demo.c、src/demo.c");
   return name;
 }
 function checkNewName(name, existing) {
@@ -38,7 +38,7 @@ function checkNewName(name, existing) {
   if (Object.keys(existing).some(n => n.toLowerCase() === lower)) throw new Error("这个文件已存在，请换一个名字");
   if (Object.keys(existing).some(n => lower.startsWith(n.toLowerCase() + "/") || n.toLowerCase().startsWith(lower + "/"))) throw new Error("文件名与现有文件的目录冲突，请换一个路径");
 }
-function switchFile(name) { stash(); activeFile = name; editor.value = files[name]; $("file").value = name; hideCompletion(); updateEditor(); }
+function switchFile(name) { stash(); activeFile = name; editor.value = files[name]; $("file").value = name; updateEditor(); }
 async function saveToComputer(name, content, type = "text/plain;charset=utf-8") {
   try {
     if (typeof window.showSaveFilePicker === "function") {
@@ -58,7 +58,7 @@ async function saveCurrentFile() {
 function allowFileChange() {
   if (!newFiles.has(activeFile)) return Promise.resolve(true);
   if (resolveFileChoice) return Promise.resolve(false);
-  hideCompletion(); $("unsaved-file-message").textContent = `“${activeFile}”还没有保存到电脑。保存或放弃后才能打开其他文件。`;
+  $("unsaved-file-message").textContent = `“${activeFile}”还没有保存到电脑。保存或放弃后才能打开其他文件。`;
   $("unsaved-file-dialog").showModal();
   return new Promise(resolve => { resolveFileChoice = resolve; });
 }
@@ -82,7 +82,7 @@ function updateEditor() {
   const before = editor.value.slice(0, editor.selectionStart).split("\n");
   $("position").textContent = `行 ${before.length} · 列 ${before.at(-1).length + 1}`;
 }
-function changed() { revision++; dirty = true; $("status").textContent = "源码已修改 · 请重新分析"; hideCompletion(); updateEditor(); }
+function changed() { revision++; dirty = true; $("status").textContent = "源码已修改 · 请重新分析"; updateEditor(); }
 function download(name, content, type = "text/plain;charset=utf-8") {
   const url = URL.createObjectURL(new Blob([content], {type})); const a = document.createElement("a"); a.href = url; a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
@@ -160,7 +160,7 @@ function showDiagnostics() {
 }
 async function compile(run) {
   if (busy) return;
-  busy = true; hideCompletion(); const version = revision; $("run").disabled = $("analyze").disabled = true; $("status").textContent = run ? "正在编译并执行…" : "正在分析…";
+  busy = true; const version = revision; $("run").disabled = $("analyze").disabled = true; $("status").textContent = run ? "正在编译并执行…" : "正在分析…";
   try {
     const next = await api(run ? "/api/run" : "/api/analyze", payload());
     if (version !== revision) { toast("源码在编译中发生变化，请重新分析"); return; }
@@ -170,35 +170,6 @@ async function compile(run) {
     $("status").textContent = !data.ok ? "编译失败 · 查看诊断" : execution && !execution.ok ? "执行失败 · 查看诊断" : run ? "运行完成" : "分析完成";
   } catch (e) { toast(e.message); $("status").textContent = "操作失败"; }
   finally { busy = false; $("run").disabled = $("analyze").disabled = false; if (version !== revision) $("status").textContent = "源码已修改 · 请重新分析"; }
-}
-function hideCompletion() { popup.hidden = true; completionData = null; completionTicket++; }
-async function complete(force = false) {
-  if (!activeFile.endsWith(".c") || busy) return;
-  const source = editor.value, cursor = editor.selectionStart; if (editor.selectionEnd !== cursor) return;
-  const word = source.slice(0, cursor).match(/[A-Za-z_][A-Za-z_0-9]*$/)?.[0] || "";
-  if (!force && word.length < 2 && !/[.>]$/.test(source.slice(0, cursor))) return;
-  const ticket = ++completionTicket, version = revision, filename = activeFile;
-  const begin = cursor - word.length, encoder = new TextEncoder();
-  const beginByte = encoder.encode(source.slice(0, begin)).length, endByte = encoder.encode(source.slice(0, cursor)).length;
-  try {
-    const body = await api("/api/complete", {source, cursor: endByte});
-    if (ticket !== completionTicket || version !== revision || filename !== activeFile || source !== editor.value || cursor !== editor.selectionStart || cursor !== editor.selectionEnd) return;
-    // 编辑器也按当前前缀过滤，避免旧结果或异常候选被显示和插入。
-    body.items = body.items.filter(item => item.label.startsWith(word));
-    if (body.items.length && (body.begin !== beginByte || body.end !== endByte)) { hideCompletion(); toast("补全位置不一致，请重新分析源码"); return; }
-    completionData = {body, source, begin, cursor, filename}; selected = 0; popup.replaceChildren();
-    if (!body.items.length) { popup.hidden = true; if (force) toast("当前位置没有可用候选"); return; }
-    body.items.slice(0, 50).forEach((item, i) => { const b = document.createElement("button"); b.setAttribute("role", "option"); b.append(textElement("span", item.kind, "badge"), textElement("span", item.label), textElement("small", item.detail)); b.addEventListener("mousedown", e => { e.preventDefault(); insertCompletion(i); }); popup.append(b); });
-    popup.hidden = false; popup.style.top = Math.min(205, Math.max(35, source.slice(0, cursor).split("\n").length * 24 - editor.scrollTop + 18)) + "px"; selectCompletion();
-    $("completion-note").textContent = body.recovered ? "补全已修补未完成片段 · 运行仍需完整源码" : "补全来自当前位置的类型与作用域";
-  } catch (e) { if (force) toast(e.message); }
-}
-function selectCompletion() { [...popup.children].forEach((e, i) => { e.classList.toggle("selected", i === selected); e.setAttribute("aria-selected", i === selected); }); popup.children[selected]?.scrollIntoView({block: "nearest"}); }
-function insertCompletion(i = selected) {
-  if (!completionData) return;
-  const {body, source, begin, cursor, filename} = completionData;
-  if (source !== editor.value || cursor !== editor.selectionStart || cursor !== editor.selectionEnd || filename !== activeFile || !body.items[i]) { hideCompletion(); return; }
-  editor.setRangeText(body.items[i].label, begin, cursor, "end"); changed(); editor.focus();
 }
 // 扫描光标前的代码块层数，注释和引号里的大括号不参与缩进。
 function editingContext(source, cursor) {
@@ -247,7 +218,7 @@ function editPairOrIndent(e) {
   }
   if ((e.key === '"' || e.key === "'") && start === end && next === e.key && !context.escaped &&
       ((e.key === '"' && context.state === "string") || (e.key === "'" && context.state === "char"))) {
-    e.preventDefault(); hideCompletion(); editor.setSelectionRange(start + 1, start + 1); updateEditor(); return true;
+    e.preventDefault(); editor.setSelectionRange(start + 1, start + 1); updateEditor(); return true;
   }
   if (e.key === "}" && context.state === "code") {
     e.preventDefault(); const closeStart = /^[\t ]*$/.test(before) ? lineStart : start;
@@ -255,7 +226,7 @@ function editPairOrIndent(e) {
     insertEditorText(indent + "}", closeStart, start === end && next === "}" ? end + 1 : end); return true;
   }
   if (e.key === ")" && context.state === "code" && start === end && next === ")") {
-    e.preventDefault(); hideCompletion(); editor.setSelectionRange(start + 1, start + 1); updateEditor(); return true;
+    e.preventDefault(); editor.setSelectionRange(start + 1, start + 1); updateEditor(); return true;
   }
   if (context.state === "code" && ["{", "(", '"', "'"].includes(e.key)) {
     e.preventDefault(); const close = e.key === "{" ? "}" : e.key === "(" ? ")" : e.key;
@@ -263,25 +234,14 @@ function editPairOrIndent(e) {
   }
   return false;
 }
-editor.addEventListener("input", () => { changed(); clearTimeout(timer); timer = setTimeout(() => complete(), 280); });
-editor.addEventListener("click", () => { hideCompletion(); updateEditor(); });
-editor.addEventListener("keyup", updateEditor); editor.addEventListener("scroll", () => { $("lines").scrollTop = editor.scrollTop; hideCompletion(); });
-document.addEventListener("selectionchange", () => {
-  if (completionData && (editor.selectionStart !== completionData.cursor || editor.selectionEnd !== completionData.cursor)) hideCompletion();
-});
+editor.addEventListener("input", changed);
+editor.addEventListener("click", () => { updateEditor(); });
+editor.addEventListener("keyup", updateEditor); editor.addEventListener("scroll", () => { $("lines").scrollTop = editor.scrollTop; });
 editor.addEventListener("keydown", e => {
   if (e.isComposing) return;
-  if (e.ctrlKey && e.code === "Space") { e.preventDefault(); complete(true); return; }
   if (e.ctrlKey && e.key === "Enter") { e.preventDefault(); compile(true); return; }
-  if (["ArrowLeft", "ArrowRight", "Home", "End", "PageUp", "PageDown"].includes(e.key)) hideCompletion();
-  if (!popup.hidden) {
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); selected = (selected + (e.key === "ArrowDown" ? 1 : -1) + popup.children.length) % popup.children.length; selectCompletion(); return; }
-    if (e.key === "Tab" || e.key === "Enter") { e.preventDefault(); insertCompletion(); return; }
-    if (e.key === "Escape") { e.preventDefault(); hideCompletion(); return; }
-  }
   editPairOrIndent(e);
 });
-editor.addEventListener("blur", () => setTimeout(hideCompletion, 120));
 $("file").onchange = async e => { const name = e.target.value; e.target.value = activeFile; if (name !== activeFile && !await allowFileChange()) return; switchFile(name); };
 $("entry").onchange = async e => { const name = e.target.value; e.target.value = entryFile; if (name !== activeFile && !await allowFileChange()) return; entryFile = name; switchFile(name); refreshFiles(); changed(); };
 $("stdin").oninput = changed;
@@ -299,7 +259,7 @@ $("new-file-form").onsubmit = e => {
   try {
     const name = fileName($("new-file-name").value); checkNewName(name, files);
     if (Object.keys(files).length >= 33) throw new Error("一个项目最多保存 33 个文件");
-    stash(); files[name] = name.endsWith(".c") ? "int main(void) {\n    return 0;\n}\n" : "";
+    stash(); files[name] = "int main(void) {\n    return 0;\n}\n";
     newFiles.add(name);
     if (name.endsWith(".c")) entryFile = name;
     refreshFiles(); switchFile(name); changed(); $("new-file-dialog").close(); editor.focus();

@@ -60,6 +60,7 @@ class Analyzer {
 
     TypePtr resolve(const TypePtr& source, ASTNode& node, std::size_t depth = 0) {
         if (!source || depth > 128) { error(node, "声明类型为空或嵌套过深", "SEM_DECL_TYPE"); return detail::type(TypeKind::Error); }
+        if (source->kind == TypeKind::Address) { error(node, "源码不能声明内部地址类型", "SEM_POINTER_REMOVED"); return detail::type(TypeKind::Error); }
         auto result = make_type_info(*source);
         if (source->kind == TypeKind::Named) {
             const auto id = table_.lookup(source->name);
@@ -69,7 +70,6 @@ class Analyzer {
             }
             result = make_type_info(*alias->type);
             result->is_const = result->is_const || source->is_const;
-            result->is_volatile = result->is_volatile || source->is_volatile;
         } else if (source->kind == TypeKind::Enum) {
             const auto id = table_.lookup_tag(source->name);
             const auto* record = id ? table_.record(*id) : nullptr;
@@ -86,14 +86,13 @@ class Analyzer {
             }
             result->record_id = record_id;
             result->name = record->tag;
-        } else if (source->kind == TypeKind::Array || source->kind == TypeKind::Pointer) {
+        } else if (source->kind == TypeKind::Array) {
             result->base = resolve(source->base, node, depth + 1);
         } else if (source->kind == TypeKind::Function) {
             result->base = resolve(source->base, node, depth + 1);
             for (auto& parameter : result->params) {
                 parameter = resolve(parameter, node, depth + 1);
-                if (parameter->kind == TypeKind::Array) parameter = detail::pointer(parameter->base);
-                else if (parameter->kind == TypeKind::Function) parameter = detail::pointer(parameter);
+                if (parameter->kind == TypeKind::Array) parameter = detail::address_type(parameter->base);
                 parameter = detail::unqualified(parameter);
             }
         } else if (!detail::numeric(source) && source->kind != TypeKind::Void) {
@@ -103,24 +102,21 @@ class Analyzer {
     }
 
     bool assignable(const TypePtr& target, const ASTNode& source) const {
-        if (can_assign(target, source.type) || detail::pointer_assign(target, source.type)) return true;
-        if (target && target->kind == TypeKind::Pointer && target->base && target->base->kind == TypeKind::Char && source.kind == NodeType::StringLiteral) return true;
-        if (target && target->kind == TypeKind::Pointer && detail::integer_constant(source) == 0) return true;
+        if (can_assign(target, source.type) || detail::address_compatible(target, source.type)) return true;
+        if (target && target->kind == TypeKind::Address && target->base && target->base->kind == TypeKind::Char && source.kind == NodeType::StringLiteral) return true;
         return target && source.type && (target->kind == TypeKind::Struct || target->kind == TypeKind::Union) &&
             same_type(detail::unqualified(target), detail::unqualified(source.type));
     }
 
-    // 普通数组在需要值时转成首元素指针；sizeof 和取地址保留数组类型。
+    // 数组传参和字符串输入输出使用首元素地址；源码不提供指针类型。
     void decay(std::unique_ptr<ASTNode>& node) {
-        if (node->type && node->type->kind == TypeKind::Function) { convert(node, detail::pointer(node->type)); return; }
         if (!node->type || node->type->kind != TypeKind::Array) return;
         if (node->kind == NodeType::Identifier && table_.symbol(node->symbol_id)->storage == StorageClass::Register) {
             error(*node, "register 数组不能转成地址", "SEM_ADDRESS"); return;
         }
         auto element = make_type_info(*node->type->base);
         element->is_const = element->is_const || node->type->is_const;
-        element->is_volatile = element->is_volatile || node->type->is_volatile;
-        convert(node, detail::pointer(element));
+        convert(node, detail::address_type(element));
     }
 
     void typedef_declaration(ASTNode& node) {
@@ -230,7 +226,7 @@ class Analyzer {
         }
         expression(*init);
         if (!valid_expression(*init)) return;
-        if (target->kind == TypeKind::Pointer) decay(init);
+        if (target->kind == TypeKind::Address) decay(init);
         if (target->kind == TypeKind::Array && target->base->kind == TypeKind::Char && init->kind == NodeType::StringLiteral) {
             if (std::get<std::string>(init->value).size() > *target->array_length)
                 error(*init, "字符串超过 char 数组长度", "SEM_INIT_COUNT");
@@ -248,7 +244,7 @@ class Analyzer {
         if (node.kind == NodeType::Identifier && node.category == ValueCategory::Function) return true;
         if (node.kind == NodeType::UnaryOp && node.name == "&" && node.children.size() == 1)
             return static_address(*node.children[0]);
-        if (node.kind == NodeType::ImplicitCast && node.type && node.type->kind == TypeKind::Pointer &&
+        if (node.kind == NodeType::ImplicitCast && node.type && node.type->kind == TypeKind::Address &&
             node.children.size() == 1 && node.children[0]->type->kind == TypeKind::Array)
             return static_address(*node.children[0]);
         if (node.kind != NodeType::BinaryOp && node.kind != NodeType::Cast && node.kind != NodeType::ImplicitCast &&
@@ -287,11 +283,8 @@ class Analyzer {
 
     void require_condition(ASTNode& node) {
         expression(node);
-        if (node.type && node.type->kind == TypeKind::Array && node.kind != NodeType::StringLiteral) {
-            auto owned = std::make_unique<ASTNode>(std::move(node)); decay(owned); node = std::move(*owned);
-        }
-        if (valid_expression(node) && !detail::numeric(node.type) && node.type->kind != TypeKind::Pointer)
-            error(node, "条件必须是数值或指针", "SEM_CONDITION");
+        if (valid_expression(node) && !detail::numeric(node.type))
+            error(node, "条件必须是数值", "SEM_CONDITION");
     }
 
     void literal(ASTNode& node) {
@@ -368,42 +361,7 @@ class Analyzer {
         auto& left = node.children[0];
         auto& right = node.children[1];
         if (!valid_expression(*left) || !valid_expression(*right)) { node.type = detail::type(TypeKind::Error); return; }
-        decay(left); decay(right);
         if (node.name == ",") { node.type = right->type; node.category = ValueCategory::RValue; return; }
-        if (left->type->kind == TypeKind::Pointer || right->type->kind == TypeKind::Pointer) {
-            if (node.name == "+" && right->type->kind == TypeKind::Pointer && detail::numeric(left->type) && !detail::floating(left->type)) {
-                try { detail::layout(right->type->base, table_.data()); }
-                catch (const std::runtime_error& exception) { error(node, exception.what(), "SEM_POINTER"); return; }
-                convert(left, detail::type(TypeKind::Int)); node.type = right->type; node.category = ValueCategory::RValue; return;
-            }
-            if ((node.name == "+" || node.name == "-") && left->type->kind == TypeKind::Pointer &&
-                detail::numeric(right->type) && !detail::floating(right->type)) {
-                try { detail::layout(left->type->base, table_.data()); }
-                catch (const std::runtime_error& exception) { error(node, exception.what(), "SEM_POINTER"); return; }
-                convert(right, detail::type(TypeKind::Int));
-                node.type = left->type; node.category = ValueCategory::RValue; return;
-            }
-            const bool compatible = detail::pointer_assign(left->type, right->type) || detail::pointer_assign(right->type, left->type);
-            if (compatible && (node.name == "-" || node.name == "<" || node.name == "<=" || node.name == ">" || node.name == ">=")) {
-                try { detail::layout(left->type->base, table_.data()); }
-                catch (const std::runtime_error& exception) { error(node, exception.what(), "SEM_POINTER"); return; }
-                node.type = detail::type(TypeKind::Int); node.category = ValueCategory::RValue; return;
-            }
-            const bool equality = node.name == "==" || node.name == "!=";
-            const bool logic = node.name == "&&" || node.name == "||";
-            if (logic && (detail::numeric(left->type) || left->type->kind == TypeKind::Pointer) &&
-                (detail::numeric(right->type) || right->type->kind == TypeKind::Pointer)) {
-                node.type = detail::type(TypeKind::Int); node.category = ValueCategory::RValue; return;
-            }
-            if (equality) {
-                if (left->type->kind == TypeKind::Pointer && detail::integer_constant(*right) == 0) convert(right, left->type);
-                if (right->type->kind == TypeKind::Pointer && detail::integer_constant(*left) == 0) convert(left, right->type);
-                if (detail::pointer_assign(left->type, right->type) || detail::pointer_assign(right->type, left->type)) {
-                    node.type = detail::type(TypeKind::Int); node.category = ValueCategory::RValue; return;
-                }
-            }
-            error(node, "指针运算需要兼容指针或整型偏移", "SEM_POINTER"); return;
-        }
         const auto common = arithmetic_result(left->type, right->type);
         const bool compare = node.name == "<" || node.name == "<=" || node.name == ">" ||
                              node.name == ">=" || node.name == "==" || node.name == "!=";
@@ -427,20 +385,9 @@ class Analyzer {
         auto& left = node.children[0];
         auto& right = node.children[1];
         if (!valid_expression(*left) || !valid_expression(*right)) { node.type = detail::type(TypeKind::Error); return; }
-        decay(right);
         if (left->category == ValueCategory::LValue && (left->type->kind == TypeKind::Struct || left->type->kind == TypeKind::Union) &&
             modifiable(left->type) && node.name == "=" && assignable(left->type, *right)) {
             node.type = left->type; node.category = ValueCategory::RValue; return;
-        }
-        if (left->category == ValueCategory::LValue && left->type->kind == TypeKind::Pointer &&
-            !left->type->is_const && node.name == "=" && assignable(left->type, *right)) {
-            convert(right, left->type); node.type = left->type; node.category = ValueCategory::RValue; return;
-        }
-        if (left->category == ValueCategory::LValue && left->type->kind == TypeKind::Pointer && !left->type->is_const &&
-            (node.name == "+=" || node.name == "-=") && detail::numeric(right->type) && !detail::floating(right->type)) {
-            try { detail::layout(left->type->base, table_.data()); }
-            catch (const std::runtime_error& exception) { error(node, exception.what(), "SEM_POINTER"); return; }
-            convert(right, detail::type(TypeKind::Int)); node.type = left->type; node.category = ValueCategory::RValue; return;
         }
         if (left->category != ValueCategory::LValue || left->type->is_const || !detail::numeric(left->type)) {
             error(node, "赋值目标必须是可修改的数值变量", "SEM_LVALUE"); return;
@@ -461,8 +408,8 @@ class Analyzer {
         expression(*node.children[0]);
         auto& child = node.children[0];
         if (!valid_expression(*child)) { node.type = detail::type(TypeKind::Error); return; }
-        if (node.name != "&") decay(child);
         if (node.name == "&") {
+            if (!address_allowed) { error(node, "& 只允许用在 scanf 的输入参数中", "SEM_ADDRESS"); return; }
             if (child->kind == NodeType::Identifier && table_.symbol(child->symbol_id)->storage == StorageClass::Register) {
                 error(node, "register 对象不能取地址", "SEM_ADDRESS"); return;
             }
@@ -470,25 +417,12 @@ class Analyzer {
                 (address_allowed && (!detail::numeric(child->type) || child->type->is_const))) {
                 error(node, "取地址需要对象左值；scanf 还需要可修改的数值对象", "SEM_ADDRESS"); return;
             }
-            auto pointer = make_type_info();
-            pointer->kind = TypeKind::Pointer;
-            pointer->base = child->type;
-            node.type = pointer;
+            auto address = make_type_info();
+            address->kind = TypeKind::Address;
+            address->base = child->type;
+            node.type = address;
         } else if (node.name == "*") {
-            if (child->type->kind != TypeKind::Pointer || !child->type->base || child->type->base->kind == TypeKind::Void) {
-                error(node, "解引用需要完整对象指针", "SEM_POINTER"); return;
-            }
-            if (child->type->base->kind == TypeKind::Function) { node.type = child->type->base; node.category = ValueCategory::Function; return; }
-            try { detail::layout(child->type->base, table_.data()); }
-            catch (const std::runtime_error& exception) { error(node, exception.what(), "SEM_POINTER"); return; }
-            node.type = child->type->base; node.category = ValueCategory::LValue; return;
-        } else if (node.name == "!" && child->type->kind == TypeKind::Pointer) {
-            node.type = detail::type(TypeKind::Int);
-        } else if (child->type->kind == TypeKind::Pointer && (node.name == "pre++" || node.name == "post++" || node.name == "pre--" || node.name == "post--")) {
-            if (child->category != ValueCategory::LValue || child->type->is_const) { error(node, "指针自增需要可修改左值", "SEM_LVALUE"); return; }
-            try { detail::layout(child->type->base, table_.data()); }
-            catch (const std::runtime_error& exception) { error(node, exception.what(), "SEM_POINTER"); return; }
-            node.type = child->type;
+            error(node, "本项目不支持解引用", "SEM_POINTER_REMOVED"); return;
         } else {
             if (!detail::numeric(child->type)) { error(node, "一元运算需要数值类型"); return; }
             const bool update = node.name == "pre++" || node.name == "post++" ||
@@ -510,23 +444,18 @@ class Analyzer {
 
     void call(ASTNode& node) {
         if (!shape(node, 1, invalid_id)) return;
-        expression(*node.children[0]);
+        expression(*node.children[0], true);
         const auto& callee = *node.children[0];
         if (!valid_expression(callee)) { node.type = detail::type(TypeKind::Error); return; }
-        const bool direct = callee.kind == NodeType::Identifier && callee.category == ValueCategory::Function;
-        SymbolEntry entry;
-        if (direct) { entry = *table_.symbol(callee.symbol_id); node.symbol_id = callee.symbol_id; }
-        else {
-            entry.type = callee.type->kind == TypeKind::Function ? callee.type :
-                callee.type->kind == TypeKind::Pointer ? callee.type->base : TypePtr{};
-            if (!entry.type || entry.type->kind != TypeKind::Function || entry.type->variadic) { error(node, "调用需要有固定签名的函数指针", "SEM_CALL"); return; }
-        }
+        if (callee.kind != NodeType::Identifier || callee.category != ValueCategory::Function) { error(node, "调用需要函数名字", "SEM_CALL"); return; }
+        const auto entry = *table_.symbol(callee.symbol_id);
+        node.symbol_id = callee.symbol_id;
         const bool builtin = entry.builtin != BuiltinKind::None;
         const bool scanning = entry.builtin == BuiltinKind::Scanf;
         for (std::size_t i = 1; i < node.children.size(); ++i) {
             auto& child = *node.children[i];
             child.scope_id = table_.current_scope();
-            if (scanning && i > 1 && child.kind == NodeType::UnaryOp && child.name == "&") unary(child);
+            if (scanning && i > 1 && child.kind == NodeType::UnaryOp && child.name == "&") unary(child, true);
             else expression(child);
         }
         if (builtin) {
@@ -543,12 +472,12 @@ class Analyzer {
                     const auto expected = detail::format_type(part, scanning);
                     if (part.conversion == 's') decay(argument);
                     if (scanning) {
-                        if (argument->type->kind != TypeKind::Pointer || !argument->type->base ||
+                        if (argument->type->kind != TypeKind::Address || !argument->type->base ||
                             !same_type(detail::unqualified(argument->type->base), expected) || argument->type->base->is_const)
                             throw std::runtime_error("scanf 实参地址类型与格式转换符不匹配");
                     } else if (part.conversion == 's') {
-                        if (argument->type->kind != TypeKind::Pointer || argument->type->base->kind != TypeKind::Char)
-                            throw std::runtime_error("%s 需要字符数组或字符指针");
+                        if (argument->type->kind != TypeKind::Address || argument->type->base->kind != TypeKind::Char)
+                            throw std::runtime_error("%s 需要字符数组或字符串");
                     } else {
                         if (!detail::numeric(argument->type) ||
                             (part.conversion == 'f' ? !detail::floating(argument->type) : !detail::integral(argument->type)))
@@ -576,7 +505,7 @@ class Analyzer {
         node.category = ValueCategory::RValue;
     }
 
-    void expression(ASTNode& node) {
+    void expression(ASTNode& node, bool callee_allowed = false) {
         if (diagnostics_.should_stop()) return;
         node.scope_id = table_.current_scope();
         if (++depth_ > 512) {
@@ -597,29 +526,21 @@ class Analyzer {
                 const auto& array = *node.children[0];
                 const auto& index = *node.children[1];
                 if (!valid_expression(array) || !valid_expression(index)) { node.type = detail::type(TypeKind::Error); break; }
-                if ((array.type->kind != TypeKind::Array && array.type->kind != TypeKind::Pointer) || !detail::numeric(index.type) || detail::floating(index.type)) {
+                if ((array.type->kind != TypeKind::Array && array.type->kind != TypeKind::Address) || !detail::numeric(index.type) || detail::floating(index.type)) {
                     error(node, "下标访问需要数组和整型下标", "SEM_INDEX"); break;
                 }
                 try { detail::layout(array.type->base, table_.data()); }
                 catch (const std::runtime_error& exception) { error(node, exception.what(), "SEM_INDEX"); break; }
                 auto element = make_type_info(*array.type->base);
                 element->is_const = element->is_const || (array.type->kind == TypeKind::Array && array.type->is_const);
-                element->is_volatile = element->is_volatile || (array.type->kind == TypeKind::Array && array.type->is_volatile);
                 node.type = element;
-                node.category = array.type->kind == TypeKind::Pointer || array.category == ValueCategory::LValue ? ValueCategory::LValue : ValueCategory::RValue;
+                node.category = array.type->kind == TypeKind::Address || array.category == ValueCategory::LValue ? ValueCategory::LValue : ValueCategory::RValue;
                 convert(node.children[1], detail::type(TypeKind::Int));
             }
             break;
         case NodeType::MemberAccess:
             if (shape(node, 1, 1)) {
                 expression(*node.children[0]);
-                if (valid_expression(*node.children[0]) && node.children[0]->type->kind == TypeKind::Pointer) {
-                    auto dereference = std::make_unique<ASTNode>();
-                    dereference->kind = NodeType::UnaryOp; dereference->name = "*";
-                    dereference->range = node.children[0]->range; dereference->scope_id = node.scope_id;
-                    dereference->type = node.children[0]->type->base; dereference->category = ValueCategory::LValue;
-                    dereference->children.push_back(std::move(node.children[0])); node.children[0] = std::move(dereference);
-                }
                 const auto& object = *node.children[0];
                 if (!valid_expression(object)) { node.type = detail::type(TypeKind::Error); break; }
                 if ((object.type->kind != TypeKind::Struct && object.type->kind != TypeKind::Union)) { error(node, "成员访问需要结构体对象", "SEM_MEMBER"); break; }
@@ -629,7 +550,6 @@ class Analyzer {
                 node.member_index = *index;
                 auto member = make_type_info(*table_.record(node.record_id)->members[*index].type);
                 member->is_const = member->is_const || object.type->is_const;
-                member->is_volatile = member->is_volatile || object.type->is_volatile;
                 node.type = member;
                 node.category = object.category;
             }
@@ -651,13 +571,7 @@ class Analyzer {
             if (shape(node, 3, 3)) {
                 require_condition(*node.children[0]);
                 expression(*node.children[1]); expression(*node.children[2]);
-                decay(node.children[1]); decay(node.children[2]);
                 auto common = arithmetic_result(node.children[1]->type, node.children[2]->type);
-                if (common->kind == TypeKind::Error) {
-                    const auto& yes = *node.children[1]; const auto& no = *node.children[2];
-                    if (yes.type && yes.type->kind == TypeKind::Pointer && assignable(yes.type, no)) common = yes.type;
-                    else if (no.type && no.type->kind == TypeKind::Pointer && assignable(no.type, yes)) common = no.type;
-                }
                 if (common->kind == TypeKind::Error) error(node, "条件表达式的两个结果类型不兼容", "SEM_CONDITIONAL");
                 else {
                     convert(node.children[1], common); convert(node.children[2], common);
@@ -668,22 +582,17 @@ class Analyzer {
         case NodeType::Cast:
             if (shape(node, 1, 1)) {
                 expression(*node.children[0]);
-                decay(node.children[0]);
                 const auto target = resolve(node.declared_type, node);
-                const auto source = node.children[0]->type;
-                const bool character_pointer_cast = target->kind == TypeKind::Pointer && source && source->kind == TypeKind::Pointer &&
-                    target->base && source->base && target->base->kind != TypeKind::Function && source->base->kind != TypeKind::Function &&
-                    (target->base->kind == TypeKind::Char || source->base->kind == TypeKind::Char) &&
-                    (!source->base->is_const || target->base->is_const) && (!source->base->is_volatile || target->base->is_volatile);
-                if ((detail::numeric(target) && detail::numeric(node.children[0]->type)) ||
-                    character_pointer_cast || (target->kind == TypeKind::Pointer && assignable(target, *node.children[0]))) {
+                if (detail::numeric(target) && detail::numeric(node.children[0]->type)) {
                     node.type = target;
                     node.category = ValueCategory::RValue;
-                } else error(node, "显式转换只支持数值或兼容对象指针");
+                } else error(node, "显式转换只支持数值类型");
             }
             break;
         default: error(node, "此表达式节点尚未支持，或语法树已被分析过", "SEM_UNSUPPORTED"); break;
         }
+        if (node.category == ValueCategory::Function && !callee_allowed)
+            error(node, "函数名字只能用于直接调用", "SEM_FUNCTION_VALUE");
         --depth_;
     }
 
@@ -765,7 +674,6 @@ class Analyzer {
                     if (return_type_->kind != TypeKind::Void) error(node, "非 void 函数必须返回一个值", "SEM_RETURN");
                 } else {
                     expression(*node.children[0]);
-                    decay(node.children[0]);
                     if (return_type_->kind == TypeKind::Void) error(node, "void 函数不能返回一个值", "SEM_RETURN");
                     else if (valid_expression(*node.children[0])) {
                         if (!assignable(return_type_, *node.children[0])) error(node, "返回值类型不兼容", "SEM_RETURN");
@@ -854,14 +762,13 @@ class Analyzer {
             normalized->base = resolve(declared->base, node);
             for (auto& parameter : normalized->params) {
                 parameter = resolve(parameter, node);
-                if (parameter->kind == TypeKind::Array) parameter = detail::pointer(parameter->base);
-                else if (parameter->kind == TypeKind::Function) parameter = detail::pointer(parameter);
+                if (parameter->kind == TypeKind::Array) parameter = detail::address_type(parameter->base);
                 parameter = detail::unqualified(parameter);
             }
             declared = normalized;
         }
         if (!declared || declared->kind != TypeKind::Function ||
-            !(detail::numeric(declared->base) || (declared->base && (declared->base->kind == TypeKind::Void || declared->base->kind == TypeKind::Pointer ||
+            !(detail::numeric(declared->base) || (declared->base && (declared->base->kind == TypeKind::Void ||
               declared->base->kind == TypeKind::Struct || declared->base->kind == TypeKind::Union))) ||
             declared->variadic || (node.storage != StorageClass::None && node.storage != StorageClass::Static && node.storage != StorageClass::Extern) ||
             (!declared->has_prototype && !declared->params.empty()) ||
@@ -871,10 +778,9 @@ class Analyzer {
         for (std::size_t i = 0; i < declared->params.size(); ++i) {
             auto& parameter = *node.children[i];
             auto parameter_type = resolve(parameter.declared_type, parameter);
-            if (parameter_type->kind == TypeKind::Array) parameter_type = detail::pointer(parameter_type->base);
-            else if (parameter_type->kind == TypeKind::Function) parameter_type = detail::pointer(parameter_type);
+            if (parameter_type->kind == TypeKind::Array) parameter_type = detail::address_type(parameter_type->base);
             if (parameter.kind != NodeType::ParamDecl || !parameter.children.empty() ||
-                !(detail::numeric(declared->params[i]) || declared->params[i]->kind == TypeKind::Pointer ||
+                !(detail::numeric(declared->params[i]) || declared->params[i]->kind == TypeKind::Address ||
                   declared->params[i]->kind == TypeKind::Struct || declared->params[i]->kind == TypeKind::Union) ||
                 !same_type(detail::unqualified(parameter_type), declared->params[i]) ||
                 parameter.storage != StorageClass::None || (definition && parameter.name.empty())) {
@@ -904,7 +810,7 @@ class Analyzer {
         for (std::size_t i = 0; i < declared->params.size(); ++i) {
             auto& parameter = *node.children[i];
             parameter.scope_id = node.scope_id;
-            // 签名忽略形参的顶层限定符，函数体内的形参仍保留 const/volatile。
+            // 签名忽略形参的顶层限定符，函数体内的形参仍保留 const。
             SymbolEntry symbol;
             symbol.name = parameter.name;
             symbol.kind = SymbolKind::Parameter;

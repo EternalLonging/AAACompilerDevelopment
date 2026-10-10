@@ -31,7 +31,7 @@ endif()
 # 词法、语法与后端组成真实源码编译入口。
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/lexer.cpp" AND
    EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/parser.cpp")
-    add_library(minic_compiler STATIC src/compiler.cpp src/lexer.cpp src/parser.cpp src/completion.cpp)
+    add_library(minic_compiler STATIC src/compiler.cpp src/lexer.cpp src/parser.cpp)
     target_link_libraries(minic_compiler PUBLIC minic_backend)
     if(MSVC)
         target_compile_options(minic_compiler PRIVATE /W4 /utf-8)

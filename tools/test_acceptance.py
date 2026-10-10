@@ -9,35 +9,17 @@ import tempfile
 
 # 这些程序遵守项目语法，并且不依赖动态内存或系统头文件。
 PROGRAMS = [
-    ("linked_list", """struct N { int v; struct N *next; };
-int sum(struct N *p) { int s=0; while(p!=0) { s+=p->v; p=p->next; } return s; }
-int main(void) { struct N a={2,0},b={3,0},c={5,0};
-a.next=&b; b.next=&c; printf("list = %d\\n",sum(&a)); return 0; }
-""", "list = 10\n", ""),
     ("bubble_sort", """void sort(int a[],int n) { int i,j,t;
 for(i=0;i<n;i++) { for(j=0;j<n-1-i;j++) {
 if(a[j]>a[j+1]) { t=a[j]; a[j]=a[j+1]; a[j+1]=t; } } } }
 int main(void) { int a[5]={5,1,4,2,3}; sort(a,5);
 printf("sort = %d %d %d %d %d\\n",a[0],a[1],a[2],a[3],a[4]); return 0; }
 """, "sort = 1 2 3 4 5\n", ""),
-    ("pointer_return", """int *pick(int *p) { return p+1; }
-int main(void) { int a[2]={3,7}; printf("pick = %d\\n",*pick(a)); return 0; }
-""", "pick = 7\n", ""),
     ("record_scope", """struct S { int x; };
 int main(void) { struct S a={3};
 { struct S { int y; int z; }; struct S b={4,5}; a.x+=b.z; }
 printf("shadow = %d\\n",a.x); return 0; }
 """, "shadow = 8\n", ""),
-    ("array_pointer", """int main(void) { int a[2][2]={{1,2},{3,4}}; int (*p)[2]=a;
-printf("matrix = %d\\n",p[1][1]); return 0; }
-""", "matrix = 4\n", ""),
-    ("double_pointer", """void set(int **p) { **p=9; }
-int main(void) { int x=3; int *p=&x; set(&p);
-printf("indirect = %d\\n",x); return 0; }
-""", "indirect = 9\n", ""),
-    ("qualifiers", """int main(void) { volatile int x=1; const volatile int *p=&x;
-x+=2; printf("qualified = %d\\n",*p); return 0; }
-""", "qualified = 3\n", ""),
     ("input", """int main(void) { int a,b; scanf("%d%d",&a,&b);
 printf("input = %d\\n",a+b); return 0; }
 """, "input = 12\n", "5 7\n"),
@@ -132,16 +114,20 @@ def main():
         check("multiple_diagnostics", [compiler, "check", str(file)], code=1,
               errors=("recover.c:2:", "recover.c:3:", "[语法/错误]"), empty_output=True)
 
-        # 通过真实源码检查地址生命周期和数值边界，失败后不应输出后续提示。
+        # 通过真实源码检查删除功能的拒绝行为和数值边界，失败后不应输出后续提示。
         for name, source, phase, message in [
-            ("dangling_pointer", 'int *bad(void){int x=7;return &x;} int main(void){int *p=bad();return *p;}', "运行", "已经结束的调用帧"),
-            ("one_past_pointer", 'int main(void){int a[2]={1,2};int *p=a+2;return *p;}', "运行", "尾后指针不能解引用"),
+            ("dangling_pointer", 'int *bad(void){int x=7;return &x;} int main(void){int *p=bad();return *p;}', "语法", "PARSE_POINTER_REMOVED"),
+            ("one_past_pointer", 'int main(void){int a[2]={1,2};int *p=a+2;return *p;}', "语法", "PARSE_POINTER_REMOVED"),
+            ("volatile_removed", 'volatile int x;int main(void){return 0;}', "语法", "PARSE_"),
+            ("for_declaration", 'int main(void){for(int i=0;i<3;i++){}return 0;}', "语法", "PARSE_FOR_DECLARATION"),
+            ("late_declaration", 'int main(void){int x=0;x++;int y=2;return y;}', "语法", "PARSE_DECLARATION_ORDER"),
+            ("address_removed", 'int main(void){int x=0;return &x;}', "语义", "SEM_ADDRESS"),
             ("negative_index", 'int main(void){int a[2]={1,2};int i=-1;return a[i];}', "运行", "越界"),
-            ("unrelated_pointers", 'int main(void){int a[2],b[2];return a-b;}', "运行", "指针差值或大小比较必须指向同一个数组"),
+            ("unrelated_pointers", 'int main(void){int a[2],b[2];return a-b;}', "语义", "SEM_OPERANDS"),
             ("shift_count", 'int main(void){int x=1,n=32;return x<<n;}', "运行", "移位"),
             ("integer_overflow", 'int main(void){int x=2147483647;return x+1;}', "运行", "范围"),
             ("object_size_limit", 'int main(void){int a[5000000];return 0;}', "语义", "16 MiB"),
-            ("const_pointer_write", 'int main(void){int x=1;const int *p=&x;*p=2;return 0;}', "语义", "SEM_LVALUE"),
+            ("const_pointer_write", 'int main(void){int x=1;const int *p=&x;*p=2;return 0;}', "语法", "PARSE_POINTER_REMOVED"),
         ]:
             file = folder / (name + ".c")
             file.write_text(source + "\n", encoding="utf-8")

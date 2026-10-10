@@ -77,7 +77,7 @@ class Parser {
         switch (peek().type) {
         case TT::KW_VOID: case TT::KW_CHAR: case TT::KW_SHORT: case TT::KW_INT:
         case TT::KW_LONG: case TT::KW_FLOAT: case TT::KW_DOUBLE: case TT::KW_SIGNED:
-        case TT::KW_UNSIGNED: case TT::KW_CONST: case TT::KW_VOLATILE:
+        case TT::KW_UNSIGNED: case TT::KW_CONST:
         case TT::KW_STATIC: case TT::KW_EXTERN: case TT::KW_AUTO: case TT::KW_REGISTER:
         case TT::KW_TYPEDEF: case TT::KW_STRUCT: case TT::KW_UNION: case TT::KW_ENUM:
             return true;
@@ -102,11 +102,6 @@ class Parser {
         if (height > 128) fail("语法树嵌套超过 128 层", "PARSE_DEPTH", Level::Fatal);
         heights[&n] = height;
     }
-    // 在原类型外包一层，例如把 int 变成指向 int 的指针类型。
-    static TypePtr wrapped(TypeKind kind, TypePtr base) {
-        auto type = make_type_info(); type->kind = kind; type->base = std::move(base);
-        return type;
-    }
     // 声明开头的类型、限定符和存储类别信息。
     struct Specs {
         TypePtr type = nullptr; // 声明中的基础类型，例如 int 或 struct S。
@@ -127,7 +122,6 @@ class Parser {
             saw = true;
             switch (token.type) {
             case TT::KW_CONST: take(); type->is_const = true; continue;
-            case TT::KW_VOLATILE: take(); type->is_volatile = true; continue;
             case TT::KW_STATIC: case TT::KW_EXTERN: case TT::KW_AUTO: case TT::KW_REGISTER:
             case TT::KW_TYPEDEF:
                 if (!allow_storage || s.storage != StorageClass::None)
@@ -207,36 +201,25 @@ class Parser {
         return s;
     }
 
-    // 声明符中的一层指针、数组或函数。
+    // 声明符中的一层数组或函数。
     struct Layer {
-        TypeKind kind = TypeKind::Pointer; // 这一层是指针、数组还是函数。
-        bool is_const = false; // 这一层指针是否不能被重新赋值。
-        bool is_volatile = false; // 这一层指针是否带 volatile 限定符。
+        TypeKind kind = TypeKind::Array; // 这一层是数组还是函数。
         std::optional<std::size_t> length; // 数组元素个数；省略界限时为空。
         bool prototype = true; // 函数是否写了参数类型；空括号表示未写原型。
         bool variadic = false; // 函数参数表是否以省略号结束。
         std::vector<Node> params; // 本层函数的形参节点，按声明顺序保存。
     };
-    // 声明符信息，例如 a[3] 或 (*fn)(int)。
+    // 声明符信息，例如 a[3] 或 fn(int)。
     struct Declarator {
         std::string name; // 声明的名字；无名形参或类型名中可以为空。
-        std::vector<Layer> layers; // 从名字向外保存指针、数组、函数。
+        std::vector<Layer> layers; // 从名字向外保存数组、函数。
         SourceRange range; // 声明符从开始到结束的源码范围。
     };
-    // 读取名字及其指针、数组、函数层次；abstract 为 true 时允许没有名字。
+    // 读取名字及其数组、函数层次；abstract 为 true 时允许没有名字。
     Declarator declarator(bool abstract = false) {
         Nest nest(*this);
         Declarator d; d.range = peek().range;
-        std::vector<Layer> pointers;
-        while (accept(TT::STAR)) {
-            if (pointers.size() >= 128) fail("指针嵌套过深", "PARSE_DEPTH", Level::Fatal);
-            Layer layer;
-            while (at(TT::KW_CONST) || at(TT::KW_VOLATILE)) {
-                if (take().type == TT::KW_CONST) layer.is_const = true;
-                else layer.is_volatile = true;
-            }
-            pointers.push_back(std::move(layer));
-        }
+        if (at(TT::STAR)) fail("本项目不支持 C 语言指针声明", "PARSE_POINTER_REMOVED");
         if (at(TT::ID)) d.name = take().lexeme;
         else if (at(TT::LPAREN) && (peek(1).type == TT::STAR || peek(1).type == TT::LPAREN ||
                  (peek(1).type == TT::ID && !alias(peek(1).lexeme)))) {
@@ -295,7 +278,6 @@ class Parser {
             }
             d.layers.push_back(std::move(layer));
         }
-        for (auto i = pointers.rbegin(); i != pointers.rend(); ++i) d.layers.push_back(std::move(*i));
         if (pos) d.range.end = tokens[pos - 1].range.end;
         return d;
     }
@@ -303,7 +285,7 @@ class Parser {
     TypePtr build_type(TypePtr base, const Declarator& d) {
         for (auto i = d.layers.rbegin(); i != d.layers.rend(); ++i) {
             auto type = make_type_info(); type->kind = i->kind; type->base = base;
-            type->is_const = i->is_const; type->is_volatile = i->is_volatile;
+
             type->array_length = i->length; type->has_prototype = i->prototype; type->variadic = i->variadic;
             for (const auto& param : i->params) type->params.push_back(param->declared_type);
             if (i->kind == TypeKind::Function &&
@@ -554,6 +536,7 @@ class Parser {
     Node unary() {
         Nest nest(*this);
         const auto start = peek(); parenthesized = false;
+        if (at(TT::STAR)) fail("本项目不支持解引用", "PARSE_POINTER_REMOVED");
         if (accept(TT::KW_SIZEOF)) {
             auto n = node(NodeType::Sizeof, start);
             if (at(TT::LPAREN)) {
@@ -566,7 +549,7 @@ class Parser {
         }
         switch (start.type) {
         case TT::PLUS: case TT::MINUS: case TT::NOT: case TT::BIT_NOT:
-        case TT::AMP: case TT::STAR: case TT::PLUS_PLUS: case TT::MINUS_MINUS: {
+        case TT::AMP: case TT::PLUS_PLUS: case TT::MINUS_MINUS: {
             take(); auto n = node(NodeType::UnaryOp, start,
                 start.type == TT::PLUS_PLUS ? "pre++" : start.type == TT::MINUS_MINUS ? "pre--" : start.lexeme);
             n->children.push_back(unary()); finish(*n); parenthesized = false; return n;
@@ -619,12 +602,7 @@ class Parser {
             } else if (op.type == TT::DOT || op.type == TT::ARROW) {
                 const auto member = expect(TT::ID, "成员名字");
                 n = node(NodeType::MemberAccess, op, member.lexeme);
-                if (op.type == TT::ARROW) {
-                    auto dereference = node(NodeType::UnaryOp, op, "*");
-                    dereference->range = base->range; dereference->children.push_back(std::move(base));
-                    finish(*dereference);
-                    base = std::move(dereference);
-                }
+                if (op.type == TT::ARROW) fail("本项目不支持 ->，请用结构体对象的 . 访问成员", "PARSE_POINTER_REMOVED");
                 n->children.push_back(std::move(base));
             } else {
                 n = node(NodeType::UnaryOp, op, op.type == TT::PLUS_PLUS ? "post++" : "post--");

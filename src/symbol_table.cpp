@@ -41,27 +41,6 @@ bool member_type(const TypePtr& type, const SymbolTableData& data) {
     }
 }
 
-// 收集可见名字，先过滤光标后的声明，再处理同名遮蔽。
-std::vector<SymbolId> collect_prefix(const SymbolTableData& data,
-                                     const std::string& prefix, ScopeId scope,
-                                     const SourceLocation* cursor) {
-    std::unordered_set<std::string> seen;
-    std::vector<SymbolId> result;
-    while (scope != invalid_id && scope < data.scopes.size()) {
-        for (const auto& item : data.scopes[scope].symbols) {
-            const auto& entry = data.symbols[item.second];
-            if (cursor && entry.builtin == BuiltinKind::None &&
-                entry.range.begin.offset > cursor->offset) continue;
-            if (seen.insert(item.first).second && item.first.compare(0, prefix.size(), prefix) == 0)
-                result.push_back(item.second);
-        }
-        scope = data.scopes[scope].parent;
-    }
-    std::sort(result.begin(), result.end(), [&data](SymbolId left, SymbolId right) {
-        return data.symbols[left].name < data.symbols[right].name;
-    });
-    return result;
-}
 
 }
 
@@ -302,20 +281,6 @@ std::optional<std::size_t> SymbolTable::find_member(RecordId id, const std::stri
     return std::nullopt;
 }
 
-std::vector<SymbolId> SymbolTable::prefix_query(const std::string& prefix) const {
-    return collect_prefix(data_, prefix, current_scope(), nullptr);
-}
-
-std::vector<SymbolId> SymbolTable::prefix_query(const std::string& prefix, ScopeId scope,
-                                               const SourceLocation& cursor) const {
-    return collect_prefix(data_, prefix, scope, &cursor);
-}
-
-std::vector<SymbolId> visible_symbols(const SymbolTableData& data, const std::string& prefix,
-                                      ScopeId scope, const SourceLocation& cursor) {
-    return collect_prefix(data, prefix, scope, &cursor);
-}
-
 const SymbolTableData& SymbolTable::data() const noexcept { return data_; }
 SymbolTableData SymbolTable::release() && { return std::move(data_); }
 
@@ -331,7 +296,7 @@ bool register_builtins(SymbolTable& table) {
     character->kind = TypeKind::Char;
     character->is_const = true;
     auto pointer = make_type_info();
-    pointer->kind = TypeKind::Pointer;
+    pointer->kind = TypeKind::Address;
     pointer->base = character;
     auto function = make_type_info();
     function->kind = TypeKind::Function;

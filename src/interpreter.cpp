@@ -17,11 +17,11 @@ namespace {
 
 struct Address {
     std::uint64_t frame = 0; // 0 是全局区，其余是调用帧的唯一编号。
-    SymbolId symbol = invalid_id; // 所指对象编号，invalid_id 表示空指针。
+    SymbolId symbol = invalid_id; // 所指对象编号，invalid_id 表示没有绑定变量。
     std::size_t offset = 0; // 子对象相对根对象的字节偏移。
     TypePtr type = nullptr; // 当前地址所指向的子对象类型。
     std::size_t first = 0; // 可移动范围的起点，包含此偏移。
-    std::size_t last = 0; // 可移动范围的终点，仅允许形成尾后指针。
+    std::size_t last = 0; // 数组存储范围的终点，不包含此位置。
     std::shared_ptr<const std::string> literal; // 指向常量字符串时保存只读字节。
     std::string temporary; // 临时聚合对象的名字，普通地址为空。
 };
@@ -83,15 +83,14 @@ bool truth(const Value& value) {
 }
 
 bool assign_type(const TypePtr& target, const TypePtr& source) {
-    return same_type(target, source) || can_assign(target, source) || detail::pointer_assign(target, source) ||
+    return same_type(target, source) || can_assign(target, source) || detail::address_compatible(target, source) ||
         (target && source && detail::aggregate(target) && detail::same_unqualified(target, source));
 }
 
-bool compatible_subobject(const TypePtr& target, const TypePtr& member, bool parent_const, bool parent_volatile) {
+bool compatible_subobject(const TypePtr& target, const TypePtr& member, bool parent_const) {
     if (!target || !member) return false;
     auto qualified = *member;
     qualified.is_const = qualified.is_const || parent_const;
-    qualified.is_volatile = qualified.is_volatile || parent_volatile;
     return same_type(target, &qualified);
 }
 
@@ -114,14 +113,12 @@ Value convert_value(const Value& value, const TypePtr& target) {
             throw std::runtime_error("浮点转整数或整数结果超出范围");
         return static_cast<std::int64_t>(truncated);
     }
-    if (target->kind == TypeKind::Pointer && target->base) {
+    if (target->kind == TypeKind::Address && target->base) {
         if (const auto* text = std::get_if<std::string>(&value); text && target->base->kind == TypeKind::Char)
             return Address{0, invalid_id, 0, target->base, 0, text->size() + 1, std::make_shared<const std::string>(*text), {}};
         if (const auto* address = std::get_if<Address>(&value)) {
             auto converted = *address; converted.type = target->base; return converted;
         }
-        if (const auto* integer = std::get_if<std::int64_t>(&value); integer && *integer == 0)
-            return Address{0, invalid_id, 0, target->base, 0, 0, {}, {}};
     }
     if (detail::aggregate(target) && std::holds_alternative<std::shared_ptr<Aggregate>>(value))
         return std::make_shared<Aggregate>(*std::get<std::shared_ptr<Aggregate>>(value));
@@ -203,7 +200,7 @@ class Machine {
         for (const auto& entry : *code.temporaries) {
             if (entry.name != "%t" + std::to_string(code.types.size()) ||
                 !(detail::numeric(entry.type) || detail::aggregate(entry.type) ||
-                  (entry.type && entry.type->kind == TypeKind::Pointer && entry.type->base)))
+                  (entry.type && entry.type->kind == TypeKind::Address && entry.type->base)))
                 throw std::runtime_error("临时量名字、顺序或类型无效");
             if (detail::aggregate(entry.type)) detail::layout(entry.type, symbols_);
             code.types.emplace(entry.name, entry.type);
@@ -229,7 +226,7 @@ class Machine {
         for (std::size_t i = 0; i < code.quads->size(); ++i) {
             location_ = (*code.locations)[i];
             const auto& q = (*code.quads)[i];
-            if (!queued.empty() && q.op != "arg" && q.op != "call" && q.op != "callind") throw std::runtime_error("arg 指令必须紧邻本次 call");
+            if (!queued.empty() && q.op != "arg" && q.op != "call") throw std::runtime_error("arg 指令必须紧邻本次 call");
             const auto input_type = [&](const std::string& name) { return operand_type(name, code, owner); };
             const auto destination_type = [&]() { return target_type(q.result, code, owner); };
             const auto require_numeric = [&](const std::string& name) {
@@ -237,8 +234,8 @@ class Machine {
             };
             const auto require_scalar = [&](const std::string& name) {
                 const auto type = input_type(name);
-                if (!detail::numeric(type) && type->kind != TypeKind::Pointer)
-                    throw std::runtime_error("操作数类型必须为数值或指针");
+                if (!detail::numeric(type) && type->kind != TypeKind::Address)
+                    throw std::runtime_error("操作数类型必须为数值或内部地址");
             };
             if (q.op == "label" || q.op == "jmp") {
                 if (q.arg1 != "-" || q.arg2 != "-" || (q.op == "jmp" && !code.labels.count(q.result)))
@@ -253,57 +250,45 @@ class Machine {
                     (entry.kind != SymbolKind::Variable && entry.kind != SymbolKind::Array) || q.arg1 != "-" || q.arg2 != "-")
                     throw std::runtime_error("local 只能重置局部变量");
             } else if (q.op == "load" || q.op == "store") {
-                const auto pointer = input_type(q.op == "load" ? q.arg1 : q.result);
-                if (!pointer || pointer->kind != TypeKind::Pointer || !pointer->base || q.arg2 != "-")
+                const auto address_value = input_type(q.op == "load" ? q.arg1 : q.result);
+                if (!address_value || address_value->kind != TypeKind::Address || !address_value->base || q.arg2 != "-")
                     throw std::runtime_error("load/store 需要合法对象地址");
                 const auto value = q.op == "load" ? destination_type() : input_type(q.arg1);
-                if (!assign_type(q.op == "load" ? value : pointer->base, q.op == "load" ? pointer->base : value))
+                if (!assign_type(q.op == "load" ? value : address_value->base, q.op == "load" ? address_value->base : value))
                     throw std::runtime_error("load/store 的值与所指类型不兼容");
             } else if (q.op == "indexaddr") {
                 const auto base = input_type(q.arg1), target = destination_type();
                 const auto index = input_type(q.arg2);
-                if (base->kind != TypeKind::Pointer || !base->base || base->base->kind != TypeKind::Array ||
-                    target->kind != TypeKind::Pointer || !detail::numeric(index) || detail::floating(index) ||
-                    !compatible_subobject(target->base, base->base->base, base->base->is_const, base->base->is_volatile))
+                if (base->kind != TypeKind::Address || !base->base || base->base->kind != TypeKind::Array ||
+                    target->kind != TypeKind::Address || !detail::numeric(index) || detail::floating(index) ||
+                    !compatible_subobject(target->base, base->base->base, base->base->is_const))
                     throw std::runtime_error("indexaddr 类型无效");
             } else if (q.op == "decay") {
                 const auto base = input_type(q.arg1), target = destination_type();
-                if (q.arg2 != "-" || base->kind != TypeKind::Pointer || !base->base || base->base->kind != TypeKind::Array ||
-                    target->kind != TypeKind::Pointer || !compatible_subobject(target->base, base->base->base, base->base->is_const, base->base->is_volatile))
+                if (q.arg2 != "-" || base->kind != TypeKind::Address || !base->base || base->base->kind != TypeKind::Array ||
+                    target->kind != TypeKind::Address || !compatible_subobject(target->base, base->base->base, base->base->is_const))
                     throw std::runtime_error("decay 类型无效");
-            } else if (q.op == "ptradd" || q.op == "ptrsub") {
+            } else if (q.op == "offsetaddr") {
                 const auto base = input_type(q.arg1), index = input_type(q.arg2), target = destination_type();
-                if (base->kind != TypeKind::Pointer || !base->base || !detail::pointer_assign(target, base) ||
-                    !detail::numeric(index) || detail::floating(index)) throw std::runtime_error("指针偏移类型无效");
+                if (base->kind != TypeKind::Address || !base->base || !detail::address_compatible(target, base) ||
+                    !detail::numeric(index) || detail::floating(index)) throw std::runtime_error("数组形参寻址类型无效");
                 detail::layout(base->base, symbols_);
-            } else if (q.op == "ptrdiff") {
-                const auto left = input_type(q.arg1), right = input_type(q.arg2);
-                if (!(detail::pointer_assign(left, right) || detail::pointer_assign(right, left)) || destination_type()->kind != TypeKind::Int)
-                    throw std::runtime_error("指针差值类型无效");
-                detail::layout(left->base, symbols_);
             } else if (q.op == "memberaddr") {
                 const auto base = input_type(q.arg1), target = destination_type();
-                if (base->kind != TypeKind::Pointer || !base->base || (base->base->kind != TypeKind::Struct && base->base->kind != TypeKind::Union) ||
-                    target->kind != TypeKind::Pointer || !target->base)
+                if (base->kind != TypeKind::Address || !base->base || (base->base->kind != TypeKind::Struct && base->base->kind != TypeKind::Union) ||
+                    target->kind != TypeKind::Address || !target->base)
                     throw std::runtime_error("memberaddr 类型无效");
                 const auto offset = decimal(q.arg2);
                 bool found = false;
                 for (const auto& member : symbols_.records.at(base->base->record_id).members)
-                    if (member.offset == offset && compatible_subobject(target->base, member.type, base->base->is_const, base->base->is_volatile)) found = true;
+                    if (member.offset == offset && compatible_subobject(target->base, member.type, base->base->is_const)) found = true;
                 if (!found) throw std::runtime_error("memberaddr 偏移或类型不对应已定义的成员");
             } else if (q.op == "arg") {
                 const auto argument = input_type(q.arg1);
                 if (q.arg2 != "-" || q.result != "-") throw std::runtime_error("arg 格式无效");
                 queued.push_back(argument);
-            } else if (q.op == "call" || q.op == "callind") {
-                SymbolEntry callee;
-                if (q.op == "call") callee = function(q.arg1);
-                else {
-                    const auto pointer = input_type(q.arg1);
-                    if (pointer->kind != TypeKind::Pointer || !pointer->base || pointer->base->kind != TypeKind::Function || pointer->base->variadic)
-                        throw std::runtime_error("间接调用需要固定签名的函数指针");
-                    callee.type = pointer->base;
-                }
+            } else if (q.op == "call") {
+                const auto callee = function(q.arg1);
                 const auto count = decimal(q.arg2);
                 if (count != queued.size() || (callee.builtin == BuiltinKind::None && count != callee.type->params.size()) ||
                     (callee.builtin != BuiltinKind::None && count < 1)) throw std::runtime_error("调用的实参数量无效");
@@ -311,9 +296,9 @@ class Machine {
                     for (std::size_t argument = 0; argument < queued.size(); ++argument)
                         if (!assign_type(callee.type->params[argument], queued[argument]))
                             throw std::runtime_error("call 的实参类型与签名不兼容");
-                } else if (queued.front()->kind != TypeKind::Pointer || !queued.front()->base ||
+                } else if (queued.front()->kind != TypeKind::Address || !queued.front()->base ||
                            queued.front()->base->kind != TypeKind::Char)
-                    throw std::runtime_error("输入输出的首个实参必须是字符串指针");
+                    throw std::runtime_error("输入输出的首个实参必须是字符串地址");
                 if (q.result != "-" && !same_type(destination_type(), callee.type->base))
                     throw std::runtime_error("函数返回值目标类型无效");
                 queued.clear();
@@ -322,18 +307,15 @@ class Machine {
                 const auto returned = symbol(code.function).type->base;
                 if ((returned->kind == TypeKind::Void) != (q.arg1 == "-")) throw std::runtime_error("返回值与函数类型不一致");
                 if (q.arg1 != "-" && !assign_type(returned, input_type(q.arg1))) throw std::runtime_error("返回值类型不兼容");
-            } else if (q.op == "faddr") {
-                const auto& entry = function(q.arg1); const auto target = destination_type();
-                if (q.arg2 != "-" || target->kind != TypeKind::Pointer || !same_type(target->base, entry.type)) throw std::runtime_error("函数地址类型无效");
             } else if (q.op == "tempaddr") {
                 const auto source = input_type(q.arg1), target = destination_type();
-                if (q.arg2 != "-" || !code.types.count(q.arg1) || !detail::aggregate(source) || target->kind != TypeKind::Pointer || !same_type(source, target->base))
+                if (q.arg2 != "-" || !code.types.count(q.arg1) || !detail::aggregate(source) || target->kind != TypeKind::Address || !same_type(source, target->base))
                     throw std::runtime_error("临时聚合地址类型无效");
             } else if (q.op == "addr") {
                 const auto& entry = symbol(operand_id(q.arg1, 's'));
                 input_type(q.arg1);
                 const auto target = destination_type();
-                if (target->kind != TypeKind::Pointer ||
+                if (target->kind != TypeKind::Address ||
                     !same_type(entry.type, target->base) || q.arg2 != "-") throw std::runtime_error("addr 类型无效");
             } else if (q.op == "=" || q.op == "cvt" || q.op == "cvt_i2f") {
                 const auto source = input_type(q.arg1);
@@ -344,16 +326,9 @@ class Machine {
                 if (q.op == "cvt_i2f" && !(source->kind == TypeKind::Int && target->kind == TypeKind::Float))
                     throw std::runtime_error("cvt_i2f 类型无效");
                 if (q.op == "cvt" && !((detail::numeric(source) && detail::numeric(target)) ||
-                    detail::pointer_assign(target, source) ||
-                    (target->kind == TypeKind::Pointer && source->kind == TypeKind::Pointer && target->base && source->base &&
-                     target->base->kind != TypeKind::Function && source->base->kind != TypeKind::Function &&
-                     (target->base->kind == TypeKind::Char || source->base->kind == TypeKind::Char) &&
-                     (!source->base->is_const || target->base->is_const) && (!source->base->is_volatile || target->base->is_volatile)) ||
-                    (target->kind == TypeKind::Pointer && detail::numeric(source) && !detail::floating(source) &&
-                     q.arg1.size() > 2 && q.arg1[1] == 'c' &&
-                     std::get<std::int64_t>(program_.constants.entries.at(operand_id(q.arg1, 'c')).value) == 0) ||
+                    detail::address_compatible(target, source) ||
                     (source->kind == TypeKind::Array && source->base && source->base->kind == TypeKind::Char &&
-                     target->kind == TypeKind::Pointer && target->base->kind == TypeKind::Char)))
+                     target->kind == TypeKind::Address && target->base->kind == TypeKind::Char)))
                     throw std::runtime_error("不支持该转换指令");
             } else if (q.op == "neg" || q.op == "not" || q.op == "bnot") {
                 if (q.op == "not") require_scalar(q.arg1); else require_numeric(q.arg1);
@@ -363,10 +338,7 @@ class Machine {
             } else if (q.op == "+" || q.op == "-" || q.op == "*" || q.op == "/" || q.op == "%" ||
                        q.op == "<" || q.op == "<=" || q.op == ">" || q.op == ">=" || q.op == "==" || q.op == "!=" ||
                        q.op == "&" || q.op == "|" || q.op == "^" || q.op == "<<" || q.op == ">>") {
-                const auto left = input_type(q.arg1), right = input_type(q.arg2);
-                const bool pointer_equality = (q.op == "==" || q.op == "!=" || q.op == "<" || q.op == "<=" || q.op == ">" || q.op == ">=") &&
-                    (detail::pointer_assign(left, right) || detail::pointer_assign(right, left));
-                if (!pointer_equality) { require_numeric(q.arg1); require_numeric(q.arg2); }
+                require_numeric(q.arg1); require_numeric(q.arg2);
                 const bool comparison = q.op == "<" || q.op == "<=" || q.op == ">" || q.op == ">=" || q.op == "==" || q.op == "!=";
                 const bool integral = q.op == "%" || q.op == "&" || q.op == "|" || q.op == "^" || q.op == "<<" || q.op == ">>";
                 if (!detail::numeric(destination_type()) || (comparison && destination_type()->kind != TypeKind::Int) ||
@@ -408,7 +380,7 @@ class Machine {
             const auto& entry = symbol(function_ir.symbol_id);
             if (entry.kind != SymbolKind::Function || !entry.is_defined || entry.builtin != BuiltinKind::None ||
                 !entry.type || entry.type->kind != TypeKind::Function || !entry.type->base || entry.type->variadic ||
-                !(detail::numeric(entry.type->base) || entry.type->base->kind == TypeKind::Void || entry.type->base->kind == TypeKind::Pointer || detail::aggregate(entry.type->base)))
+                !(detail::numeric(entry.type->base) || entry.type->base->kind == TypeKind::Void || entry.type->base->kind == TypeKind::Address || detail::aggregate(entry.type->base)))
                 throw std::runtime_error("函数清单含有无效签名");
             Code code;
             code.quads = &function_ir.quads;
@@ -468,14 +440,14 @@ class Machine {
             }
             throw std::runtime_error("临时对象所属调用帧已结束");
         }
-        if (address.symbol == invalid_id) throw std::runtime_error("不能解引用空指针");
+        if (address.symbol == invalid_id) throw std::runtime_error("内部地址没有绑定对象");
         const auto& entry = symbol(address.symbol);
         if (!address.type) throw std::runtime_error("地址缺少所指类型");
         const auto total = detail::layout(entry.type, symbols_).size;
         const auto selected = detail::layout(address.type, symbols_).size;
-        if (address.offset % detail::layout(address.type, symbols_).alignment) throw std::runtime_error("指针所指地址不满足类型对齐");
+        if (address.offset % detail::layout(address.type, symbols_).alignment) throw std::runtime_error("内部地址不满足类型对齐");
         if (address.last > total || address.offset < address.first || address.offset > address.last || selected > address.last - address.offset)
-            throw std::runtime_error("地址超出所属对象边界，尾后指针不能解引用");
+            throw std::runtime_error("地址超出所属对象边界");
         if (address.frame == 0 && globals_.count(entry.id))
             return global_values_.at(detail::symbol_name(entry.id));
         for (auto& frame : frames_) {
@@ -500,7 +472,7 @@ class Machine {
         if (!detail::aggregate(root_type)) {
             if (std::holds_alternative<std::monostate>(root)) throw std::runtime_error("读取尚未初始化的变量");
             if (!detail::same_unqualified(root_type, address.type)) {
-                if (address.type->kind != TypeKind::Char || !detail::numeric(root_type)) throw std::runtime_error("指针所指类型与根对象不兼容");
+                if (address.type->kind != TypeKind::Char || !detail::numeric(root_type)) throw std::runtime_error("内部地址类型与根对象不兼容");
                 std::uint64_t bits;
                 if (detail::integral(root_type)) bits = static_cast<std::uint64_t>(std::get<std::int64_t>(root));
                 else if (root_type->kind == TypeKind::Float) { const auto value = static_cast<float>(std::get<double>(root)); std::uint32_t word; std::memcpy(&word, &value, 4); bits = word; }
@@ -527,12 +499,12 @@ class Machine {
             const auto size = detail::layout(address.type, symbols_).size;
             for (const auto& cell : object->cells)
                 if (cell.first < address.offset + size && cell.first + 8 > address.offset)
-                    throw std::runtime_error("不能把指针表示读取为数值");
+                    throw std::runtime_error("不能把地址信息读取为数值");
             std::uint64_t bits = 0;
             for (std::size_t i = 0; i < size; ++i) {
                 const auto byte = object->bytes.find(address.offset + i);
                 if (object->unknown.count(address.offset + i) || (byte == object->bytes.end() && !object->zero)) throw std::runtime_error("读取尚未初始化的数值字节");
-                if (object->cells.count(address.offset + i)) throw std::runtime_error("不能把指针表示读取为数值");
+                if (object->cells.count(address.offset + i)) throw std::runtime_error("不能把地址信息读取为数值");
                 bits |= static_cast<std::uint64_t>(byte == object->bytes.end() ? 0 : byte->second) << (8 * i);
             }
             if (detail::floating(address.type)) {
@@ -548,7 +520,7 @@ class Machine {
             return cell->second;
         }
         for (std::size_t i = 0; i < detail::layout(address.type, symbols_).size; ++i)
-            if (object->bytes.count(address.offset + i) || object->unknown.count(address.offset + i)) throw std::runtime_error("不能把数值表示读取为指针");
+            if (object->bytes.count(address.offset + i) || object->unknown.count(address.offset + i)) throw std::runtime_error("不能把数值表示读取为内部地址");
         if (!object->zero) throw std::runtime_error("读取尚未初始化的数组元素或结构体成员");
         return convert_value(std::int64_t{0}, address.type);
     }
@@ -561,7 +533,7 @@ class Machine {
             const auto root_type = symbol(address.symbol).type;
             if (!detail::same_unqualified(root_type, address.type)) {
                 if (address.type->kind != TypeKind::Char || !detail::numeric(root_type) || std::holds_alternative<std::monostate>(root))
-                    throw std::runtime_error("指针写入类型不兼容或原对象未初始化");
+                    throw std::runtime_error("地址写入类型不兼容或原对象未初始化");
                 std::uint64_t bits;
                 if (detail::integral(root_type)) bits = static_cast<std::uint64_t>(std::get<std::int64_t>(root));
                 else if (root_type->kind == TypeKind::Float) { const auto value = static_cast<float>(std::get<double>(root)); std::uint32_t word; std::memcpy(&word, &value, 4); bits = word; }
@@ -625,7 +597,7 @@ class Machine {
                 if (!object.unknown.count(offset + i)) object.bytes.emplace(offset + i, 0);
             }
             else for (std::size_t i = 0; i < size; ++i) if (!object.bytes.count(offset + i)) object.unknown.insert(offset + i);
-        } else if (type->kind == TypeKind::Pointer) {
+        } else if (type->kind == TypeKind::Address) {
             if (!object.cells.count(offset)) object.cells[offset] = object.zero ? convert_value(std::int64_t{0}, type) : Value{std::monostate{}};
         } else if (type->kind == TypeKind::Array) {
             const auto stride = detail::layout(type->base, symbols_).size;
@@ -636,10 +608,10 @@ class Machine {
                 const auto size = detail::layout(type, symbols_).size;
                 for (std::size_t i = 0; i < size; ++i) {
                     const auto position = offset + i;
-                    bool pointer_byte = false;
+                    bool address_byte = false;
                     for (const auto& cell : object.cells)
-                        if (position >= cell.first && position - cell.first < 8) { pointer_byte = true; break; }
-                    if (pointer_byte) continue;
+                        if (position >= cell.first && position - cell.first < 8) { address_byte = true; break; }
+                    if (address_byte) continue;
                     if (object.zero) { if (!object.unknown.count(position)) object.bytes.emplace(position, 0); }
                     else if (!object.bytes.count(position)) object.unknown.insert(position);
                 }
@@ -660,17 +632,6 @@ class Machine {
     void write_address(const Address& address, const Value& value, const TypePtr& expected) {
         if (!address.type || !detail::same_unqualified(address.type, expected) || address.type->is_const) throw std::runtime_error("scanf 地址类型不匹配");
         store_address(address, value);
-    }
-
-    // 指针差值和大小比较只能在同一个数组范围内进行。
-    void same_array(const Address& left, const Address& right) const {
-        if (left.literal || right.literal) {
-            if (left.literal != right.literal || left.first != right.first || left.last != right.last) throw std::runtime_error("指针不属于同一个字符串");
-            return;
-        }
-        if ((left.symbol == invalid_id && left.temporary.empty()) || (right.symbol == invalid_id && right.temporary.empty()) || left.frame != right.frame ||
-            left.symbol != right.symbol || left.first != right.first || left.last != right.last || left.temporary != right.temporary)
-            throw std::runtime_error("指针差值或大小比较必须指向同一个数组");
     }
 
     Value builtin(const SymbolEntry& entry, const std::vector<Value>& arguments) {
@@ -760,12 +721,12 @@ class Machine {
         return detail::checked_integer(static_cast<std::int64_t>(scanning ? conversions : written));
     }
 
-    // 沿字符指针读取到终止零，越界或未初始化时立即报错。
+    // 沿字符数组地址读取到终止零，越界或未初始化时立即报错。
     std::string string_value(const Value& value) {
         if (const auto* text = std::get_if<std::string>(&value)) return text->substr(0, text->find('\0'));
-        if (!std::holds_alternative<Address>(value)) throw std::runtime_error("需要字符指针");
+        if (!std::holds_alternative<Address>(value)) throw std::runtime_error("需要字符数组地址");
         auto address = std::get<Address>(value); std::string text;
-        if (!address.type || address.type->kind != TypeKind::Char) throw std::runtime_error("字符串指针类型错误");
+        if (!address.type || address.type->kind != TypeKind::Char) throw std::runtime_error("字符串地址类型错误");
         while (address.offset < address.last) {
             const auto byte = std::get<std::int64_t>(read_address(address));
             if (byte == 0) return text;
@@ -823,42 +784,33 @@ class Machine {
                 const bool jump = q.op == "jmp" || (q.op == "jz" ? !truth(read(q.arg1, frame)) : truth(read(q.arg1, frame)));
                 if (jump) frame.pc = frame.code->labels.at(q.result);
             } else if (q.op == "=" || q.op == "cvt" || q.op == "cvt_i2f") write(q.result, read(q.arg1, frame), frame);
-            else if (q.op == "faddr") {
-                const auto& entry = function(q.arg1);
-                write(q.result, Address{0, entry.id, 0, entry.type, 0, 0, {}, {}}, frame);
-            } else if (q.op == "tempaddr") {
+            else if (q.op == "tempaddr") {
                 const auto type = destination_type(q.arg1, frame);
                 write(q.result, Address{frame.id, invalid_id, 0, type, 0, detail::layout(type, symbols_).size, {}, q.arg1}, frame);
             } else if (q.op == "addr") {
                 const auto& entry = symbol(operand_id(q.arg1, 's'));
                 write(q.result, Address{globals_.count(entry.id) ? 0 : frame.id, entry.id, 0, entry.type, 0, detail::layout(entry.type, symbols_).size, {}, {}}, frame);
-            } else if (q.op == "decay" || q.op == "ptradd" || q.op == "ptrsub") {
+            } else if (q.op == "decay" || q.op == "offsetaddr") {
                 const auto value = read(q.arg1, frame);
-                if (!std::holds_alternative<Address>(value)) throw std::runtime_error("指针偏移需要对象地址");
+                if (!std::holds_alternative<Address>(value)) throw std::runtime_error("数组形参寻址需要对象地址");
                 auto selected = std::get<Address>(value);
-                if (selected.symbol == invalid_id && !selected.literal && selected.temporary.empty()) throw std::runtime_error("空指针不能偏移");
+                if (selected.symbol == invalid_id && !selected.literal && selected.temporary.empty()) throw std::runtime_error("空地址不能访问");
                 if (q.op == "decay") {
                     root_value(selected);
                     selected.first = selected.offset;
                     selected.last = selected.offset + detail::layout(selected.type, symbols_).size;
                 } else {
                     const auto index_value = read(q.arg2, frame);
-                    if (!std::holds_alternative<std::int64_t>(index_value)) throw std::runtime_error("指针偏移需要整型下标");
+                    if (!std::holds_alternative<std::int64_t>(index_value)) throw std::runtime_error("数组形参寻址需要整型下标");
                     const auto stride = detail::layout(selected.type, symbols_).size;
-                    const auto delta = std::get<std::int64_t>(index_value) * static_cast<std::int64_t>(stride) * (q.op == "ptrsub" ? -1 : 1);
+                    const auto delta = std::get<std::int64_t>(index_value) * static_cast<std::int64_t>(stride);
                     const auto offset = static_cast<std::int64_t>(selected.offset) + delta;
-                    if (offset < static_cast<std::int64_t>(selected.first) || offset > static_cast<std::int64_t>(selected.last))
-                        throw std::runtime_error("指针偏移越界");
+                    if (offset < static_cast<std::int64_t>(selected.first) || offset >= static_cast<std::int64_t>(selected.last))
+                        throw std::runtime_error("数组形参寻址越界");
                     selected.offset = static_cast<std::size_t>(offset);
                 }
                 selected.type = destination_type(q.result, frame)->base;
                 write(q.result, selected, frame);
-            } else if (q.op == "ptrdiff") {
-                const auto a = read(q.arg1, frame), b = read(q.arg2, frame);
-                if (!std::holds_alternative<Address>(a) || !std::holds_alternative<Address>(b)) throw std::runtime_error("指针差值需要对象地址");
-                const auto& left = std::get<Address>(a); const auto& right = std::get<Address>(b); same_array(left, right);
-                const auto stride = static_cast<std::int64_t>(detail::layout(left.type, symbols_).size);
-                write(q.result, (static_cast<std::int64_t>(left.offset) - static_cast<std::int64_t>(right.offset)) / stride, frame);
             } else if (q.op == "indexaddr" || q.op == "memberaddr") {
                 const auto base_value = read(q.arg1, frame);
                 if (!std::holds_alternative<Address>(base_value)) throw std::runtime_error("寻址操作数不是对象地址");
@@ -882,26 +834,16 @@ class Machine {
                 root_value(selected);
                 write(q.result, selected, frame);
             } else if (q.op == "load") {
-                const auto pointer = read(q.arg1, frame);
-                if (!std::holds_alternative<Address>(pointer)) throw std::runtime_error("load 需要对象地址");
-                write(q.result, read_address(std::get<Address>(pointer)), frame);
+                const auto address_value = read(q.arg1, frame);
+                if (!std::holds_alternative<Address>(address_value)) throw std::runtime_error("load 需要对象地址");
+                write(q.result, read_address(std::get<Address>(address_value)), frame);
             } else if (q.op == "store") {
-                const auto pointer = read(q.result, frame);
-                if (!std::holds_alternative<Address>(pointer)) throw std::runtime_error("store 需要对象地址");
-                store_address(std::get<Address>(pointer), read(q.arg1, frame));
+                const auto address_value = read(q.result, frame);
+                if (!std::holds_alternative<Address>(address_value)) throw std::runtime_error("store 需要对象地址");
+                store_address(std::get<Address>(address_value), read(q.arg1, frame));
             } else if (q.op == "arg") frame.arguments.push_back(read(q.arg1, frame));
-            else if (q.op == "call" || q.op == "callind") {
-                SymbolId called;
-                if (q.op == "call") called = function(q.arg1).id;
-                else {
-                    const auto pointer = read(q.arg1, frame);
-                    if (!std::holds_alternative<Address>(pointer) || std::get<Address>(pointer).symbol == invalid_id) throw std::runtime_error("不能调用空函数指针");
-                    const auto& address = std::get<Address>(pointer);
-                    const auto& candidate = function(detail::symbol_name(address.symbol));
-                    if (address.frame != 0 || address.offset != 0 || !same_type(candidate.type, destination_type(q.arg1, frame)->base))
-                        throw std::runtime_error("函数指针身份或签名无效");
-                    called = candidate.id;
-                }
+            else if (q.op == "call") {
+                const auto called = function(q.arg1).id;
                 const auto& callee = symbol(called);
                 auto arguments = std::move(frame.arguments);
                 frame.arguments.clear();
@@ -926,21 +868,6 @@ class Machine {
             } else {
                 const auto left_value = read(q.arg1, frame);
                 const auto right_value = read(q.arg2, frame);
-                if (std::holds_alternative<Address>(left_value) || std::holds_alternative<Address>(right_value)) {
-                    if (!std::holds_alternative<Address>(left_value) || !std::holds_alternative<Address>(right_value) ||
-                        (q.op != "==" && q.op != "!=" && q.op != "<" && q.op != "<=" && q.op != ">" && q.op != ">=")) throw std::runtime_error("指针运算类型无效");
-                    const auto& a = std::get<Address>(left_value); const auto& b = std::get<Address>(right_value);
-                    const bool equal = a.frame == b.frame && a.symbol == b.symbol && a.offset == b.offset && a.literal == b.literal && a.temporary == b.temporary;
-                    bool compared;
-                    if (q.op == "==" || q.op == "!=") compared = q.op == "==" ? equal : !equal;
-                    else {
-                        same_array(a, b);
-                        compared = q.op == "<" ? a.offset < b.offset : q.op == "<=" ? a.offset <= b.offset :
-                            q.op == ">" ? a.offset > b.offset : a.offset >= b.offset;
-                    }
-                    write(q.result, std::int64_t{compared}, frame);
-                    continue;
-                }
                 const double left = number(left_value), right = number(right_value);
                 Value value;
                 if (q.op == "<") value = std::int64_t{left < right};

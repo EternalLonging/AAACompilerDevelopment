@@ -13,7 +13,7 @@ bool compare(const TypePtr& left, const TypePtr& right, std::vector<TypePair>& p
     if (path.size() > 128) return false;
     if (!left || !right || left->kind != right->kind ||
         left->is_unsigned != right->is_unsigned ||
-        left->is_const != right->is_const || left->is_volatile != right->is_volatile)
+        left->is_const != right->is_const)
         return false;
     for (const auto& pair : path)
         if (pair.first == left && pair.second == right) return false;
@@ -22,7 +22,7 @@ bool compare(const TypePtr& left, const TypePtr& right, std::vector<TypePair>& p
     switch (left->kind) {
     case TypeKind::Unknown: case TypeKind::Error: case TypeKind::Named:
         break;
-    case TypeKind::Pointer:
+    case TypeKind::Address:
         equal = compare(left->base, right->base, path);
         break;
     case TypeKind::Array:
@@ -37,11 +37,11 @@ bool compare(const TypePtr& left, const TypePtr& right, std::vector<TypePair>& p
         for (std::size_t i = 0; equal && i < left->params.size(); ++i) {
             const auto adjusted = [](TypePtr parameter) {
                 TypeInfo result;
-                if (parameter->kind == TypeKind::Array || parameter->kind == TypeKind::Function) {
-                    result.kind = TypeKind::Pointer;
-                    result.base = parameter->kind == TypeKind::Array ? parameter->base : parameter;
+                if (parameter->kind == TypeKind::Array) {
+                    result.kind = TypeKind::Address;
+                    result.base = parameter->base;
                 } else result = *parameter;
-                result.is_const = result.is_volatile = false;
+                result.is_const = false;
                 return result;
             };
             if (!left->params[i] || !right->params[i]) { equal = false; break; }

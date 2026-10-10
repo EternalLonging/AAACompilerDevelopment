@@ -62,10 +62,10 @@ std::string type_text(const TypePtr& type, std::size_t depth = 0) {
     if (!type) return "未标注";
     if (depth > 64) return "类型过深";
     static const char* names[] = {"Unknown", "Error", "void", "char", "short", "int", "long", "float", "double", "long double",
-                                 "pointer", "array", "function", "struct", "union", "enum", "named"};
+                                 "address", "array", "function", "struct", "union", "enum", "named"};
     const auto index = static_cast<std::size_t>(type->kind);
     std::string value = index < sizeof(names) / sizeof(names[0]) ? names[index] : "InvalidType";
-    if (type->kind == TypeKind::Pointer) value = type_text(type->base, depth + 1) + "*";
+    if (type->kind == TypeKind::Address) value = "地址(" + type_text(type->base, depth + 1) + ")";
     else if (type->kind == TypeKind::Array)
         value = type_text(type->base, depth + 1) + "[" + (type->array_length ? std::to_string(*type->array_length) : "") + "]";
     else if (type->kind == TypeKind::Function) {
@@ -80,7 +80,6 @@ std::string type_text(const TypePtr& type, std::size_t depth = 0) {
         value += " " + type->name + "#" + std::to_string(type->record_id);
     if (type->is_unsigned) value = "unsigned " + value;
     if (type->is_const) value = "const " + value;
-    if (type->is_volatile) value = "volatile " + value;
     return value;
 }
 

@@ -73,18 +73,15 @@ class Generator {
     // 左值求地址，赋值不提前读取尚未初始化的目标。
     std::string address(const ASTNode& node, std::size_t depth = 0) {
         if (depth > 128 || !node.type) throw std::runtime_error("地址表达式类型无效或过深");
-        const auto result = temporary(detail::pointer(node.type));
+        const auto result = temporary(detail::address_type(node.type));
         if (node.kind == NodeType::Identifier) {
-            const auto& entry = binding(node); emit(entry.kind == SymbolKind::Function ? "faddr" : "addr", detail::symbol_name(node.symbol_id), "-", result, node.range);
-        } else if (node.kind == NodeType::UnaryOp && node.name == "*") {
-            count(node, 1, 1);
-            emit("=", expression(child(node, 0)), "-", result, node.range);
+            binding(node); emit("addr", detail::symbol_name(node.symbol_id), "-", result, node.range);
         } else if (node.kind == NodeType::ArrayAccess) {
             count(node, 2, 2);
-            const bool pointer = child(node, 0).type->kind == TypeKind::Pointer;
-            const auto base = pointer ? snapshot(expression(child(node, 0)), child(node, 0).type, node.range) : address(child(node, 0), depth + 1);
+            const bool array_parameter = child(node, 0).type->kind == TypeKind::Address;
+            const auto base = array_parameter ? snapshot(expression(child(node, 0)), child(node, 0).type, node.range) : address(child(node, 0), depth + 1);
             const auto index = expression(child(node, 1));
-            emit(pointer ? "ptradd" : "indexaddr", base, index, result, node.range);
+            emit(array_parameter ? "offsetaddr" : "indexaddr", base, index, result, node.range);
         } else if (node.kind == NodeType::MemberAccess) {
             count(node, 1, 1);
             if (node.record_id >= symbols_.records.size() || !node.member_index ||
@@ -103,17 +100,17 @@ class Generator {
     void initialize(const std::string& destination, const TypePtr& target, const ASTNode& init) {
         if (init.kind == NodeType::InitList) {
             for (std::size_t i = 0; i < init.children.size(); ++i) {
-                if (detail::numeric(target) || target->kind == TypeKind::Pointer) { initialize(destination, target, child(init, i)); continue; }
+                if (detail::numeric(target) || target->kind == TypeKind::Address) { initialize(destination, target, child(init, i)); continue; }
                 TypePtr element = nullptr;
                 std::string selected;
                 if (target->kind == TypeKind::Array) {
                     element = target->base;
-                    selected = temporary(detail::pointer(element));
+                    selected = temporary(detail::address_type(element));
                     emit("indexaddr", destination, integer(static_cast<std::int64_t>(i)), selected, init.range);
                 } else {
                     const auto& member = symbols_.records.at(target->record_id).members.at(i);
                     element = member.type;
-                    selected = temporary(detail::pointer(element));
+                    selected = temporary(detail::address_type(element));
                     emit("memberaddr", destination, std::to_string(*member.offset), selected, init.range);
                 }
                 initialize(selected, element, child(init, i));
@@ -121,7 +118,7 @@ class Generator {
         } else if (target->kind == TypeKind::Array && init.kind == NodeType::StringLiteral) {
             const auto& text = std::get<std::string>(init.value);
             for (std::size_t i = 0; i < text.size(); ++i) {
-                const auto selected = temporary(detail::pointer(target->base));
+                const auto selected = temporary(detail::address_type(target->base));
                 emit("indexaddr", destination, integer(static_cast<std::int64_t>(i)), selected, init.range);
                 const auto byte = static_cast<unsigned char>(text[i]);
                 const auto character = byte <= 127 ? static_cast<std::int64_t>(byte) : static_cast<std::int64_t>(byte) - 256;
@@ -165,8 +162,8 @@ class Generator {
         case NodeType::Identifier:
             count(node, 0, 0);
             binding(node);
-            if (node.type->kind == TypeKind::Function) result = address(node);
-            else result = detail::symbol_name(node.symbol_id);
+            if (node.type->kind == TypeKind::Function) throw std::runtime_error("函数名字不能作为值生成四元式");
+            result = detail::symbol_name(node.symbol_id);
             break;
         case NodeType::IntLiteral: case NodeType::FloatLiteral:
         case NodeType::CharLiteral: case NodeType::StringLiteral:
@@ -175,10 +172,7 @@ class Generator {
             break;
         case NodeType::ImplicitCast: case NodeType::Cast: {
             count(node, 1, 1);
-            if (child(node, 0).type->kind == TypeKind::Function && node.type->kind == TypeKind::Pointer) {
-                result = expression(child(node, 0)); break;
-            }
-            if (child(node, 0).type->kind == TypeKind::Array && child(node, 0).kind != NodeType::StringLiteral && node.type->kind == TypeKind::Pointer) {
+            if (child(node, 0).type->kind == TypeKind::Array && child(node, 0).kind != NodeType::StringLiteral && node.type->kind == TypeKind::Address) {
                 result = temporary(node.type); emit("decay", address(child(node, 0)), "-", result, node.range); break;
             }
             const auto source = expression(child(node, 0));
@@ -207,12 +201,7 @@ class Generator {
             } else {
                 const auto saved = snapshot(left, child(node, 0).type, node.range);
                 const auto right = expression(child(node, 1));
-                if ((node.name == "+" || node.name == "-") && node.type->kind == TypeKind::Pointer) {
-                    const bool first_pointer = child(node, 0).type->kind == TypeKind::Pointer;
-                    emit(node.name == "+" ? "ptradd" : "ptrsub", first_pointer ? saved : right, first_pointer ? right : saved, result, node.range);
-                } else if (node.name == "-" && child(node, 0).type->kind == TypeKind::Pointer)
-                    emit("ptrdiff", saved, right, result, node.range);
-                else emit(node.name, saved, right, result, node.range);
+                emit(node.name, saved, right, result, node.range);
             }
             break;
         }
@@ -233,7 +222,7 @@ class Generator {
                     node.name != "&=" && node.name != "|=" && node.name != "^=" && node.name != "<<=" && node.name != ">>=")
                     throw std::runtime_error("不支持的复合赋值");
                 const auto value = temporary(node.type);
-                emit(node.type->kind == TypeKind::Pointer ? (node.name == "+=" ? "ptradd" : "ptrsub") : node.name.substr(0, node.name.size() - 1), original, source, value, node.range);
+                emit(node.name.substr(0, node.name.size() - 1), original, source, value, node.range);
                 emit("store", value, "-", destination, node.range);
             }
             result = temporary(node.type);
@@ -243,11 +232,6 @@ class Generator {
         case NodeType::UnaryOp: {
             count(node, 1, 1);
             const auto& operand = child(node, 0);
-            if (node.name == "*") {
-                if (node.type->kind == TypeKind::Function) result = expression(operand);
-                else { result = temporary(node.type); emit("load", address(node), "-", result, node.range); }
-                break;
-            }
             if (node.name == "&") { result = address(operand); break; }
             const bool update = node.name == "pre++" || node.name == "post++" || node.name == "pre--" || node.name == "post--";
             if (update) {
@@ -256,7 +240,7 @@ class Generator {
                 emit("load", destination, "-", original, node.range);
                 const auto updated = temporary(node.type);
                 const bool increment = node.name.find("++") != std::string::npos;
-                emit(node.type->kind == TypeKind::Pointer ? (increment ? "ptradd" : "ptrsub") : (increment ? "+" : "-"), original, integer(1), updated, node.range);
+                emit(increment ? "+" : "-", original, integer(1), updated, node.range);
                 emit("store", updated, "-", destination, node.range);
                 result = node.name.compare(0, 4, "post") == 0 ? original : updated;
                 break;
@@ -272,9 +256,7 @@ class Generator {
         case NodeType::Call: {
             count(node, 1, invalid_id);
             const auto& callee = child(node, 0);
-            const bool direct = callee.kind == NodeType::Identifier && callee.type->kind == TypeKind::Function;
-            const auto target = direct ? detail::symbol_name(binding(callee).id) : snapshot(expression(callee),
-                callee.type->kind == TypeKind::Function ? detail::pointer(callee.type) : callee.type, node.range);
+            const auto target = detail::symbol_name(binding(callee).id);
             std::vector<std::string> arguments;
             for (std::size_t i = 1; i < node.children.size(); ++i) {
                 const auto value = expression(child(node, i));
@@ -283,7 +265,7 @@ class Generator {
             }
             for (const auto& value : arguments) emit("arg", value, "-", "-", node.range);
             result = node.type->kind == TypeKind::Void ? "-" : temporary(node.type);
-            emit(direct ? "call" : "callind", target, std::to_string(arguments.size()), result, node.range);
+            emit("call", target, std::to_string(arguments.size()), result, node.range);
             break;
         }
         default: throw std::runtime_error("此表达式不能生成 M1 四元式");
@@ -353,7 +335,7 @@ class Generator {
                 quads_ = &program_.global_initializers; locations_ = &program_.global_locations; temporaries_ = &program_.global_temporaries;
             } else if (entry.scope != 0) emit("local", "-", "-", destination, node.range);
             if (!node.children.empty()) {
-                const auto selected = temporary(detail::pointer(node.type));
+                const auto selected = temporary(detail::address_type(node.type));
                 emit("addr", destination, "-", selected, node.range);
                 if (detail::aggregate(node.type) && (child(node, 0).kind == NodeType::InitList || child(node, 0).kind == NodeType::StringLiteral))
                     emit("zero", "-", "-", destination, node.range);

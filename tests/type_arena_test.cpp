@@ -25,7 +25,7 @@ void arena_tests() {
         TypeArenaScope scope(outer);
         auto* value = make_type_info(); value->kind = TypeKind::Int;
         integer = value;
-        auto* indirect = make_type_info(); indirect->kind = TypeKind::Pointer; indirect->base = integer;
+        auto* indirect = make_type_info(); indirect->kind = TypeKind::Address; indirect->base = integer;
         pointer = indirect;
         {
             TypeArenaScope nested(inner);
@@ -35,7 +35,7 @@ void arena_tests() {
         require(outer.size() == 3 && inner.size() == 1, "内层退出后应恢复外层管理器");
         for (int i = 0; i < 4096; ++i) make_type_info();
         require(pointer->base == integer && integer->kind == TypeKind::Int, "扩容不能改变类型对象地址");
-        auto* cyclic = make_type_info(); cyclic->kind = TypeKind::Pointer; cyclic->base = cyclic;
+        auto* cyclic = make_type_info(); cyclic->kind = TypeKind::Address; cyclic->base = cyclic;
         require(!same_type(cyclic, cyclic), "循环类型应被拒绝，释放时不能递归删除子指针");
     }
     TypeArena moved(std::move(outer));
@@ -51,7 +51,7 @@ void comparison_tests() {
     TypeInfo integer; integer.kind = TypeKind::Int;
     TypeInfo qualified = integer; qualified.is_const = true;
     TypeInfo array; array.kind = TypeKind::Array; array.base = &integer; array.array_length = 3;
-    TypeInfo pointer; pointer.kind = TypeKind::Pointer; pointer.base = &integer;
+    TypeInfo pointer; pointer.kind = TypeKind::Address; pointer.base = &integer;
     TypeInfo left; left.kind = TypeKind::Function; left.base = &integer; left.params = {&array, &qualified};
     TypeInfo right = left; right.params = {&pointer, &integer};
     require(same_type(&left, &right), "函数形参比较应处理数组退化和顶层限定符");
@@ -63,7 +63,7 @@ void compilation_tests() {
     std::vector<CompilationResult> results;
     for (int i = 0; i < 16; ++i) {
         auto result = compile("int inc(int x){return x+1;} int main(void){int a[2]={3,5};"
-                              "int (*f)(int)=inc;return f(a[1]);}");
+                              "return inc(a[1]);}");
         require(result.ok() && result.types.size() > 0, "编译结果必须持有类型对象");
         results.push_back(std::move(result));
     }

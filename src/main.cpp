@@ -12,10 +12,10 @@ namespace {
 
 void usage(std::ostream& output) {
     output << "用法：minic <tokens|parse|symbols|check|ir|run> [--raw] <源文件>\n"
-           << "默认先展开宏和本地头文件；--raw 直接分析原始源码。\n";
+           << "默认先展开宏；--raw 直接分析原始源码。\n";
 }
 
-// 读取源码或头文件；不存在时返回空值，读取失败时报告文件路径。
+// 读取源码；不存在时返回空值，读取失败时报告文件路径。
 std::optional<std::string> read_file(const std::filesystem::path& path) {
     std::ifstream file(path, std::ios::binary);
     if (!file) return std::nullopt;
@@ -42,18 +42,9 @@ int cli(const std::vector<std::string>& args) {
         const auto source_path = std::filesystem::absolute(std::filesystem::u8path(args.back())).lexically_normal();
         const auto source = read_file(source_path);
         if (!source) { std::cerr << "无法打开源文件：" << args.back() << '\n'; return 1; }
-        // 相对 include 路径以包含它的文件所在目录为起点，不依赖终端目录。
-        const minic::IncludePathResolver resolver = [](const std::string& header, const std::string& parent) {
-            auto path = std::filesystem::u8path(header);
-            if (!path.is_absolute()) path = std::filesystem::u8path(parent).parent_path() / path;
-            return std::filesystem::absolute(path).lexically_normal().generic_u8string();
-        };
-        const minic::IncludeLoader loader = [](const std::string& path, const std::string&) {
-            return read_file(std::filesystem::u8path(path));
-        };
         const auto filename = source_path.generic_u8string();
         auto compilation = raw ? minic::compile(*source, filename, target) :
-            minic::compile_preprocessed(*source, filename, target, loader, resolver);
+            minic::compile_preprocessed(*source, filename, target);
         minic::print_diagnostics(compilation.diagnostics, std::cerr);
         // 检查失败时仍可查看已经生成的部分结果。
         if (command == "tokens" && compilation.lexical)

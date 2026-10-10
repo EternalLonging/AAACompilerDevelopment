@@ -128,8 +128,6 @@ public:
 };
 
 class Processor {
-    IncludeLoader loader_; // 调用者提供的头文件读取接口。
-    IncludePathResolver resolver_; // 将 include 名字转换为实际文件路径。
     std::unordered_map<std::string, Macro> macros_; // 当前已定义的宏。
     DiagnosticEngine diagnostics_{Phase::Preprocess}; // 本阶段诊断。
     PreprocessResult result_; // 输出源码和原始行映射。
@@ -377,8 +375,7 @@ class Processor {
         result_.source += line + '\n'; result_.lines.push_back({file, number});
     }
 
-    void file(const std::string& source, const std::string& filename, std::size_t depth) {
-        if (depth > 64) throw std::runtime_error("头文件包含超过 64 层");
+    void file(const std::string& source, const std::string& filename) {
         if (source.size() > 16 * 1024 * 1024) throw std::runtime_error("单个输入文件超过 16 MiB");
         std::istringstream input(source); std::string line; std::uint32_t number = 0;
         std::vector<Conditional> stack; bool block = false;
@@ -420,16 +417,7 @@ class Processor {
                 macros_.erase(argument);
             }
             else if (active && name == "include") {
-                const auto path = trim(expand(argument));
-                if (path.size() < 3 || !((path.front() == '"' && path.back() == '"') || (path.front() == '<' && path.back() == '>')))
-                    throw std::runtime_error("include 需要引号或尖括号头文件名");
-                if (!loader_) throw std::runtime_error("尚未提供头文件读取接口");
-                const auto header = path.substr(1, path.size() - 2);
-                const auto resolved = resolver_ ? resolver_(header, filename) : header;
-                const auto contents = loader_(resolved, filename);
-                if (!contents) throw std::runtime_error("找不到头文件：" + header);
-                file(*contents, resolved, depth + 1);
-                location_.file = filename; location_.begin.line = first; location_.end.line = number;
+                throw std::runtime_error("本项目不支持 #include 头文件，请把声明写在当前源文件中");
             } else if (active && name == "error") throw std::runtime_error("error 指令：" + argument);
             else if (active && !name.empty()) throw std::runtime_error("暂不支持预处理指令：" + name);
             emit("", filename, first);
@@ -438,17 +426,14 @@ class Processor {
         if (!stack.empty()) throw std::runtime_error("条件指令缺少 endif");
     }
 public:
-    Processor(IncludeLoader loader, IncludePathResolver resolver)
-        : loader_(std::move(loader)), resolver_(std::move(resolver)) {}
     PreprocessResult run(const std::string& source, const std::string& filename) {
-        try { file(source, filename, 0); }
+        try { file(source, filename); }
         catch (const std::exception& error) { diagnostics_.report(Level::Error, location_, error.what(), "PP_FAILURE"); }
         result_.diagnostics = diagnostics_.take_diagnostics(); return std::move(result_);
     }
 };
 }
-PreprocessResult preprocess(const std::string& source, const std::string& filename,
-                            const IncludeLoader& loader, const IncludePathResolver& resolver) {
-    return Processor(loader, resolver).run(source, filename);
+PreprocessResult preprocess(const std::string& source, const std::string& filename) {
+    return Processor().run(source, filename);
 }
 }
