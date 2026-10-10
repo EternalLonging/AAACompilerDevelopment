@@ -247,7 +247,7 @@ struct SymbolTableData {
 
 // 一条四元式指令。
 struct Quadruple {
-    std::string op; // 操作码，如 +、=、call、jmp。
+    std::string op; // 操作码
     std::string arg1 = "-"; // 第一个操作数；不用时为 "-"。
     std::string arg2 = "-"; // 第二个操作数；call 中为实参数量。
     std::string result = "-"; // 结果位置或跳转标号；不用时为 "-"。
