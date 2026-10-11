@@ -2,7 +2,6 @@
 .document-work/
 .zcode/
 .github-upload/
-ir_demo_out.txt
 
 # 构建目录与编译产物
 build/

@@ -30,8 +30,8 @@
 | 执行 | RunResult、run | src/backend.cpp |
 | 预处理与总控 | preprocess、compile、compile_preprocessed | src/frontend.cpp、src/compiler.cpp |
 
-`ir_demo.cpp` 是原有四元式教学示例。正式模块接口见 [modules.md](docs/modules.md)，AST 孩子顺序见 [interface.md](docs/interface.md)。
 
+正式模块接口见 [modules.md](docs/modules.md)，AST 孩子顺序见 [interface.md](docs/interface.md)。
 ## 构建和运行
 
 需要 C++17 编译器、CMake 和 Python 3.10+。选择本机已安装的构建生成器：
