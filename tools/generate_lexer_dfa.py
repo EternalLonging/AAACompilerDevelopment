@@ -1,4 +1,4 @@
-"""从当前项目正则构造保留输出动作的最小化字节 DFA。"""
+﻿"""从当前项目正则构造保留输出动作的最小化字节 DFA。"""
 from __future__ import annotations
 import collections
 import json
@@ -252,7 +252,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='从当前项目正则生成最小化 DFA')
     parser.add_argument('--check', action='store_true', help='检查已提交状态表是否需要重新生成')
     args = parser.parse_args()
-    target = ROOT / 'src/lexer_dfa.hpp'
+    target = ROOT / 'src/frontend/lexer_dfa.hpp'
     expected = generate()
     if args.check:
         if not target.exists() or target.read_text('utf-8') != expected:
@@ -261,3 +261,4 @@ if __name__ == '__main__':
     else:
         target.write_text(expected, 'utf-8')
         print('已生成', target)
+

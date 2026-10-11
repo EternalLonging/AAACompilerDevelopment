@@ -1,4 +1,4 @@
-# AAACompilerDevelopment
+﻿# AAACompilerDevelopment
 软件实训大作业
 我是好人
 
@@ -22,13 +22,13 @@
 | 阶段 | 数据与接口 | 实现 |
 |---|---|---|
 | 公共数据结构 | [interface.hpp](include/minic/interface.hpp) | [接口约定](docs/interface.md) |
-| 词法 | Token、LexResult、lex | src/lexer.cpp、src/lexer_dfa.hpp |
-| 语法 | ASTNode、ParseResult、parse | src/parser.cpp |
-| 语义 | TypeInfo、SemanticResult、analyze | src/semantic.cpp、src/type_rules.cpp |
-| 符号表 | SymbolTable、SymbolTableData | src/symbol_table.cpp；[建表说明](docs/symbol-table.md) |
-| 中间代码 | Quadruple、IRProgram、generate | src/ir.cpp；[常量池](docs/constant-pool.md) |
-| 执行 | RunResult、run | src/interpreter.cpp |
-| 预处理与总控 | preprocess、compile、compile_preprocessed | src/preprocessor.cpp、src/compiler.cpp |
+| 词法 | Token、LexResult、lex | src/frontend/lexer.cpp、src/lexer_dfa.hpp |
+| 语法 | ASTNode、ParseResult、parse | src/frontend/parser.cpp |
+| 语义 | TypeInfo、SemanticResult、analyze | src/semantic/semantic.cpp、src/semantic/type_rules.cpp |
+| 符号表 | SymbolTable、SymbolTableData | src/semantic/symbol_table.cpp；[建表说明](docs/symbol-table.md) |
+| 中间代码 | Quadruple、IRProgram、generate | src/backend/ir.cpp；[常量池](docs/constant-pool.md) |
+| 执行 | RunResult、run | src/backend/interpreter.cpp |
+| 预处理与总控 | preprocess、compile、compile_preprocessed | src/frontend/preprocessor.cpp、src/driver/compiler.cpp |
 
 `ir_demo.cpp` 是原有四元式教学示例。正式模块接口见 [modules.md](docs/modules.md)，AST 孩子顺序见 [interface.md](docs/interface.md)。
 
@@ -49,3 +49,4 @@ python tools/workbench_server.py --open
 完整回归共 20 项 CTest，覆盖词法对照、真实源码、符号表、常量池、语义、IR、解释执行、宏、命令行、课堂演示和本地服务。浏览器另验证编辑与保存交互。过程文件和编译产物放在 build，不上传 GitHub。
 
 [语言范围](docs/language-scope.md) · [前端说明](docs/frontend.md) · [命令行](docs/command-line.md) · [演示准备](docs/showcase.md) · [联调用例](tests/integration/README.md)
+

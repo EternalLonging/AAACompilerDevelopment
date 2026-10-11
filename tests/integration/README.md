@@ -1,4 +1,4 @@
-# 真实 C 源码联调夹具
+﻿# 真实 C 源码联调夹具
 
 > 2026-10-10 范围更新：volatile、补全、C 指针及头文件包含已删除；for 内声明和同块执行后声明被拒绝。以下早期示例与里程碑记录供历史参考；当前以 [语言范围](../../docs/language-scope.md) 和测试清单为准。宏夹具已改为同文件声明，指针夹具用于验证拒绝。
 
@@ -51,7 +51,7 @@ Linux/macOS 去掉驱动路径的 `.exe`；多配置生成器在路径中加 Deb
 
 ## 真实源码联调
 
-src/lexer.cpp 和 src/parser.cpp 已实现。integration_driver 链接正式前端，source_integration 已验证全部 32 个用例。
+src/frontend/lexer.cpp 和 src/frontend/parser.cpp 已实现。integration_driver 链接正式前端，source_integration 已验证全部 32 个用例。
 
 ```powershell
 python tools/test_integration.py --compiler build/cmake/integration_driver.exe
@@ -60,3 +60,4 @@ python tools/test_integration.py --compiler build/cmake/integration_driver.exe
 工具逐一比较程序输出、main 返回值、失败阶段及已固定诊断。只统一 CRLF/LF，不去掉空白和尾部换行；失败退出非零。输入通过管道传入，无需人工逐个输入。
 
 16 个正常程序原已用 GCC 核实预期结果；现在全部 32 个用例也已通过本项目正式源码编译执行和错误阶段验证。
+

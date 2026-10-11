@@ -1,6 +1,6 @@
-# 词法与语法分析实现
+﻿# 词法与语法分析实现
 
-日期：2026-10-09。正式入口为 `lex(source, filename)` 和 `parse(tokens)`，实现位于 `src/lexer.cpp`、`src/parser.cpp`。现已接入 `compile → analyze → generate → run`，命令行可以直接读取项目语言源文件。
+日期：2026-10-09。正式入口为 `lex(source, filename)` 和 `parse(tokens)`，实现位于 `src/frontend/lexer.cpp`、`src/frontend/parser.cpp`。现已接入 `compile → analyze → generate → run`，命令行可以直接读取项目语言源文件。
 
 当前已删除头文件包含、volatile、指针和补全，限制见 [language-scope.md](language-scope.md)。
 
@@ -57,3 +57,4 @@ python tools/generate_lexer_dfa.py --check
 `tests/frontend_test.cpp` 验证真实源码、AST 合同、作用域、位置、错误恢复、前端失败阻止后续阶段，以及语义、IR、执行联动；`tools/test_lexer_dfa.py` 将 C++ 扫描器与独立逐规则 Python 字节正则对照，包含全部单字节、关键字边界、固定符号及 3000 组固定种子随机输入。`lexer_dfa_current` 检查已提交表与当前规则一致。`compiler_flow_test` 的替身仍只用于隔离检查总控顺序，不进入生产库。
 
 当前完整回归共 20 项 CTest，词法对照、32 个源码联调用例及新增精简范围检查纳入验收。源码示例输出 `sum = 15`，compile_and_run 输出 `c = 6.283180`。
+
