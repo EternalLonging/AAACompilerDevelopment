@@ -48,7 +48,7 @@ CompilationResult compile_stages(const std::string& source, const std::string& f
     result.syntax = parse(result.lexical->tokens);
     collect(*result.syntax);
     if (!result.syntax->ok() || target == CompileTarget::Parse) return result;
-    result.semantic = analyze(*result.syntax->root);
+    result.semantic = analyze(*result.syntax->root, &result.syntax->arena);
     collect(*result.semantic);
     if (!result.semantic->ok() || target == CompileTarget::Check) return result;
     result.ir = generate(*result.syntax->root, result.semantic->symbols);

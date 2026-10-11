@@ -58,11 +58,15 @@ void ast(std::ostream& out, const minic::ASTNode& node, int parent, unsigned& ne
     for (const auto& child : node.children) ast(out, *child, static_cast<int>(id), next);
 }
 std::string value_text(const minic::ConstantValue& value) {
-    return std::visit([](const auto& item) {
-        using T = std::decay_t<decltype(item)>;
-        if constexpr (std::is_same_v<T, std::monostate>) return std::string("未解码");
-        else { std::ostringstream out; out << item; return out.str(); }
-    }, value);
+    std::ostringstream out;
+    switch (value.kind) {
+    case minic::ConstantKind::Empty: return "未解码";
+    case minic::ConstantKind::Integer: out << value.integer; break;
+    case minic::ConstantKind::Unsigned: out << value.unsigned_integer; break;
+    case minic::ConstantKind::Floating: out << value.floating; break;
+    case minic::ConstantKind::Text: out << value.text; break;
+    }
+    return out.str();
 }
 // 记录真实四元式、常量池和执行统计，优化两侧分别执行同一份输入。
 void ir(std::ostream& out, const minic::IRResult& result, const minic::SymbolTableData& symbols,

@@ -1,4 +1,4 @@
-#include "minic/constant_pool.hpp"
+﻿#include "minic/constant_pool.hpp"
 
 #include <cmath>
 #include <iostream>
@@ -58,13 +58,13 @@ int main() {
                 double_ten != float_ten, "不同 C 类型不能合并");
         const auto maximum = std::numeric_limits<std::uint64_t>::max();
         const auto big = pool.intern(number_type(TypeKind::Long, true), maximum, "ULONG_MAX");
-        require(std::get<std::uint64_t>(pool.get(big)->value) == maximum,
+        require(constant_get<std::uint64_t>(pool.get(big)->value) == maximum,
                 "大整数不可经过 double 丢失精度");
 
         const auto positive_zero = pool.intern(number_type(TypeKind::Double), 0.0, "0.0");
         const auto negative_zero = pool.intern(number_type(TypeKind::Double), -0.0, "-0.0");
         require(positive_zero != negative_zero &&
-                std::signbit(std::get<double>(pool.get(negative_zero)->value)),
+                std::signbit(constant_get<double>(pool.get(negative_zero)->value)),
                 "浮点正零和负零必须保留区别");
         const auto rounded = pool.intern(number_type(TypeKind::Float), 1.0 + 1e-9, "rounded");
         require(rounded == pool.intern(number_type(TypeKind::Float), 1.0, "1.0f"),
@@ -78,7 +78,7 @@ int main() {
         require(text == pool.intern(string_type(3), embedded_zero, "\"a\\000b\""),
                 "字符串按解码内容去重");
         const auto prefix = pool.intern(string_type(1), std::string("a"), "\"a\"");
-        require(prefix != text && std::get<std::string>(pool.get(text)->value).size() == 3,
+        require(prefix != text && constant_get<std::string>(pool.get(text)->value).size() == 3,
                 "零字节不能截断字符串或制造错误合并");
         pool.intern(string_type(0), std::string{}, "\"\"");
         require(pool.get(invalid_id) == nullptr && pool.get(100000) == nullptr,
@@ -86,7 +86,7 @@ int main() {
         require(constant_operand(ten) == "%c0", "常量操作数应带唯一前缀");
 
         rejects(pool, [&] { pool.intern({}, std::int64_t{1}, "1"); });
-        rejects(pool, [&] { pool.intern(integer, std::monostate{}, "?"); });
+        rejects(pool, [&] { pool.intern(integer, ConstantValue{}, "?"); });
         rejects(pool, [&] { pool.intern(integer, std::uint64_t{1}, "1"); });
         rejects(pool, [&] { pool.intern(number_type(TypeKind::Double),
                                        std::numeric_limits<double>::infinity(), "inf"); });
@@ -125,3 +125,5 @@ int main() {
         return 1;
     }
 }
+
+

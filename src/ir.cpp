@@ -1,4 +1,4 @@
-#include "minic/ir.hpp"
+﻿#include "minic/ir.hpp"
 #include "minic/constant_pool.hpp"
 #include "minic/diagnostic.hpp"
 #include "minic/semantic.hpp"
@@ -116,7 +116,7 @@ class Generator {
                 initialize(selected, element, child(init, i));
             }
         } else if (target->kind == TypeKind::Array && init.kind == NodeType::StringLiteral) {
-            const auto& text = std::get<std::string>(init.value);
+            const auto& text = constant_get<std::string>(init.value);
             for (std::size_t i = 0; i < text.size(); ++i) {
                 const auto selected = temporary(detail::address_type(target->base));
                 emit("indexaddr", destination, integer(static_cast<std::int64_t>(i)), selected, init.range);
@@ -299,7 +299,7 @@ class Generator {
             for (const auto& item : labels) {
                 if (item.first->kind == NodeType::Default) default_label = item.second;
                 else {
-                    const auto constant = std::get_if<std::int64_t>(&item.first->value);
+                    const auto constant = constant_get_if<std::int64_t>(item.first->value);
                     if (!constant) throw std::runtime_error("case 缺少整型常量标注");
                     const auto match = temporary(detail::type(TypeKind::Int));
                     emit("==", value, integer(*constant), match, item.first->range);
@@ -490,3 +490,4 @@ IRResult generate(const Program& program, const SymbolTableData& symbols, const 
 }
 
 }
+

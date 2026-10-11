@@ -9,7 +9,7 @@
 namespace minic {
 namespace {
 using TT = TokenType;
-using Node = std::unique_ptr<ASTNode>;
+using Node = ASTNode*;
 struct ParseFailure {};
 
 // 解析环境只用于 typedef 消歧，不写入语义阶段的持久符号表。
@@ -86,9 +86,9 @@ class Parser {
     }
     // 创建 AST 节点，填写种类、名字和开始位置。
     Node node(NodeType kind, const Token& start, const std::string& name = "") {
-        auto n = std::make_unique<ASTNode>();
+        auto n = result.arena.make();
         n->kind = kind; n->name = name; n->range = start.range;
-        heights[n.get()] = 1;
+        heights[n] = 1;
         return n;
     }
     // 补齐节点的结束位置和树高；树高超限时报告错误。
@@ -96,7 +96,7 @@ class Parser {
         if (pos) n.range.end = tokens[pos - 1].range.end;
         unsigned height = 1;
         for (const auto& child : n.children) {
-            const auto found = heights.find(child.get());
+            const auto found = heights.find(child);
             height = std::max(height, 1 + (found == heights.end() ? 1 : found->second));
         }
         if (height > 128) fail("语法树嵌套超过 128 层", "PARSE_DEPTH", Level::Fatal);

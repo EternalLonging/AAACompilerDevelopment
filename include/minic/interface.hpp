@@ -4,10 +4,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
-#include <memory>
 #include <string>
 #include <unordered_map>
-#include <variant>
 #include <vector>
 
 namespace minic {
@@ -93,9 +91,35 @@ struct TypeInfo;
 // 指向只读类型信息的普通指针；对象由 TypeArena 统一释放。
 using TypePtr = const TypeInfo*;
 
-// 常量值，可存整数、浮点或字符串；monostate 表示未解码。
-using ConstantValue = std::variant<std::monostate, std::int64_t,
-                                   std::uint64_t, double, std::string>;
+// 常量值，使用显式标签保存整数、浮点或字符串。
+enum class ConstantKind { Empty, Integer, Unsigned, Floating, Text };
+struct ConstantValue {
+    ConstantKind kind = ConstantKind::Empty;
+    std::int64_t integer = 0;
+    std::uint64_t unsigned_integer = 0;
+    double floating = 0;
+    std::string text;
+    ConstantValue() = default;
+    ConstantValue(std::int64_t value) : kind(ConstantKind::Integer), integer(value) {}
+    ConstantValue(std::uint64_t value) : kind(ConstantKind::Unsigned), unsigned_integer(value) {}
+    ConstantValue(double value) : kind(ConstantKind::Floating), floating(value) {}
+    ConstantValue(const std::string& value) : kind(ConstantKind::Text), text(value) {}
+    ConstantValue(std::string&& value) : kind(ConstantKind::Text), text(std::move(value)) {}
+};
+inline bool constant_empty(const ConstantValue& value) { return value.kind == ConstantKind::Empty; }
+template <typename T> const T* constant_get_if(const ConstantValue& value);
+template <typename T> T* constant_get_if(ConstantValue& value) {
+    return const_cast<T*>(constant_get_if<T>(static_cast<const ConstantValue&>(value)));
+}
+template <> inline const std::int64_t* constant_get_if<std::int64_t>(const ConstantValue& value) { return value.kind == ConstantKind::Integer ? &value.integer : nullptr; }
+template <> inline const std::uint64_t* constant_get_if<std::uint64_t>(const ConstantValue& value) { return value.kind == ConstantKind::Unsigned ? &value.unsigned_integer : nullptr; }
+template <> inline const double* constant_get_if<double>(const ConstantValue& value) { return value.kind == ConstantKind::Floating ? &value.floating : nullptr; }
+template <> inline const std::string* constant_get_if<std::string>(const ConstantValue& value) { return value.kind == ConstantKind::Text ? &value.text : nullptr; }
+template <typename T> const T& constant_get(const ConstantValue& value);
+template <> inline const std::int64_t& constant_get<std::int64_t>(const ConstantValue& value) { return value.integer; }
+template <> inline const std::uint64_t& constant_get<std::uint64_t>(const ConstantValue& value) { return value.unsigned_integer; }
+template <> inline const double& constant_get<double>(const ConstantValue& value) { return value.floating; }
+template <> inline const std::string& constant_get<std::string>(const ConstantValue& value) { return value.text; }
 
 // 表达式类别：非表达式、左值、右值或函数。
 enum class ValueCategory { None, LValue, RValue, Function };
@@ -167,7 +191,30 @@ struct ASTNode {
     ScopeId scope_id = invalid_id; // 节点所属的作用域编号。
     RecordId record_id = invalid_id; // 节点涉及的结构体、联合体或枚举编号。
     MaybeValue<std::size_t> member_index; // 成员在成员表中的下标；非成员访问时为空。
-    std::vector<std::unique_ptr<ASTNode>> children; // 子节点列表；排列顺序见 docs/interface.md。
+    std::vector<ASTNode*> children; // 子节点列表；排列顺序见 docs/interface.md。
+};
+
+// AST 节点的统一内存池。节点之间只保存普通指针，由 Arena 在析构时统一释放。
+struct NodeArena {
+    std::vector<ASTNode*> nodes;
+    NodeArena() = default;
+    ~NodeArena() { clear(); }
+    ASTNode* make() {
+        ASTNode* node = new ASTNode();
+        nodes.push_back(node);
+        return node;
+    }
+    void clear() {
+        for (ASTNode* node : nodes) delete node;
+        nodes.clear();
+    }
+    NodeArena(const NodeArena&) = delete;
+    NodeArena& operator=(const NodeArena&) = delete;
+    NodeArena(NodeArena&& other) noexcept { nodes.swap(other.nodes); }
+    NodeArena& operator=(NodeArena&& other) noexcept {
+        if (this != &other) { clear(); nodes.swap(other.nodes); }
+        return *this;
+    }
 };
 
 // 程序根节点，其 kind 为 Program。
@@ -175,7 +222,8 @@ using Program = ASTNode;
 
 // 语法分析结果。
 struct ParseResult {
-    std::unique_ptr<ASTNode> root; // 语法树根节点；语法失败时为空。
+    NodeArena arena; // 语法树节点的所有权池。
+    ASTNode* root = nullptr; // 语法树根节点；语法失败时为空。
     std::vector<Diagnostic> diagnostics; // 语法分析的诊断列表。
     // 判断本阶段是否成功。成功返回 true，否则返回 false。
     bool ok() const { return root && !has_errors(diagnostics); }

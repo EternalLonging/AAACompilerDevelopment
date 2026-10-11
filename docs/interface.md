@@ -10,7 +10,7 @@ v1.2 增加程序共享的常量池：数据定义位于 interface.hpp，登记�
 
 历史 v1.3 补充聚合寻址、数组传参和静态存储合同；本次 v1.5 删除源码指针功能并保留 AST 孩子顺序。IRProgram.globals 扩展为静态存储对象清单，包含 static 局部对象；符号的词法作用域保持不变。
 
-v1.4 将 TypePtr 改为普通指针 `const TypeInfo*`，类型对象由 TypeArena 统一创建和释放。CompilationResult 新增 types 成员保存本次编译的类型；AST 孩子顺序不变。
+v1.4 将 TypePtr 改为普通指针 `const TypeInfo*`，类型对象由 TypeArena 统一创建和释放。CompilationResult 新增 types 成员保存本次编译的类型；AST 孩子顺序不变。当前版本增加 NodeArena，AST 子节点使用普通指针并由 ParseResult.arena 统一释放；ConstantValue 和运行时 Value 均使用显式枚举标签。
 
 需求文档中曾提到“已冻结”的 interface.md，但项目此前没有该文件。本版首次落地这些定义，并明确解决旧资料中的歧义。新增枚举代表预留表达能力，不代表已支持该语法；M1/M2/M3/M4 的功能范围仍以 README 为准。C89/C99 的最终验收口径另行统一。
 
@@ -24,7 +24,7 @@ v1.4 将 TypePtr 改为普通指针 `const TypeInfo*`，类型对象由 TypeAren
 | Token | 词法分析 | 语法分析、Token 展示 | 种别、原文、行列、范围 |
 | Diagnostic | 所有阶段 | 编译驱动、诊断展示 | 阶段、级别、位置、中文消息、错误代码 |
 | TypeInfo | 语法构造声明类型；语义解析与标注 | 语义、符号表、IR | 基本类型、数组、函数、记录类型及内部地址 |
-| ASTNode | 语法构造；语义补充标注 | 语义、IR、AST 展示 | 节点种类、孩子、原文、常量值、类型和符号引用 |
+| ASTNode / NodeArena | 语法构造；语义补充标注 | 语义、IR、AST 展示 | 节点种类、普通指针孩子、原文、常量值、类型和符号引用；Arena 统一释放节点 |
 | SymbolEntry | 语义调用符号表模块登记 | 语义、IR、符号表展示 | 变量/形参/函数等的唯一身份及声明信息 |
 | MemberEntry / StructEntry | 符号表模块配合语义维护 | 语义、IR | 标签、成员、偏移、大小和对齐 |
 | ScopeEntry / SymbolTableData | 符号表模块 | 语义、IR、补全和导出 | 各作用域映射、全部符号、活动作用域栈 |
@@ -32,7 +32,7 @@ v1.4 将 TypePtr 改为普通指针 `const TypeInfo*`，类型对象由 TypeAren
 | Place | IR 表达式生成 | IR 父节点 | 一个表达式的结果放在哪里，以及结果类型 |
 | ConstantEntry / ConstantPoolData | IR 调用 ConstantPool 登记 | IR、解释器、优化、展示 | 常量编号、类型、值、首次拼写和位置 |
 | IRFunction / IRProgram | IR 生成 | 解释器、优化和展示 | 函数分组、形参、临时量、入口及全局初始化 |
-| LexResult / ParseResult / SemanticResult / IRResult | 对应阶段 | 编译驱动 | 阶段产物与诊断，一致的 ok() 查询 |
+| LexResult / ParseResult / SemanticResult / IRResult | 对应阶段 | 编译驱动 | 阶段产物与诊断，一致的 ok() 查询；ParseResult.root 为空指针表示没有语法树 |
 
 ## 2. 位置和诊断
 
@@ -107,7 +107,7 @@ M1/M2 的数组长度可直接存确定的整型长度。尚未实现的常量�
 | symbol_id | 绑定的变量、形参或函数编号 | 语义 |
 | scope_id | 此节点所属作用域编号 | 语义 |
 | record_id / member_index | 记录身份 / 成员访问的成员下标 | 语义 |
-| children | 按下表顺序拥有孩子的 unique_ptr 向量 | 语法；语义可插入转换节点 |
+| children | 按下表顺序保存孩子的普通指针向量，由 ParseResult.arena 统一释放 | 语法；语义可插入转换节点 |
 
 `kind` 与 `type` 分开：`BinaryOp("+")` 是节点种类，float 是该表达式的数据类型。不再用一个 type 字段同时表达两者。左值、右值类别必须由语义标注，赋值、scanf 取地址与成员访问要据此检查。
 

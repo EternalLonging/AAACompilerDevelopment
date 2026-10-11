@@ -1,12 +1,13 @@
-#pragma once
+﻿#pragma once
 #include "minic/interface.hpp"
 
-#include <utility>
 
 // 手动组装 AST 的示例工具，供词法/语法完成前测试后续模块。
 namespace minic::examples {
 
-using Node = std::unique_ptr<ASTNode>;
+using Node = ASTNode*;
+
+inline NodeArena& arena() { static NodeArena value; return value; }
 
 inline TypePtr basic(TypeKind kind) {
     auto type = make_type_info();
@@ -15,7 +16,7 @@ inline TypePtr basic(TypeKind kind) {
 }
 
 inline Node node(NodeType kind, const std::string& name = "") {
-    auto value = std::make_unique<ASTNode>();
+    auto value = arena().make();
     value->kind = kind;
     value->name = name;
     value->range = {"ast-demo.c", {1, 1, 0}, {1, 2, 1}};
@@ -25,7 +26,7 @@ inline Node node(NodeType kind, const std::string& name = "") {
 template <typename... Children>
 Node tree(NodeType kind, const std::string& name, Children... children) {
     auto value = node(kind, name);
-    (value->children.push_back(std::move(children)), ...);
+    (value->children.push_back(children), ...);
     return value;
 }
 
@@ -47,7 +48,7 @@ inline Node ret(Node expression) { return tree(NodeType::Return, "", std::move(e
 inline Node variable(const std::string& name, TypeKind kind, Node init = {}) {
     auto value = node(NodeType::VarDecl, name);
     value->declared_type = basic(kind);
-    if (init) value->children.push_back(std::move(init));
+    if (init) value->children.push_back(init);
     return value;
 }
 inline Node parameter(const std::string& name, TypeKind kind) {
@@ -56,7 +57,7 @@ inline Node parameter(const std::string& name, TypeKind kind) {
     return value;
 }
 template <typename... Children>
-Node block(Children... children) { return tree(NodeType::Block, "", std::move(children)...); }
+Node block(Children... children) { return tree(NodeType::Block, "", children...); }
 template <typename... Arguments>
 Node call(const std::string& name, Arguments... arguments) {
     return tree(NodeType::Call, name, id(name), std::move(arguments)...);
@@ -69,7 +70,7 @@ Node function(const std::string& name, TypeKind result, Node body, Parameters...
     type->base = basic(result);
     for (const auto& entry : value->children) type->params.push_back(entry->declared_type);
     value->declared_type = type;
-    value->children.push_back(std::move(body));
+    value->children.push_back(body);
     return value;
 }
 template <typename... Declarations>
@@ -100,7 +101,7 @@ inline TypePtr record_type(const std::string& tag) {
 }
 inline Node object(const std::string& name, TypePtr type, Node init = {}) {
     auto value = node(NodeType::VarDecl, name); value->declared_type = std::move(type);
-    if (init) value->children.push_back(std::move(init));
+    if (init) value->children.push_back(init);
     return value;
 }
 inline Node member(const std::string& name, TypePtr type) {
@@ -128,3 +129,5 @@ inline Node aggregate_program() {
 }
 
 }
+
+

@@ -1,4 +1,4 @@
-#include "minic/constant_pool.hpp"
+﻿#include "minic/constant_pool.hpp"
 
 #include <cmath>
 #include <stdexcept>
@@ -45,18 +45,18 @@ ConstantId ConstantPool::intern(TypePtr type, ConstantValue value,
         type = snapshot_type(type);
         append_scalar_type(key, *type);
         if (type->is_unsigned) {
-            const auto number = std::get_if<std::uint64_t>(&value);
+            const auto number = constant_get_if<std::uint64_t>(value);
             if (!number) throw std::invalid_argument("无符号整数常量需要 uint64_t 值");
             append_bytes(key, *number);
         } else {
-            const auto number = std::get_if<std::int64_t>(&value);
+            const auto number = constant_get_if<std::int64_t>(value);
             if (!number) throw std::invalid_argument("有符号整数常量需要 int64_t 值");
             append_bytes(key, *number);
         }
     } else if (type->kind == TypeKind::Float || type->kind == TypeKind::Double || type->kind == TypeKind::LongDouble) {
         type = snapshot_type(type);
         if (type->is_unsigned) throw std::invalid_argument("浮点类型不能带 unsigned");
-        auto number = std::get_if<double>(&value);
+        auto number = constant_get_if<double>(value);
         if (!number || !std::isfinite(*number)) {
             throw std::invalid_argument("浮点常量需要有限的 double 值");
         }
@@ -72,7 +72,7 @@ ConstantId ConstantPool::intern(TypePtr type, ConstantValue value,
         // 不做 == 或近似比较：正负零必须分开，不同浮点位表示不能误合并。
         append_bytes(key, *number);
     } else if (type->kind == TypeKind::Array) {
-        const auto bytes = std::get_if<std::string>(&value);
+        const auto bytes = constant_get_if<std::string>(value);
         if (!bytes || !type->base || type->base->kind != TypeKind::Char ||
             type->is_unsigned || !type->array_length ||
             *type->array_length == 0 || *type->array_length - 1 != bytes->size() ||
@@ -130,3 +130,4 @@ std::string constant_operand(ConstantId id) {
 }
 
 } // minic 命名空间
+

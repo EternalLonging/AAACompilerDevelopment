@@ -1,4 +1,4 @@
-#include "minic/interpreter.hpp"
+﻿#include "minic/interpreter.hpp"
 #include "minic/constant_pool.hpp"
 #include "minic/diagnostic.hpp"
 #include "minic/semantic.hpp"
@@ -11,6 +11,8 @@
 #include <sstream>
 #include <unordered_set>
 #include <utility>
+#include <type_traits>
+#include <deque>
 
 namespace minic {
 namespace {
@@ -22,17 +24,70 @@ struct Address {
     TypePtr type = nullptr; // 当前地址所指向的子对象类型。
     std::size_t first = 0; // 可移动范围的起点，包含此偏移。
     std::size_t last = 0; // 数组存储范围的终点，不包含此位置。
-    std::shared_ptr<const std::string> literal; // 指向常量字符串时保存只读字节。
+    const std::string* literal = nullptr; // 指向常量字符串池中的只读字节。
     std::string temporary; // 临时聚合对象的名字，普通地址为空。
 };
 struct Aggregate;
-using Value = std::variant<std::monostate, std::int64_t, double, std::string, Address, std::shared_ptr<Aggregate>>;
+enum class ValueKind { Empty, Integer, Floating, Text, Address, Aggregate };
+struct Value {
+    ValueKind kind = ValueKind::Empty;
+    std::int64_t integer = 0;
+    double floating = 0;
+    std::string text;
+    Address address;
+    Aggregate* aggregate = nullptr;
+    Value() = default;
+    Value(std::int64_t value) : kind(ValueKind::Integer), integer(value) {}
+    Value(double value) : kind(ValueKind::Floating), floating(value) {}
+    Value(const std::string& value) : kind(ValueKind::Text), text(value) {}
+    Value(std::string&& value) : kind(ValueKind::Text), text(std::move(value)) {}
+    Value(const Address& value) : kind(ValueKind::Address), address(value) {}
+    Value(Aggregate* value) : kind(ValueKind::Aggregate), aggregate(value) {}
+};
 struct Aggregate {
     std::unordered_map<std::size_t, Value> cells; // 按字节偏移保存已写入的数值叶子。
     std::unordered_map<std::size_t, unsigned char> bytes; // 数值对象的小端字节，联合体成员共享这些字节。
     std::unordered_set<std::size_t> unknown; // 默认零对象中仍未初始化的字节。
     bool zero = false; // 未写入的叶子是否已零初始化。
 };
+
+template <typename T> bool holds(const Value& value);
+template <> inline bool holds<std::int64_t>(const Value& value) { return value.kind == ValueKind::Integer; }
+template <> inline bool holds<double>(const Value& value) { return value.kind == ValueKind::Floating; }
+template <> inline bool holds<std::string>(const Value& value) { return value.kind == ValueKind::Text; }
+template <> inline bool holds<Address>(const Value& value) { return value.kind == ValueKind::Address; }
+template <> inline bool holds<Aggregate*>(const Value& value) { return value.kind == ValueKind::Aggregate; }
+inline bool value_empty(const Value& value) { return value.kind == ValueKind::Empty; }
+template <typename T> T* get_if(Value* value);
+template <> inline std::int64_t* get_if<std::int64_t>(Value* value) { return value->kind == ValueKind::Integer ? &value->integer : nullptr; }
+template <> inline double* get_if<double>(Value* value) { return value->kind == ValueKind::Floating ? &value->floating : nullptr; }
+template <> inline std::string* get_if<std::string>(Value* value) { return value->kind == ValueKind::Text ? &value->text : nullptr; }
+template <> inline Address* get_if<Address>(Value* value) { return value->kind == ValueKind::Address ? &value->address : nullptr; }
+template <> inline Aggregate** get_if<Aggregate*>(Value* value) { return value->kind == ValueKind::Aggregate ? &value->aggregate : nullptr; }
+template <typename T> const T* get_if(const Value* value) { return get_if<T>(const_cast<Value*>(value)); }
+template <typename T> T& get(Value& value);
+template <> inline std::int64_t& get<std::int64_t>(Value& value) { return value.integer; }
+template <> inline double& get<double>(Value& value) { return value.floating; }
+template <> inline std::string& get<std::string>(Value& value) { return value.text; }
+template <> inline Address& get<Address>(Value& value) { return value.address; }
+template <> inline Aggregate*& get<Aggregate*>(Value& value) { return value.aggregate; }
+template <typename T> const T& get(const Value& value) { return get<T>(const_cast<Value&>(value)); }
+
+struct RuntimeArena {
+    std::vector<Aggregate*> aggregates;
+    std::deque<std::string> strings;
+    ~RuntimeArena() { for (Aggregate* value : aggregates) delete value; }
+    Aggregate* make_aggregate() { Aggregate* value = new Aggregate(); aggregates.push_back(value); return value; }
+    const std::string* stable_string(const std::string& value) { strings.push_back(value); return &strings.back(); }
+};
+RuntimeArena runtime_arena;
+Aggregate* make_aggregate() { return runtime_arena.make_aggregate(); }
+Aggregate* copy_aggregate(const Aggregate& source) {
+    Aggregate* result = runtime_arena.make_aggregate();
+    *result = source;
+    return result;
+}
+const std::string* stable_string(const std::string& value) { return runtime_arena.stable_string(value); }
 
 struct Code {
     const std::vector<Quadruple>* quads = nullptr;
@@ -71,14 +126,14 @@ std::size_t operand_id(const std::string& value, char kind) {
 }
 
 double number(const Value& value) {
-    if (const auto* integer = std::get_if<std::int64_t>(&value)) return static_cast<double>(*integer);
-    if (const auto* floating = std::get_if<double>(&value)) return *floating;
+    if (const auto* integer = get_if<std::int64_t>(&value)) return static_cast<double>(*integer);
+    if (const auto* floating = get_if<double>(&value)) return *floating;
     throw std::runtime_error("指令需要数值操作数");
 }
 
 bool truth(const Value& value) {
-    if (const auto* address = std::get_if<Address>(&value)) return address->symbol != invalid_id || address->literal || !address->temporary.empty();
-    if (std::holds_alternative<std::string>(value)) return true;
+    if (const auto* address = get_if<Address>(&value)) return address->symbol != invalid_id || address->literal || !address->temporary.empty();
+    if (holds<std::string>(value)) return true;
     return number(value) != 0;
 }
 
@@ -104,7 +159,7 @@ Value convert_value(const Value& value, const TypePtr& target) {
         const auto bits = detail::integer_bits(target);
         const auto modulus = std::uint64_t{1} << bits;
         if (target->is_unsigned) {
-            if (std::holds_alternative<std::int64_t>(value)) return static_cast<std::int64_t>(static_cast<std::uint64_t>(std::get<std::int64_t>(value)) % modulus);
+            if (holds<std::int64_t>(value)) return static_cast<std::int64_t>(static_cast<std::uint64_t>(get<std::int64_t>(value)) % modulus);
             if (truncated < 0 || truncated >= static_cast<double>(modulus)) throw std::runtime_error("浮点转无符号整数超出范围");
             return static_cast<std::int64_t>(truncated);
         }
@@ -114,14 +169,14 @@ Value convert_value(const Value& value, const TypePtr& target) {
         return static_cast<std::int64_t>(truncated);
     }
     if (target->kind == TypeKind::Address && target->base) {
-        if (const auto* text = std::get_if<std::string>(&value); text && target->base->kind == TypeKind::Char)
-            return Address{0, invalid_id, 0, target->base, 0, text->size() + 1, std::make_shared<const std::string>(*text), {}};
-        if (const auto* address = std::get_if<Address>(&value)) {
+        if (const auto* text = get_if<std::string>(&value); text && target->base->kind == TypeKind::Char)
+            return Address{0, invalid_id, 0, target->base, 0, text->size() + 1, stable_string(*text), {}};
+        if (const auto* address = get_if<Address>(&value)) {
             auto converted = *address; converted.type = target->base; return converted;
         }
     }
-    if (detail::aggregate(target) && std::holds_alternative<std::shared_ptr<Aggregate>>(value))
-        return std::make_shared<Aggregate>(*std::get<std::shared_ptr<Aggregate>>(value));
+    if (detail::aggregate(target) && holds<Aggregate*>(value))
+        return copy_aggregate(*get<Aggregate*>(value));
     throw std::runtime_error("不支持的运行值转换");
 }
 
@@ -136,7 +191,6 @@ class Machine {
     Code initializer_;
     std::unordered_set<SymbolId> globals_;
     std::unordered_map<std::string, Value> global_values_;
-    std::unordered_map<std::string, std::shared_ptr<const std::string>> strings_; // 同内容字面量复用同一个只读对象。
     std::vector<Frame> frames_; // 显式调用栈，递归不占用宿主 C++ 调用栈。
     std::uint64_t next_frame_ = 1;
     RunResult result_;
@@ -361,11 +415,11 @@ class Machine {
             if (entry.id != i) throw std::runtime_error("常量池编号无效");
             checker.intern(entry.type, entry.value, entry.spelling, entry.range);
             if (detail::numeric(entry.type)) {
-                if (detail::floating(entry.type)) convert_value(std::get<double>(entry.value), entry.type);
+                if (detail::floating(entry.type)) convert_value(constant_get<double>(entry.value), entry.type);
                 else if (entry.type->is_unsigned) {
-                    const auto value = std::get<std::uint64_t>(entry.value);
+                    const auto value = constant_get<std::uint64_t>(entry.value);
                     if (value >= (std::uint64_t{1} << detail::integer_bits(entry.type))) throw std::runtime_error("无符号常量超出范围");
-                } else convert_value(std::get<std::int64_t>(entry.value), entry.type);
+                } else convert_value(constant_get<std::int64_t>(entry.value), entry.type);
             } else if (!(entry.type->kind == TypeKind::Array && entry.type->base->kind == TypeKind::Char))
                 throw std::runtime_error("M1 常量池类型不受支持");
         }
@@ -408,25 +462,25 @@ class Machine {
     Value read(const std::string& name, const Frame& frame) const {
         if (name.size() > 2 && name[1] == 'c') {
             const auto& constant = program_.constants.entries.at(operand_id(name, 'c'));
-            if (const auto* value = std::get_if<std::int64_t>(&constant.value)) return *value;
-            if (const auto* value = std::get_if<std::uint64_t>(&constant.value)) return static_cast<std::int64_t>(*value);
-            if (const auto* value = std::get_if<double>(&constant.value)) return *value;
-            if (const auto* value = std::get_if<std::string>(&constant.value)) return *value;
+            if (const auto* value = constant_get_if<std::int64_t>(constant.value)) return *value;
+            if (const auto* value = constant_get_if<std::uint64_t>(constant.value)) return static_cast<std::int64_t>(*value);
+            if (const auto* value = constant_get_if<double>(constant.value)) return *value;
+            if (const auto* value = constant_get_if<std::string>(constant.value)) return *value;
             throw std::runtime_error("常量值无效");
         }
         const bool global = name.size() > 2 && name[1] == 's' && globals_.count(static_cast<SymbolId>(operand_id(name, 's')));
         const auto& values = global ? global_values_ : frame.values;
         const auto found = values.find(name);
-        if (found == values.end() || std::holds_alternative<std::monostate>(found->second))
+        if (found == values.end() || value_empty(found->second))
             throw std::runtime_error("读取了尚未初始化的对象或临时量：" + name);
         return found->second;
     }
 
     Value initial_value(const TypePtr& type, bool zero) const {
         if (detail::aggregate(type)) {
-            auto object = std::make_shared<Aggregate>(); object->zero = zero; return object;
+            auto object = make_aggregate(); object->zero = zero; return object;
         }
-        return zero ? convert_value(std::int64_t{0}, type) : Value{std::monostate{}};
+        return zero ? convert_value(std::int64_t{0}, type) : Value{};
     }
 
     Value& root_value(const Address& address) {
@@ -470,21 +524,21 @@ class Machine {
         TypeInfo temporary_root; temporary_root.kind = TypeKind::Struct;
         const auto root_type = address.temporary.empty() ? symbol(address.symbol).type : &temporary_root;
         if (!detail::aggregate(root_type)) {
-            if (std::holds_alternative<std::monostate>(root)) throw std::runtime_error("读取尚未初始化的变量");
+            if (value_empty(root)) throw std::runtime_error("读取尚未初始化的变量");
             if (!detail::same_unqualified(root_type, address.type)) {
                 if (address.type->kind != TypeKind::Char || !detail::numeric(root_type)) throw std::runtime_error("内部地址类型与根对象不兼容");
                 std::uint64_t bits;
-                if (detail::integral(root_type)) bits = static_cast<std::uint64_t>(std::get<std::int64_t>(root));
-                else if (root_type->kind == TypeKind::Float) { const auto value = static_cast<float>(std::get<double>(root)); std::uint32_t word; std::memcpy(&word, &value, 4); bits = word; }
-                else { const auto value = std::get<double>(root); std::memcpy(&bits, &value, 8); }
+                if (detail::integral(root_type)) bits = static_cast<std::uint64_t>(get<std::int64_t>(root));
+                else if (root_type->kind == TypeKind::Float) { const auto value = static_cast<float>(get<double>(root)); std::uint32_t word; std::memcpy(&word, &value, 4); bits = word; }
+                else { const auto value = get<double>(root); std::memcpy(&bits, &value, 8); }
                 const auto byte = static_cast<std::int64_t>((bits >> (8 * address.offset)) & 255);
                 return address.type->is_unsigned || byte < 128 ? byte : byte - 256;
             }
             return root;
         }
-        const auto object = std::get<std::shared_ptr<Aggregate>>(root);
+        const auto object = get<Aggregate*>(root);
         if (detail::aggregate(address.type)) {
-            auto result = std::make_shared<Aggregate>(); result->zero = object->zero;
+            auto result = make_aggregate(); result->zero = object->zero;
             const auto size = detail::layout(address.type, symbols_).size;
             for (const auto& cell : object->cells)
                 if (cell.first >= address.offset && cell.first - address.offset < size)
@@ -516,7 +570,7 @@ class Machine {
         }
         const auto cell = object->cells.find(address.offset);
         if (cell != object->cells.end()) {
-            if (std::holds_alternative<std::monostate>(cell->second)) throw std::runtime_error("读取尚未初始化的聚合子对象");
+            if (value_empty(cell->second)) throw std::runtime_error("读取尚未初始化的聚合子对象");
             return cell->second;
         }
         for (std::size_t i = 0; i < detail::layout(address.type, symbols_).size; ++i)
@@ -532,13 +586,13 @@ class Machine {
         if (address.temporary.empty() && !detail::aggregate(symbol(address.symbol).type)) {
             const auto root_type = symbol(address.symbol).type;
             if (!detail::same_unqualified(root_type, address.type)) {
-                if (address.type->kind != TypeKind::Char || !detail::numeric(root_type) || std::holds_alternative<std::monostate>(root))
+                if (address.type->kind != TypeKind::Char || !detail::numeric(root_type) || value_empty(root))
                     throw std::runtime_error("地址写入类型不兼容或原对象未初始化");
                 std::uint64_t bits;
-                if (detail::integral(root_type)) bits = static_cast<std::uint64_t>(std::get<std::int64_t>(root));
-                else if (root_type->kind == TypeKind::Float) { const auto value = static_cast<float>(std::get<double>(root)); std::uint32_t word; std::memcpy(&word, &value, 4); bits = word; }
-                else { const auto value = std::get<double>(root); std::memcpy(&bits, &value, 8); }
-                bits = (bits & ~(std::uint64_t{255} << (8 * address.offset))) | ((static_cast<std::uint64_t>(std::get<std::int64_t>(converted)) & 255) << (8 * address.offset));
+                if (detail::integral(root_type)) bits = static_cast<std::uint64_t>(get<std::int64_t>(root));
+                else if (root_type->kind == TypeKind::Float) { const auto value = static_cast<float>(get<double>(root)); std::uint32_t word; std::memcpy(&word, &value, 4); bits = word; }
+                else { const auto value = get<double>(root); std::memcpy(&bits, &value, 8); }
+                bits = (bits & ~(std::uint64_t{255} << (8 * address.offset))) | ((static_cast<std::uint64_t>(get<std::int64_t>(converted)) & 255) << (8 * address.offset));
                 if (detail::floating(root_type)) {
                     if (root_type->kind == TypeKind::Float) { const auto word = static_cast<std::uint32_t>(bits); float value; std::memcpy(&value, &word, 4); root = convert_value(static_cast<double>(value), root_type); }
                     else { double value; std::memcpy(&value, &bits, 8); root = convert_value(value, root_type); }
@@ -552,7 +606,7 @@ class Machine {
             }
             root = std::move(converted); return;
         }
-        auto object = std::get<std::shared_ptr<Aggregate>>(root);
+        auto object = get<Aggregate*>(root);
         if (!detail::aggregate(address.type)) {
             const auto size = detail::layout(address.type, symbols_).size;
             for (auto it = object->cells.begin(); it != object->cells.end();) {
@@ -561,15 +615,15 @@ class Machine {
             for (std::size_t i = 0; i < size; ++i) { object->bytes.erase(address.offset + i); object->unknown.erase(address.offset + i); }
             if (detail::numeric(address.type)) {
                 std::uint64_t bits;
-                if (detail::integral(address.type)) bits = static_cast<std::uint64_t>(std::get<std::int64_t>(converted));
-                else if (size == 4) { const auto value = static_cast<float>(std::get<double>(converted)); std::uint32_t word; std::memcpy(&word, &value, 4); bits = word; }
-                else { const auto value = std::get<double>(converted); std::memcpy(&bits, &value, 8); }
+                if (detail::integral(address.type)) bits = static_cast<std::uint64_t>(get<std::int64_t>(converted));
+                else if (size == 4) { const auto value = static_cast<float>(get<double>(converted)); std::uint32_t word; std::memcpy(&word, &value, 4); bits = word; }
+                else { const auto value = get<double>(converted); std::memcpy(&bits, &value, 8); }
                 for (std::size_t i = 0; i < size; ++i) object->bytes[address.offset + i] = static_cast<unsigned char>(bits >> (8 * i));
             } else object->cells[address.offset] = std::move(converted);
             return;
         }
         const auto size = detail::layout(address.type, symbols_).size;
-        auto source = std::get<std::shared_ptr<Aggregate>>(converted);
+        auto source = get<Aggregate*>(converted);
         for (auto it = object->cells.begin(); it != object->cells.end();) {
             if (it->first >= address.offset && it->first - address.offset < size) it = object->cells.erase(it);
             else ++it;
@@ -598,7 +652,7 @@ class Machine {
             }
             else for (std::size_t i = 0; i < size; ++i) if (!object.bytes.count(offset + i)) object.unknown.insert(offset + i);
         } else if (type->kind == TypeKind::Address) {
-            if (!object.cells.count(offset)) object.cells[offset] = object.zero ? convert_value(std::int64_t{0}, type) : Value{std::monostate{}};
+            if (!object.cells.count(offset)) object.cells[offset] = object.zero ? convert_value(std::int64_t{0}, type) : Value{};
         } else if (type->kind == TypeKind::Array) {
             const auto stride = detail::layout(type->base, symbols_).size;
             for (std::size_t i = 0; i < *type->array_length; ++i) materialize_default(object, type->base, offset + i * stride, depth + 1);
@@ -621,9 +675,6 @@ class Machine {
 
     void write(const std::string& name, const Value& value, Frame& frame) {
         auto converted = convert_value(value, destination_type(name, frame));
-        if (auto* address = std::get_if<Address>(&converted); address && address->literal) {
-            auto& literal = strings_[*address->literal]; if (!literal) literal = address->literal; address->literal = literal;
-        }
         if (name.size() > 2 && name[1] == 's' && globals_.count(static_cast<SymbolId>(operand_id(name, 's'))))
             global_values_[name] = std::move(converted);
         else frame.values[name] = std::move(converted);
@@ -655,13 +706,13 @@ class Machine {
             }
             const auto& value = arguments[index++];
             if (scanning) {
-                if (!std::holds_alternative<Address>(value)) throw std::runtime_error("scanf 实参必须是对象地址");
+                if (!holds<Address>(value)) throw std::runtime_error("scanf 实参必须是对象地址");
                 TypeArena conversion_types;
                 TypeArenaScope conversion_scope(conversion_types);
                 Value input_value;
                 const auto expected = detail::format_type(part, true);
                 if (part.conversion == 's') {
-                    auto address = std::get<Address>(value);
+                    auto address = get<Address>(value);
                     if (address.literal || !address.type || address.type->kind != TypeKind::Char || address.type->is_const)
                         throw std::runtime_error("scanf %s 需要可写字符数组");
                     const auto capacity = address.last - address.offset;
@@ -696,17 +747,17 @@ class Machine {
                     const auto byte = static_cast<unsigned char>(character);
                     input_value = std::int64_t{byte > 127 ? byte - 256 : byte};
                 }
-                write_address(std::get<Address>(value), input_value, expected);
+                write_address(get<Address>(value), input_value, expected);
             } else {
                 std::ostringstream formatted;
                 if (part.conversion == 's') {
                     formatted << string_value(value);
                 } else if (part.conversion == 'f') {
-                    if (!std::holds_alternative<double>(value)) throw std::runtime_error("%f 需要 float");
-                    formatted << std::fixed << std::setprecision(6) << std::get<double>(value);
+                    if (!holds<double>(value)) throw std::runtime_error("%f 需要 float");
+                    formatted << std::fixed << std::setprecision(6) << get<double>(value);
                 } else {
-                    if (!std::holds_alternative<std::int64_t>(value)) throw std::runtime_error("%d/%c 需要整数");
-                    const auto integer = std::get<std::int64_t>(value);
+                    if (!holds<std::int64_t>(value)) throw std::runtime_error("%d/%c 需要整数");
+                    const auto integer = get<std::int64_t>(value);
                     if (part.conversion == 'c') formatted << static_cast<char>(static_cast<unsigned char>(integer));
                     else if (part.conversion == 'u' || part.conversion == 'x' || part.conversion == 'o')
                         formatted << (part.conversion == 'x' ? std::hex : part.conversion == 'o' ? std::oct : std::dec) << static_cast<std::uint64_t>(integer);
@@ -723,12 +774,12 @@ class Machine {
 
     // 沿字符数组地址读取到终止零，越界或未初始化时立即报错。
     std::string string_value(const Value& value) {
-        if (const auto* text = std::get_if<std::string>(&value)) return text->substr(0, text->find('\0'));
-        if (!std::holds_alternative<Address>(value)) throw std::runtime_error("需要字符数组地址");
-        auto address = std::get<Address>(value); std::string text;
+        if (const auto* text = get_if<std::string>(&value)) return text->substr(0, text->find('\0'));
+        if (!holds<Address>(value)) throw std::runtime_error("需要字符数组地址");
+        auto address = get<Address>(value); std::string text;
         if (!address.type || address.type->kind != TypeKind::Char) throw std::runtime_error("字符串地址类型错误");
         while (address.offset < address.last) {
-            const auto byte = std::get<std::int64_t>(read_address(address));
+            const auto byte = get<std::int64_t>(read_address(address));
             if (byte == 0) return text;
             text.push_back(static_cast<char>(static_cast<unsigned char>(byte))); ++address.offset;
         }
@@ -792,8 +843,8 @@ class Machine {
                 write(q.result, Address{globals_.count(entry.id) ? 0 : frame.id, entry.id, 0, entry.type, 0, detail::layout(entry.type, symbols_).size, {}, {}}, frame);
             } else if (q.op == "decay" || q.op == "offsetaddr") {
                 const auto value = read(q.arg1, frame);
-                if (!std::holds_alternative<Address>(value)) throw std::runtime_error("数组形参寻址需要对象地址");
-                auto selected = std::get<Address>(value);
+                if (!holds<Address>(value)) throw std::runtime_error("数组形参寻址需要对象地址");
+                auto selected = get<Address>(value);
                 if (selected.symbol == invalid_id && !selected.literal && selected.temporary.empty()) throw std::runtime_error("空地址不能访问");
                 if (q.op == "decay") {
                     root_value(selected);
@@ -801,9 +852,9 @@ class Machine {
                     selected.last = selected.offset + detail::layout(selected.type, symbols_).size;
                 } else {
                     const auto index_value = read(q.arg2, frame);
-                    if (!std::holds_alternative<std::int64_t>(index_value)) throw std::runtime_error("数组形参寻址需要整型下标");
+                    if (!holds<std::int64_t>(index_value)) throw std::runtime_error("数组形参寻址需要整型下标");
                     const auto stride = detail::layout(selected.type, symbols_).size;
-                    const auto delta = std::get<std::int64_t>(index_value) * static_cast<std::int64_t>(stride);
+                    const auto delta = get<std::int64_t>(index_value) * static_cast<std::int64_t>(stride);
                     const auto offset = static_cast<std::int64_t>(selected.offset) + delta;
                     if (offset < static_cast<std::int64_t>(selected.first) || offset >= static_cast<std::int64_t>(selected.last))
                         throw std::runtime_error("数组形参寻址越界");
@@ -813,14 +864,14 @@ class Machine {
                 write(q.result, selected, frame);
             } else if (q.op == "indexaddr" || q.op == "memberaddr") {
                 const auto base_value = read(q.arg1, frame);
-                if (!std::holds_alternative<Address>(base_value)) throw std::runtime_error("寻址操作数不是对象地址");
-                auto selected = std::get<Address>(base_value);
+                if (!holds<Address>(base_value)) throw std::runtime_error("寻址操作数不是对象地址");
+                auto selected = get<Address>(base_value);
                 root_value(selected);
                 if (q.op == "indexaddr") {
                     const auto index_value = read(q.arg2, frame);
-                    if (!std::holds_alternative<std::int64_t>(index_value) || !selected.type || selected.type->kind != TypeKind::Array)
+                    if (!holds<std::int64_t>(index_value) || !selected.type || selected.type->kind != TypeKind::Array)
                         throw std::runtime_error("数组寻址的下标或地址类型无效");
-                    const auto index = std::get<std::int64_t>(index_value);
+                    const auto index = get<std::int64_t>(index_value);
                     if (index < 0 || static_cast<std::size_t>(index) >= *selected.type->array_length)
                         throw std::runtime_error("数组下标越界");
                     selected.first = selected.offset;
@@ -835,12 +886,12 @@ class Machine {
                 write(q.result, selected, frame);
             } else if (q.op == "load") {
                 const auto address_value = read(q.arg1, frame);
-                if (!std::holds_alternative<Address>(address_value)) throw std::runtime_error("load 需要对象地址");
-                write(q.result, read_address(std::get<Address>(address_value)), frame);
+                if (!holds<Address>(address_value)) throw std::runtime_error("load 需要对象地址");
+                write(q.result, read_address(get<Address>(address_value)), frame);
             } else if (q.op == "store") {
                 const auto address_value = read(q.result, frame);
-                if (!std::holds_alternative<Address>(address_value)) throw std::runtime_error("store 需要对象地址");
-                store_address(std::get<Address>(address_value), read(q.arg1, frame));
+                if (!holds<Address>(address_value)) throw std::runtime_error("store 需要对象地址");
+                store_address(get<Address>(address_value), read(q.arg1, frame));
             } else if (q.op == "arg") frame.arguments.push_back(read(q.arg1, frame));
             else if (q.op == "call") {
                 const auto called = function(q.arg1).id;
@@ -853,18 +904,18 @@ class Machine {
                     if (q.result != "-") write(q.result, returned, frames_.back());
                 } else push(callee.id, arguments, q.result);
             } else if (q.op == "ret") {
-                const auto returned = q.arg1 == "-" ? Value{std::monostate{}} :
+                const auto returned = q.arg1 == "-" ? Value{} :
                     convert_value(read(q.arg1, frame), symbol(frame.code->function).type->base);
                 const auto destination = frame.destination;
                 frames_.pop_back();
                 if (frames_.empty()) {
-                    result_.exit_code = static_cast<std::int32_t>(std::get<std::int64_t>(returned));
+                    result_.exit_code = static_cast<std::int32_t>(get<std::int64_t>(returned));
                 } else if (destination != "-") write(destination, returned, frames_.back());
             } else if (q.op == "neg" || q.op == "not" || q.op == "bnot") {
                 const auto value = read(q.arg1, frame);
                 write(q.result, q.op == "not" ? Value{std::int64_t{!truth(value)}} :
-                    q.op == "bnot" ? Value{~std::get<std::int64_t>(value)} :
-                    std::holds_alternative<std::int64_t>(value) ? Value{-std::get<std::int64_t>(value)} : Value{-number(value)}, frame);
+                    q.op == "bnot" ? Value{~get<std::int64_t>(value)} :
+                    holds<std::int64_t>(value) ? Value{-get<std::int64_t>(value)} : Value{-number(value)}, frame);
             } else {
                 const auto left_value = read(q.arg1, frame);
                 const auto right_value = read(q.arg2, frame);
@@ -876,8 +927,8 @@ class Machine {
                 else if (q.op == ">=") value = std::int64_t{left >= right};
                 else if (q.op == "==") value = std::int64_t{left == right};
                 else if (q.op == "!=") value = std::int64_t{left != right};
-                else if (std::holds_alternative<std::int64_t>(left_value) && std::holds_alternative<std::int64_t>(right_value)) {
-                    const auto a = std::get<std::int64_t>(left_value), b = std::get<std::int64_t>(right_value);
+                else if (holds<std::int64_t>(left_value) && holds<std::int64_t>(right_value)) {
+                    const auto a = get<std::int64_t>(left_value), b = get<std::int64_t>(right_value);
                     const auto target = destination_type(q.result, frame);
                     if (target->is_unsigned && q.op == "*") {
                         const auto product = static_cast<std::uint64_t>(a) * static_cast<std::uint64_t>(b);
@@ -944,3 +995,9 @@ RunResult run(const IRProgram& program, const SymbolTableData& symbols,
 }
 
 }
+
+
+
+
+
+

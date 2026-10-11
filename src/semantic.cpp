@@ -1,4 +1,4 @@
-#include "minic/semantic.hpp"
+﻿#include "minic/semantic.hpp"
 #include "minic/symbol_table.hpp"
 #include "internal.hpp"
 
@@ -11,6 +11,10 @@ namespace minic {
 namespace {
 
 class Analyzer {
+    NodeArena* arena_ = nullptr; // 隐式转换节点使用的 Arena。
+public:
+    explicit Analyzer(NodeArena* arena = nullptr) : arena_(arena) {}
+private:
     DiagnosticEngine diagnostics_{Phase::Semantic}; // 本阶段的报错列表。
     SymbolTable table_{diagnostics_}; // 名字和作用域信息。
     TypePtr return_type_ = nullptr; // 当前函数的返回类型。
@@ -109,7 +113,7 @@ class Analyzer {
     }
 
     // 数组传参和字符串输入输出使用首元素地址；源码不提供指针类型。
-    void decay(std::unique_ptr<ASTNode>& node) {
+    void decay(ASTNode*& node) {
         if (!node->type || node->type->kind != TypeKind::Array) return;
         if (node->kind == NodeType::Identifier && table_.symbol(node->symbol_id)->storage == StorageClass::Register) {
             error(*node, "register 数组不能转成地址", "SEM_ADDRESS"); return;
@@ -158,7 +162,7 @@ class Analyzer {
             definition.enumerators.push_back({child->name, next, *symbol, child->range});
             ++next;
             // 提前保存已登记枚举常量，后续枚举表达式可引用前面的项。
-            enum_values_[*symbol] = std::get<std::int64_t>(child->value);
+            enum_values_[*symbol] = constant_get<std::int64_t>(child->value);
         }
         if (valid) table_.complete_record(*id, std::move(definition));
     }
@@ -204,7 +208,7 @@ class Analyzer {
         }
     }
 
-    void initialize(std::unique_ptr<ASTNode>& init, const TypePtr& target, bool global) {
+    void initialize(ASTNode*& init, const TypePtr& target, bool global) {
         init->scope_id = table_.current_scope();
         if (init->kind == NodeType::InitList) {
             if (!shape(*init, 0, invalid_id)) return;
@@ -228,7 +232,7 @@ class Analyzer {
         if (!valid_expression(*init)) return;
         if (target->kind == TypeKind::Address) decay(init);
         if (target->kind == TypeKind::Array && target->base->kind == TypeKind::Char && init->kind == NodeType::StringLiteral) {
-            if (std::get<std::string>(init->value).size() > *target->array_length)
+            if (constant_get<std::string>(init->value).size() > *target->array_length)
                 error(*init, "字符串超过 char 数组长度", "SEM_INIT_COUNT");
             return;
         }
@@ -268,9 +272,9 @@ class Analyzer {
     }
 
     // 在需要提升的表达式外包一层隐式转换。
-    void convert(std::unique_ptr<ASTNode>& node, const TypePtr& target) {
+    void convert(ASTNode*& node, const TypePtr& target) {
         if (same_type(node->type, target)) return;
-        auto cast = std::make_unique<ASTNode>();
+        auto cast = arena_->make();
         cast->kind = NodeType::ImplicitCast;
         cast->range = node->range;
         cast->scope_id = node->scope_id;
@@ -462,7 +466,7 @@ class Analyzer {
             if (node.children.size() < 2 || node.children[1]->kind != NodeType::StringLiteral ||
                 !valid_expression(*node.children[1])) { error(node, "M1 输入输出需要字面量格式串", "SEM_FORMAT"); return; }
             try {
-                const auto parts = detail::format_parts(std::get<std::string>(node.children[1]->value), scanning);
+                const auto parts = detail::format_parts(constant_get<std::string>(node.children[1]->value), scanning);
                 std::size_t index = 2;
                 for (const auto& part : parts) {
                     if (!part.conversion) continue;
@@ -832,6 +836,8 @@ class Analyzer {
 
 public:
     SemanticResult analyze(Program& program) {
+        static NodeArena fallback_arena;
+        if (!arena_) arena_ = &fallback_arena;
         if (program.kind != NodeType::Program) {
             diagnostics_.report(Level::Fatal, program.range, "语义分析需要 Program 根节点", "SEM_ROOT");
         } else if (shape(program, 0, invalid_id)) {
@@ -866,6 +872,10 @@ public:
 
 }
 
-SemanticResult analyze(Program& program) { return Analyzer{}.analyze(program); }
+SemanticResult analyze(Program& program, NodeArena* arena) {
+    return Analyzer(arena).analyze(program);
+}
 
 }
+
+

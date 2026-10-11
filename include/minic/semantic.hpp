@@ -5,7 +5,7 @@ namespace minic {
 
 // 检查语法树的语义，填写类型和符号编号，返回符号表及诊断。
 // 直接调用前建立 TypeArenaScope，类型管理器须保留到结果用完。
-SemanticResult analyze(Program& program);
+SemanticResult analyze(Program& program, NodeArena* arena = nullptr);
 
 // 判断两个类型是否相同。相同返回 true，不同或类型为空返回 false。
 bool same_type(const TypePtr& left, const TypePtr& right);

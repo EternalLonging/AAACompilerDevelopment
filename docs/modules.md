@@ -4,7 +4,7 @@
 
 当前已实现常量池、符号表、统一诊断、M1/M2 后续流程、数组与记录扩展、文本展示及总控。正式词法和语法入口已实现，真实源码验证见 [frontend.md](frontend.md)。支持范围及限制见 [backend-extensions.md](backend-extensions.md)。主程序统一包含 `minic/modules.hpp`；某模块可以只包含自己需要的头文件。
 
-TypePtr 已改成普通指针。compile / compile_preprocessed 返回的 CompilationResult.types 负责保存和释放本次类型对象；不要让单独取出的 AST、符号表或 IR 活得比它更久。run 自行管理内部临时类型。
+TypePtr 已改成普通指针。compile / compile_preprocessed 返回的 CompilationResult.types 负责保存和释放本次类型对象；ParseResult.arena 负责保存 AST 节点，root 是普通指针。不要让单独取出的 AST、符号表或 IR 活得比对应结果更久。run 自行管理运行时聚合对象和字符串池。
 
 直接调用阶段接口或常量池时，先建立类型管理器和创建范围，所有阶段共用它：
 
@@ -14,7 +14,7 @@ minic::TypeArenaScope scope(types); // 后续创建的类型放进 types。
 auto lexical = minic::lex("int main(void){return 0;}");
 auto syntax = minic::parse(lexical.tokens);
 if (syntax.ok()) {
-    auto semantic = minic::analyze(*syntax.root);
+    auto semantic = minic::analyze(*syntax.root, &syntax.arena);
     if (semantic.ok()) {
         auto ir = minic::generate(*syntax.root, semantic.symbols);
         // 在 types 销毁前使用 ir 和 semantic。
@@ -182,7 +182,7 @@ CompilationResult::ok() 必须同时满足：
 
 构造但未执行的结果不算成功。词法失败时 lexical 存在，其余为空；语法失败时 syntax 存在但 root 为空；语义失败时 semantic 存在而 ir 为空。诊断在各阶段结果内保留原列表，汇总列表保存副本，不允许展示层重复累加。
 
-ParseResult 拥有 AST，SemanticResult 拥有符号表，IRResult 拥有中间代码；保留 CompilationResult 到展示/执行结束。它包含 unique_ptr，移动而不复制。run 接收的 IR 和 symbols 必须来自这同一份结果。
+ParseResult 通过 NodeArena 保存 AST，SemanticResult 拥有符号表，IRResult 拥有中间代码；保留 CompilationResult 到展示/执行结束。ParseResult 可移动但不能复制，root 和 children 都是由 Arena 管理的普通指针。run 接收的 IR 和 symbols 必须来自这同一份结果。
 
 ## 8. 展示和导出
 

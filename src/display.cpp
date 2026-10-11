@@ -144,12 +144,13 @@ void print_ir(const IRProgram& program, const SymbolTableData& symbols, std::ost
     output << "常量池\n";
     for (const auto& constant : program.constants.entries) {
         output << "%c" << constant.id << " : " << type_text(constant.type) << " = ";
-        std::visit([&output](const auto& value) {
-            using T = std::decay_t<decltype(value)>;
-            if constexpr (std::is_same_v<T, std::monostate>) output << "未解码";
-            else if constexpr (std::is_same_v<T, std::string>) output << escaped(value);
-            else output << value;
-        }, constant.value);
+        switch (constant.value.kind) {
+        case ConstantKind::Empty: output << "未解码"; break;
+        case ConstantKind::Integer: output << constant.value.integer; break;
+        case ConstantKind::Unsigned: output << constant.value.unsigned_integer; break;
+        case ConstantKind::Floating: output << constant.value.floating; break;
+        case ConstantKind::Text: output << escaped(constant.value.text); break;
+        }
         output << '\n';
     }
     output << "全局初始化\n";
