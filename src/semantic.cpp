@@ -1,4 +1,490 @@
-﻿#include "minic/semantic.hpp"
+// ===== merged from semantic/type_arena.cpp =====
+#include "minic/interface.hpp"
+#include <stdexcept>
+#include <utility>
+
+namespace minic {
+namespace {
+thread_local TypeArena* current_arena = nullptr; // 当前线程的类型创建目标，不跨线程共享。
+}
+
+TypeArena::~TypeArena() { clear(); }
+void TypeArena::clear() noexcept {
+    for (auto* type : objects_) delete type;
+    objects_.clear();
+}
+TypeArena::TypeArena(TypeArena&& other) noexcept { objects_.swap(other.objects_); }
+TypeArena& TypeArena::operator=(TypeArena&& other) noexcept {
+    if (this != &other) { clear(); objects_.swap(other.objects_); }
+    return *this;
+}
+TypeInfo* TypeArena::create() { return create(TypeInfo{}); }
+TypeInfo* TypeArena::create(const TypeInfo& type) {
+    auto* result = new TypeInfo(type);
+    try { objects_.push_back(result); }
+    catch (...) { delete result; throw; }
+    return result;
+}
+std::size_t TypeArena::size() const noexcept { return objects_.size(); }
+TypeArenaScope::TypeArenaScope(TypeArena& arena) noexcept : previous_(current_arena) { current_arena = &arena; }
+TypeArenaScope::~TypeArenaScope() { current_arena = previous_; }
+TypeInfo* make_type_info() {
+    if (!current_arena) throw std::logic_error("创建类型前需要 TypeArena 和 TypeArenaScope");
+    return current_arena->create();
+}
+TypeInfo* make_type_info(const TypeInfo& type) {
+    if (!current_arena) throw std::logic_error("创建类型前需要 TypeArena 和 TypeArenaScope");
+    return current_arena->create(type);
+}
+}
+
+// ===== merged from semantic/type_rules.cpp =====
+#include "minic/semantic.hpp"
+#include "internal.hpp"
+
+#include <utility>
+
+namespace minic {
+namespace {
+
+using TypePair = std::pair<const TypeInfo*, const TypeInfo*>;
+
+// 比较类型的每一层，循环引用视为无效类型。
+bool compare(const TypePtr& left, const TypePtr& right, std::vector<TypePair>& path) {
+    if (path.size() > 128) return false;
+    if (!left || !right || left->kind != right->kind ||
+        left->is_unsigned != right->is_unsigned ||
+        left->is_const != right->is_const)
+        return false;
+    for (const auto& pair : path)
+        if (pair.first == left && pair.second == right) return false;
+    path.emplace_back(left, right);
+    bool equal = false;
+    switch (left->kind) {
+    case TypeKind::Unknown: case TypeKind::Error: case TypeKind::Named:
+        break;
+    case TypeKind::Address:
+        equal = compare(left->base, right->base, path);
+        break;
+    case TypeKind::Array:
+        equal = left->array_length == right->array_length &&
+                compare(left->base, right->base, path);
+        break;
+    case TypeKind::Function:
+        equal = left->variadic == right->variadic &&
+                left->has_prototype == right->has_prototype &&
+                left->params.size() == right->params.size() &&
+                compare(left->base, right->base, path);
+        for (std::size_t i = 0; equal && i < left->params.size(); ++i) {
+            const auto adjusted = [](TypePtr parameter) {
+                TypeInfo result;
+                if (parameter->kind == TypeKind::Array) {
+                    result.kind = TypeKind::Address;
+                    result.base = parameter->base;
+                } else result = *parameter;
+                result.is_const = false;
+                return result;
+            };
+            if (!left->params[i] || !right->params[i]) { equal = false; break; }
+            const auto left_parameter = adjusted(left->params[i]);
+            const auto right_parameter = adjusted(right->params[i]);
+            equal = compare(&left_parameter, &right_parameter, path);
+        }
+        break;
+    case TypeKind::Struct: case TypeKind::Union: case TypeKind::Enum:
+        equal = left->record_id != invalid_id && left->record_id == right->record_id;
+        break;
+    default:
+        equal = true;
+        break;
+    }
+    path.pop_back();
+    return equal;
+}
+
+// 判断教学目标支持的数值类型。
+bool m1_number(const TypePtr& type) { return detail::numeric(type); }
+
+TypePtr basic_type(TypeKind kind) {
+    auto type = make_type_info();
+    type->kind = kind;
+    return type;
+}
+
+}
+
+bool same_type(const TypePtr& left, const TypePtr& right) {
+    std::vector<TypePair> path;
+    return compare(left, right, path);
+}
+
+TypePtr arithmetic_result(const TypePtr& left, const TypePtr& right) {
+    if (!m1_number(left) || !m1_number(right)) return basic_type(TypeKind::Error);
+    if (left->kind == TypeKind::LongDouble || right->kind == TypeKind::LongDouble) return basic_type(TypeKind::LongDouble);
+    if (left->kind == TypeKind::Double || right->kind == TypeKind::Double) return basic_type(TypeKind::Double);
+    if (left->kind == TypeKind::Float || right->kind == TypeKind::Float) return basic_type(TypeKind::Float);
+    auto result = make_type_info();
+    result->kind = left->kind == TypeKind::Long || right->kind == TypeKind::Long ? TypeKind::Long : TypeKind::Int;
+    result->is_unsigned = (left->is_unsigned && detail::integer_bits(left) == 32) || (right->is_unsigned && detail::integer_bits(right) == 32);
+    return result;
+}
+
+bool can_assign(const TypePtr& target, const TypePtr& source) {
+    if (!m1_number(target) || !m1_number(source)) return false;
+    if (target->is_unsigned || source->is_unsigned || target->kind == TypeKind::Short || source->kind == TypeKind::Short ||
+        target->kind == TypeKind::Long || source->kind == TypeKind::Long || target->kind == TypeKind::Double || source->kind == TypeKind::Double ||
+        target->kind == TypeKind::LongDouble || source->kind == TypeKind::LongDouble) return true;
+    if (target->kind == source->kind || target->kind == TypeKind::Float) return true;
+    return target->kind == TypeKind::Int && source->kind == TypeKind::Char;
+}
+
+}
+
+// ===== merged from semantic/symbol_table.cpp =====
+#include "minic/symbol_table.hpp"
+#include "minic/semantic.hpp"
+
+#include <algorithm>
+#include <stdexcept>
+#include <unordered_set>
+#include <utility>
+
+namespace minic {
+namespace {
+
+// 编号不能占用 invalid_id。
+template <typename T>
+unsigned next_id(const std::vector<T>& entries) {
+    if (entries.size() >= invalid_id) throw std::length_error("符号表编号已用完");
+    return static_cast<unsigned>(entries.size());
+}
+
+bool object_kind(SymbolKind kind) {
+    return kind == SymbolKind::Variable || kind == SymbolKind::Parameter ||
+           kind == SymbolKind::Array;
+}
+
+// 成员必须是可存储的类型，数组必须有长度。
+bool member_type(const TypePtr& type, const SymbolTableData& data) {
+    if (!type || !same_type(type, type)) return false;
+    switch (type->kind) {
+    case TypeKind::Void: case TypeKind::Function:
+        return false;
+    case TypeKind::Array:
+        return type->array_length && *type->array_length > 0 &&
+               member_type(type->base, data);
+    case TypeKind::Struct: case TypeKind::Union: case TypeKind::Enum:
+        return type->record_id < data.records.size() &&
+               data.records[type->record_id].is_complete &&
+               ((type->kind == TypeKind::Struct && data.records[type->record_id].kind == RecordKind::Struct) ||
+                (type->kind == TypeKind::Union && data.records[type->record_id].kind == RecordKind::Union) ||
+                (type->kind == TypeKind::Enum && data.records[type->record_id].kind == RecordKind::Enum));
+    default:
+        return true;
+    }
+}
+
+
+}
+
+SymbolTable::SymbolTable(DiagnosticEngine& diagnostics) : diagnostics_(diagnostics) {
+    ScopeEntry global;
+    global.id = 0;
+    global.kind = ScopeKind::Global;
+    data_.scopes.push_back(std::move(global));
+    data_.active_scopes.push_back(0);
+}
+
+ScopeId SymbolTable::current_scope() const noexcept { return data_.active_scopes.back(); }
+
+ScopeId SymbolTable::enter_scope(ScopeKind kind, const SourceRange& range) {
+    if (kind == ScopeKind::Global) throw std::invalid_argument("不能再次建立全局作用域");
+    ScopeEntry entry;
+    entry.id = next_id(data_.scopes);
+    entry.parent = current_scope();
+    entry.kind = kind;
+    entry.range = range;
+    const auto id = entry.id;
+    data_.scopes.push_back(std::move(entry));
+    try { data_.active_scopes.push_back(id); }
+    catch (...) { data_.scopes.pop_back(); throw; }
+    return id;
+}
+
+bool SymbolTable::exit_scope() {
+    if (data_.active_scopes.size() == 1) {
+        diagnostics_.report(Level::Fatal, data_.scopes[0].range,
+                            "不能退出全局作用域", "SYM_GLOBAL_EXIT");
+        return false;
+    }
+    data_.active_scopes.pop_back();
+    return true;
+}
+
+MaybeValue<SymbolId> SymbolTable::insert(SymbolEntry entry) {
+    if (entry.name.empty() || !same_type(entry.type, entry.type) ||
+        (entry.kind == SymbolKind::Function && entry.type->kind != TypeKind::Function) ||
+        (object_kind(entry.kind) && (entry.type->kind == TypeKind::Void ||
+                                   entry.type->kind == TypeKind::Function))) {
+        diagnostics_.report(Level::Error, entry.range, "符号名字或类型无效", "SYM_INVALID_ENTRY");
+        return emptyValue;
+    }
+    auto& names = data_.scopes[current_scope()].symbols;
+    const auto found = names.find(entry.name);
+    if (found != names.end()) {
+        auto& previous = data_.symbols[found->second];
+        const bool linkage_conflict =
+            (entry.storage == StorageClass::Static && previous.storage != StorageClass::Static) ||
+            (entry.storage == StorageClass::Extern && previous.storage == StorageClass::Static);
+        if (previous.kind == SymbolKind::Function && entry.kind == SymbolKind::Function &&
+            same_type(previous.type, entry.type) && !linkage_conflict &&
+            !(previous.is_defined && entry.is_defined) &&
+            !(previous.builtin != BuiltinKind::None && entry.is_defined) &&
+            (entry.builtin == BuiltinKind::None || entry.builtin == previous.builtin)) {
+            previous.is_defined = previous.is_defined || entry.is_defined;
+            return previous.id;
+        }
+        diagnostics_.report(Level::Error, entry.range,
+                            "同一作用域中的声明冲突：" + entry.name,
+                            "SYM_DECL_CONFLICT", {previous.range});
+        return emptyValue;
+    }
+    entry.id = next_id(data_.symbols);
+    entry.scope = current_scope();
+    entry.line = entry.range.begin.line;
+    entry.col = entry.range.begin.col;
+    const auto id = entry.id;
+    data_.symbols.push_back(std::move(entry));
+    try { names.emplace(data_.symbols.back().name, id); }
+    catch (...) { data_.symbols.pop_back(); throw; }
+    return id;
+}
+
+MaybeValue<SymbolId> SymbolTable::lookup(const std::string& name) const {
+    for (auto it = data_.active_scopes.rbegin(); it != data_.active_scopes.rend(); ++it) {
+        const auto& names = data_.scopes[*it].symbols;
+        const auto found = names.find(name);
+        if (found != names.end()) return found->second;
+    }
+    return emptyValue;
+}
+
+MaybeValue<SymbolId> SymbolTable::declare_object(SymbolEntry entry) {
+    const auto scope = current_scope();
+    if (scope != 0 && entry.storage != StorageClass::Extern) return insert(std::move(entry));
+    auto& global = data_.scopes[0].symbols;
+    const auto found = global.find(entry.name);
+    SymbolId id;
+    if (found != global.end()) {
+        auto& previous = data_.symbols[found->second];
+        if (!object_kind(previous.kind) || !same_type(previous.type, entry.type) ||
+            (previous.is_defined && entry.is_defined) ||
+            (entry.storage == StorageClass::Static && previous.storage != StorageClass::Static) ||
+            (previous.storage == StorageClass::Static && entry.storage == StorageClass::None)) {
+            diagnostics_.report(Level::Error, entry.range, "对象声明类型、链接或定义冲突：" + entry.name, "SYM_DECL_CONFLICT", {previous.range}); return emptyValue;
+        }
+        previous.is_defined = previous.is_defined || entry.is_defined;
+        if (entry.storage != StorageClass::Extern) previous.storage = entry.storage;
+        id = previous.id;
+    } else {
+        // 暂时切到全局登记，之后恢复调用者的活动作用域。
+        data_.active_scopes.push_back(0);
+        const auto created = insert(std::move(entry));
+        data_.active_scopes.pop_back();
+        if (!created) return emptyValue;
+        id = *created;
+    }
+    if (scope != 0) {
+        const auto local = data_.scopes[scope].symbols.find(data_.symbols[id].name);
+        if (local != data_.scopes[scope].symbols.end() && local->second != id) {
+            diagnostics_.report(Level::Error, data_.symbols[id].range, "extern 与本层名字冲突", "SYM_DECL_CONFLICT"); return emptyValue;
+        }
+        data_.scopes[scope].symbols[data_.symbols[id].name] = id;
+    }
+    return id;
+}
+
+MaybeValue<SymbolId> SymbolTable::lookup_current(const std::string& name) const {
+    const auto& names = data_.scopes[current_scope()].symbols;
+    const auto found = names.find(name);
+    return found == names.end() ? emptyValue : MaybeValue<SymbolId>(found->second);
+}
+
+const SymbolEntry* SymbolTable::symbol(SymbolId id) const noexcept {
+    return id < data_.symbols.size() ? &data_.symbols[id] : nullptr;
+}
+
+bool SymbolTable::set_symbol_offset(SymbolId id, std::size_t offset) {
+    const auto* entry = symbol(id);
+    if (!entry || !object_kind(entry->kind)) {
+        diagnostics_.report(Level::Error, entry ? entry->range : SourceRange{},
+                            "只有有效的对象符号才能设置存储偏移", "SYM_INVALID_OFFSET");
+        return false;
+    }
+    data_.symbols[id].offset = offset;
+    return true;
+}
+
+MaybeValue<RecordId> SymbolTable::declare_record(const std::string& tag, RecordKind kind,
+                                                   const SourceRange& range) {
+    auto& tags = data_.scopes[current_scope()].tags;
+    if (!tag.empty()) {
+        const auto found = tags.find(tag);
+        if (found != tags.end()) {
+            const auto& previous = data_.records[found->second];
+            if (previous.kind == kind) return previous.id;
+            diagnostics_.report(Level::Error, range, "标签种类冲突：" + tag,
+                                "SYM_TAG_CONFLICT", {previous.range});
+            return emptyValue;
+        }
+    }
+    StructEntry entry;
+    entry.id = next_id(data_.records);
+    entry.tag = tag;
+    entry.kind = kind;
+    entry.scope = current_scope();
+    entry.range = range;
+    const auto id = entry.id;
+    data_.records.push_back(std::move(entry));
+    if (!tag.empty()) {
+        try { tags.emplace(tag, id); }
+        catch (...) { data_.records.pop_back(); throw; }
+    }
+    return id;
+}
+
+bool SymbolTable::complete_record(RecordId id, StructEntry definition) {
+    const auto* previous = record(id);
+    const auto fail = [&](const std::string& message) {
+        diagnostics_.report(Level::Error, definition.range, message, "SYM_RECORD_INVALID",
+                            previous ? std::vector<SourceRange>{previous->range} : std::vector<SourceRange>{});
+        return false;
+    };
+    if (!previous || definition.id != id || definition.tag != previous->tag ||
+        definition.kind != previous->kind || definition.scope != previous->scope)
+        return fail("记录编号、标签或作用域不一致");
+    if (previous->is_complete) return fail("记录已经定义：" + previous->tag);
+    if (!definition.size || !definition.alignment || *definition.size == 0 ||
+        *definition.alignment == 0 ||
+        (*definition.alignment & (*definition.alignment - 1)) != 0 ||
+        *definition.size % *definition.alignment != 0)
+        return fail("记录缺少有效的大小或对齐信息");
+    std::unordered_set<std::string> names;
+    if (definition.kind == RecordKind::Enum) {
+        if (!definition.members.empty() || definition.enumerators.empty())
+            return fail("枚举定义必须包含枚举项，不能包含成员");
+        for (const auto& value : definition.enumerators) {
+            const auto* entry = symbol(value.symbol_id);
+            if (value.name.empty() || !names.insert(value.name).second || !entry ||
+                entry->kind != SymbolKind::EnumConstant || entry->name != value.name ||
+                entry->scope != definition.scope)
+                return fail("枚举项重复或尚未登记到普通符号表");
+        }
+    } else {
+        if (!definition.enumerators.empty() || definition.members.empty())
+            return fail("结构体和联合体必须包含成员，不能包含枚举项");
+        for (const auto& member : definition.members) {
+            if (member.name.empty() || !names.insert(member.name).second)
+                return fail("成员名字为空或重复：" + member.name);
+            if (!member_type(member.type, data_) || !member.offset ||
+                *member.offset >= *definition.size ||
+                (definition.kind == RecordKind::Union && *member.offset != 0))
+                return fail("成员类型或偏移无效：" + member.name);
+        }
+    }
+    definition.is_complete = true;
+    data_.records[id] = std::move(definition);
+    return true;
+}
+
+MaybeValue<RecordId> SymbolTable::lookup_tag(const std::string& tag) const {
+    for (auto it = data_.active_scopes.rbegin(); it != data_.active_scopes.rend(); ++it) {
+        const auto& tags = data_.scopes[*it].tags;
+        const auto found = tags.find(tag);
+        if (found != tags.end()) return found->second;
+    }
+    return emptyValue;
+}
+
+MaybeValue<RecordId> SymbolTable::lookup_tag_current(const std::string& tag) const {
+    const auto& tags = data_.scopes[current_scope()].tags;
+    const auto found = tags.find(tag);
+    return found == tags.end() ? emptyValue : MaybeValue<RecordId>(found->second);
+}
+
+const StructEntry* SymbolTable::record(RecordId id) const noexcept {
+    return id < data_.records.size() ? &data_.records[id] : nullptr;
+}
+
+MaybeValue<std::size_t> SymbolTable::find_member(RecordId id, const std::string& name) const {
+    const auto* entry = record(id);
+    if (!entry || !entry->is_complete || entry->kind == RecordKind::Enum) return emptyValue;
+    for (std::size_t i = 0; i < entry->members.size(); ++i)
+        if (entry->members[i].name == name) return i;
+    return emptyValue;
+}
+
+const SymbolTableData& SymbolTable::data() const noexcept { return data_; }
+SymbolTableData SymbolTable::release() && { return std::move(data_); }
+
+bool register_builtins(SymbolTable& table) {
+    if (table.current_scope() != 0) {
+        table.diagnostics_.report(Level::Error, table.data_.scopes[table.current_scope()].range,
+                                  "内建函数必须登记在全局作用域", "SYM_BUILTIN_SCOPE");
+        return false;
+    }
+    auto integer = make_type_info();
+    integer->kind = TypeKind::Int;
+    auto character = make_type_info();
+    character->kind = TypeKind::Char;
+    character->is_const = true;
+    auto pointer = make_type_info();
+    pointer->kind = TypeKind::Address;
+    pointer->base = character;
+    auto function = make_type_info();
+    function->kind = TypeKind::Function;
+    function->base = integer;
+    function->params = {pointer};
+    function->variadic = true;
+    const std::pair<const char*, BuiltinKind> builtins[] = {
+        {"printf", BuiltinKind::Printf}, {"scanf", BuiltinKind::Scanf}
+    };
+    // 先检查全部名字，避免名字冲突时只登记了一半。
+    for (const auto& builtin : builtins) {
+        const auto id = table.lookup_current(builtin.first);
+        if (id) {
+            const auto* entry = table.symbol(*id);
+            if (entry->kind != SymbolKind::Function ||
+                (entry->builtin != BuiltinKind::None && entry->builtin != builtin.second) ||
+                entry->storage == StorageClass::Static || entry->is_defined ||
+                !same_type(entry->type, function)) {
+                table.diagnostics_.report(Level::Error, entry->range,
+                                          "内建函数名字已被占用：" + entry->name,
+                                          "SYM_BUILTIN_CONFLICT");
+                return false;
+            }
+        }
+    }
+    for (const auto& builtin : builtins) {
+        if (const auto id = table.lookup_current(builtin.first)) {
+            table.data_.symbols[*id].builtin = builtin.second;
+            continue;
+        }
+        SymbolEntry entry;
+        entry.name = builtin.first;
+        entry.kind = SymbolKind::Function;
+        entry.type = function;
+        entry.builtin = builtin.second;
+        entry.range.file = "<builtin>";
+        if (!table.insert(std::move(entry))) return false;
+    }
+    return true;
+}
+
+}
+
+// ===== merged from semantic/semantic.cpp =====
+#include "minic/semantic.hpp"
 #include "minic/symbol_table.hpp"
 #include "internal.hpp"
 
@@ -21,7 +507,7 @@ private:
     std::size_t loop_depth_ = 0; // 当前所在的循环层数。
     std::size_t depth_ = 0; // 防止过深的语法树耗尽调用栈。
     struct SwitchContext {
-        std::unordered_set<std::int64_t> values; // 已使用的 case 常量。
+        std::unordered_set<long long> values; // 已使用的 case 常量。
         bool has_default = false; // 是否已有 default。
     };
     std::vector<SwitchContext> switches_; // 当前嵌套的 switch。
@@ -141,7 +627,7 @@ private:
         node.record_id = *id;
         auto definition = *table_.record(*id);
         definition.size = 4; definition.alignment = 4;
-        std::int64_t next = 0;
+        long long next = 0;
         bool valid = true;
         for (auto& child : node.children) {
             child->scope_id = table_.current_scope();
@@ -152,7 +638,7 @@ private:
                 if (!value) { error(*child, "枚举值必须是整型常量表达式", "SEM_ENUM"); valid = false; continue; }
                 next = *value;
             }
-            if (next < std::numeric_limits<std::int32_t>::min() || next > std::numeric_limits<std::int32_t>::max()) { error(*child, "枚举自动编号溢出", "SEM_ENUM"); valid = false; continue; }
+            if (next < std::numeric_limits<int>::min() || next > std::numeric_limits<int>::max()) { error(*child, "枚举自动编号溢出", "SEM_ENUM"); valid = false; continue; }
             child->type = detail::type(TypeKind::Int); child->value = next;
             SymbolEntry entry; entry.name = child->name; entry.kind = SymbolKind::EnumConstant;
             entry.type = child->type; entry.range = child->range; entry.is_defined = true;
@@ -162,12 +648,12 @@ private:
             definition.enumerators.push_back({child->name, next, *symbol, child->range});
             ++next;
             // 提前保存已登记枚举常量，后续枚举表达式可引用前面的项。
-            enum_values_[*symbol] = constant_get<std::int64_t>(child->value);
+            enum_values_[*symbol] = constant_get<long long>(child->value);
         }
         if (valid) table_.complete_record(*id, std::move(definition));
     }
 
-    std::unordered_map<SymbolId, std::int64_t> enum_values_; // 枚举常量的数值。
+    std::unordered_map<SymbolId, long long> enum_values_; // 枚举常量的数值。
 
     void record_definition(ASTNode& node) {
         if (!shape(node, 0, invalid_id)) return;
@@ -318,11 +804,11 @@ private:
                 auto type = make_type_info(); type->kind = suffix.find_first_of("lL") == std::string::npos ? TypeKind::Int : TypeKind::Long;
                 type->is_unsigned = suffix.find_first_of("uU") != std::string::npos;
                 const bool nondecimal = match[1].str().size() > 1 && match[1].str()[0] == '0';
-                if (value > std::numeric_limits<std::int32_t>::max() && nondecimal) type->is_unsigned = true;
-                if (value > (type->is_unsigned ? std::numeric_limits<std::uint32_t>::max() : static_cast<std::uint64_t>(std::numeric_limits<std::int32_t>::max())))
+                if (value > std::numeric_limits<int>::max() && nondecimal) type->is_unsigned = true;
+                if (value > (type->is_unsigned ? std::numeric_limits<unsigned>::max() : static_cast<unsigned long long>(std::numeric_limits<int>::max())))
                     throw std::runtime_error("整数常量超出 32 位目标范围");
                 node.type = type;
-                node.value = type->is_unsigned ? ConstantValue{static_cast<std::uint64_t>(value)} : ConstantValue{static_cast<std::int64_t>(value)};
+                node.value = type->is_unsigned ? ConstantValue{static_cast<unsigned long long>(value)} : ConstantValue{static_cast<long long>(value)};
             } else {
                 static const std::regex pattern(R"(((\d+\.\d*|\.\d+)([eE][+-]?\d+)?|\d+[eE][+-]?\d+)[fFlL]?)");
                 if (!std::regex_match(node.name, pattern)) throw std::runtime_error("M1 浮点常量写法不受支持");
@@ -566,7 +1052,7 @@ private:
                     const auto size = detail::layout(measured, table_.data()).size;
                     node.children.clear(); node.declared_type = nullptr;
                     node.kind = NodeType::IntLiteral; node.name = std::to_string(size);
-                    node.value = static_cast<std::int64_t>(size); node.type = detail::type(TypeKind::Int);
+                    node.value = static_cast<long long>(size); node.type = detail::type(TypeKind::Int);
                     node.category = ValueCategory::RValue;
                 } catch (const std::runtime_error& exception) { error(node, exception.what(), "SEM_SIZEOF"); }
             }
@@ -877,5 +1363,3 @@ SemanticResult analyze(Program& program, NodeArena* arena) {
 }
 
 }
-
-

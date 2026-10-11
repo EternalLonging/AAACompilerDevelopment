@@ -1,13 +1,11 @@
-﻿param([string]$Compiler = 'g++')
+param([string]$Compiler = 'g++')
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 Push-Location $projectRoot
 try {
     New-Item -ItemType Directory -Force build | Out-Null
-    $sources = @('src/semantic/type_arena.cpp', 'src/frontend/preprocessor.cpp', 'src/backend/constant_pool.cpp', 'src/common/diagnostic.cpp', 'src/semantic/symbol_table.cpp',
-        'src/semantic/type_rules.cpp', 'src/semantic/semantic.cpp', 'src/backend/ir.cpp', 'src/backend/interpreter.cpp',
-        'src/common/display.cpp', 'src/common/compilation_result.cpp')
+    $sources = @('src/semantic.cpp', 'src/backend.cpp', 'src/common.cpp')
     $objects = @()
     foreach ($source in $sources) {
         $object = 'build/' + [System.IO.Path]::GetFileNameWithoutExtension($source) + '.o'
@@ -17,7 +15,7 @@ try {
     }
     foreach ($name in @('constant_pool', 'symbol_table', 'm1_pipeline', 'm2_pipeline', 'm3_pipeline', 'm4_pipeline', 'preprocessor', 'compiler_flow')) {
         $testSources = @("tests/${name}_test.cpp")
-        if ($name -eq 'compiler_flow') { $testSources += 'src/driver/compiler.cpp' }
+        if ($name -eq 'compiler_flow') { $testSources += 'src/compiler.cpp' }
         & $Compiler '-std=c++17' '-Wall' '-Wextra' '-Wpedantic' '-Werror' '-I' 'include' @testSources @objects '-o' "build/${name}_test.exe"
         if ($LASTEXITCODE -ne 0) { throw "测试编译失败：$name" }
         & "./build/${name}_test.exe"
@@ -31,7 +29,7 @@ try {
     }
     # 总控替身测试保持隔离，正式前端对象只链接真实源码测试和命令行。
     $frontendObjects = @()
-    foreach ($source in @('src/frontend/lexer.cpp', 'src/frontend/parser.cpp', 'src/driver/compiler.cpp')) {
+    foreach ($source in @('src/frontend.cpp', 'src/compiler.cpp')) {
         $object = 'build/' + [System.IO.Path]::GetFileNameWithoutExtension($source) + '.o'
         & $Compiler '-std=c++17' '-Wall' '-Wextra' '-Wpedantic' '-Werror' '-I' 'include' '-c' $source '-o' $object
         if ($LASTEXITCODE -ne 0) { throw "前端编译失败：$source" }
@@ -65,4 +63,3 @@ try {
 } finally {
     Pop-Location
 }
-

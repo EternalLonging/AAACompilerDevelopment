@@ -1,4 +1,4 @@
-﻿#include "minic/constant_pool.hpp"
+#include "minic/constant_pool.hpp"
 
 #include <cmath>
 #include <iostream>
@@ -42,23 +42,23 @@ int main() {
     try {
         ConstantPool pool;
         const auto integer = number_type(TypeKind::Int);
-        const auto ten = pool.intern(integer, std::int64_t{10}, "10",
+        const auto ten = pool.intern(integer, static_cast<long long>(10), "10",
                                     {"first.c", {2, 3, 5}, {2, 5, 7}});
         // 用另一份结构相同的 TypeInfo、不同进制和位置，仍应复用原编号。
-        require(pool.intern(number_type(TypeKind::Int), std::int64_t{10}, "012") == ten,
+        require(pool.intern(number_type(TypeKind::Int), static_cast<long long>(10), "012") == ten,
                 "去重应依据类型和值，不是指针或拼写");
         require(pool.get(ten)->spelling == "10" && pool.get(ten)->range.file == "first.c",
                 "去重后应保留首次出现信息");
         const auto unsigned_ten = pool.intern(number_type(TypeKind::Int, true),
-                                              std::uint64_t{10}, "10U");
-        const auto long_ten = pool.intern(number_type(TypeKind::Long), std::int64_t{10}, "10L");
+                                              static_cast<unsigned long long>(10), "10U");
+        const auto long_ten = pool.intern(number_type(TypeKind::Long), static_cast<long long>(10), "10L");
         const auto float_ten = pool.intern(number_type(TypeKind::Float), 10.0, "10.0f");
         const auto double_ten = pool.intern(number_type(TypeKind::Double), 10.0, "10.0");
         require(unsigned_ten != ten && long_ten != ten && float_ten != ten &&
                 double_ten != float_ten, "不同 C 类型不能合并");
-        const auto maximum = std::numeric_limits<std::uint64_t>::max();
+        const auto maximum = std::numeric_limits<unsigned long long>::max();
         const auto big = pool.intern(number_type(TypeKind::Long, true), maximum, "ULONG_MAX");
-        require(constant_get<std::uint64_t>(pool.get(big)->value) == maximum,
+        require(constant_get<unsigned long long>(pool.get(big)->value) == maximum,
                 "大整数不可经过 double 丢失精度");
 
         const auto positive_zero = pool.intern(number_type(TypeKind::Double), 0.0, "0.0");
@@ -85,9 +85,9 @@ int main() {
                 "非法编号不能越界访问");
         require(constant_operand(ten) == "%c0", "常量操作数应带唯一前缀");
 
-        rejects(pool, [&] { pool.intern({}, std::int64_t{1}, "1"); });
+        rejects(pool, [&] { pool.intern({}, static_cast<long long>(1), "1"); });
         rejects(pool, [&] { pool.intern(integer, ConstantValue{}, "?"); });
-        rejects(pool, [&] { pool.intern(integer, std::uint64_t{1}, "1"); });
+        rejects(pool, [&] { pool.intern(integer, static_cast<unsigned long long>(1), "1"); });
         rejects(pool, [&] { pool.intern(number_type(TypeKind::Double),
                                        std::numeric_limits<double>::infinity(), "inf"); });
         rejects(pool, [&] { pool.intern(number_type(TypeKind::Double),
@@ -101,13 +101,13 @@ int main() {
         // 修改调用方仍持有的可写类型，不得改变已入池的类型和索引身份。
         auto mutable_type = make_type_info();
         mutable_type->kind = TypeKind::Int;
-        const auto snapshot = pool.intern(mutable_type, std::int64_t{99}, "99");
+        const auto snapshot = pool.intern(mutable_type, static_cast<long long>(99), "99");
         mutable_type->kind = TypeKind::Float;
         require(pool.get(snapshot)->type->kind == TypeKind::Int &&
-                snapshot == pool.intern(integer, std::int64_t{99}, "99"),
+                snapshot == pool.intern(integer, static_cast<long long>(99), "99"),
                 "入池类型应为只读快照");
-        for (std::int64_t i = 1000; i < 2000; ++i) pool.intern(integer, i, std::to_string(i));
-        require(pool.get(ten)->id == ten && pool.intern(integer, std::int64_t{10}, "10") == ten,
+        for (long long i = 1000; i < 2000; ++i) pool.intern(integer, i, std::to_string(i));
+        require(pool.get(ten)->id == ten && pool.intern(integer, static_cast<long long>(10), "10") == ten,
                 "扩容后编号和去重索引应保持稳定");
 
         IRProgram program;
@@ -115,7 +115,7 @@ int main() {
         program.constants = std::move(pool).release();
         require(program.constants.entries.size() == count && pool.size() == 0,
                 "release 应转移数据并清空登记器");
-        require(pool.intern(integer, std::int64_t{10}, "new compilation") == 0,
+        require(pool.intern(integer, static_cast<long long>(10), "new compilation") == 0,
                 "不同编译的池应独立重新编号");
         std::cout << "constant pool: deduplication, type identity, precision, strings, "
                      "invalid input, stable IDs and ownership checks passed\n";
@@ -125,5 +125,3 @@ int main() {
         return 1;
     }
 }
-
-

@@ -1,4 +1,4 @@
-﻿cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.16)
 project(AAACompilerDevelopment LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -9,19 +9,11 @@ if(MSVC)
 endif()
 
 add_library(minic_backend STATIC
-    src/semantic/type_arena.cpp
-    src/frontend/preprocessor.cpp
-    src/backend/constant_pool.cpp
-    src/common/diagnostic.cpp
-    src/semantic/symbol_table.cpp
-    src/semantic/type_rules.cpp
-    src/semantic/semantic.cpp
-    src/backend/ir.cpp
-    src/backend/interpreter.cpp
-    src/common/display.cpp
-    src/common/compilation_result.cpp
+    src/semantic.cpp
+    src/backend.cpp
+    src/common.cpp
 )
-target_include_directories(minic_backend PUBLIC include PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_include_directories(minic_backend PUBLIC include)
 if(MSVC)
     target_compile_options(minic_backend PRIVATE /W4 /utf-8)
 else()
@@ -29,16 +21,15 @@ else()
 endif()
 
 # 词法、语法与后端组成真实源码编译入口。
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/frontend/lexer.cpp" AND
-   EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/frontend/parser.cpp")
-    add_library(minic_compiler STATIC src/driver/compiler.cpp src/frontend/lexer.cpp src/frontend/parser.cpp)
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/frontend.cpp")
+    add_library(minic_compiler STATIC src/compiler.cpp src/frontend.cpp)
     target_link_libraries(minic_compiler PUBLIC minic_backend)
     if(MSVC)
         target_compile_options(minic_compiler PRIVATE /W4 /utf-8)
     else()
         target_compile_options(minic_compiler PRIVATE -Wall -Wextra -Wpedantic)
     endif()
-    add_executable(minic src/driver/main.cpp)
+    add_executable(minic src/main.cpp)
     target_link_libraries(minic PRIVATE minic_compiler)
     if(MINGW)
         target_link_options(minic PRIVATE -municode)
@@ -75,17 +66,17 @@ if(BUILD_TESTING)
     target_link_libraries(lexer_probe PRIVATE minic_compiler)
     add_executable(integration_preprocess_driver tests/integration_driver.cpp)
     target_compile_definitions(integration_preprocess_driver PRIVATE MINIC_FIXTURE_PREPROCESS_ONLY)
-    target_link_libraries(integration_preprocess_driver PRIVATE minic_backend)
+    target_link_libraries(integration_preprocess_driver PRIVATE minic_compiler)
     if(MINGW)
         target_link_options(integration_preprocess_driver PRIVATE -municode)
     endif()
     foreach(test constant_pool symbol_table m1_pipeline m2_pipeline m3_pipeline m4_pipeline preprocessor)
         add_executable(${test}_test tests/${test}_test.cpp)
-        target_link_libraries(${test}_test PRIVATE minic_backend)
+        target_link_libraries(${test}_test PRIVATE minic_compiler)
         add_test(NAME ${test} COMMAND ${test}_test)
     endforeach()
-    add_executable(compiler_flow_test tests/compiler_flow_test.cpp src/driver/compiler.cpp)
-    target_link_libraries(compiler_flow_test PRIVATE minic_backend)
+    add_executable(compiler_flow_test tests/compiler_flow_test.cpp)
+    target_link_libraries(compiler_flow_test PRIVATE minic_compiler)
     add_test(NAME compiler_flow COMMAND compiler_flow_test)
     find_package(Python3 COMPONENTS Interpreter QUIET)
     if(Python3_FOUND)
@@ -113,4 +104,3 @@ if(BUILD_TESTING)
         endif()
     endif()
 endif()
-

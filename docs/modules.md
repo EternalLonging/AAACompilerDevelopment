@@ -1,4 +1,4 @@
-﻿# 模块函数接口 v1.4
+# 模块函数接口 v1.4
 
 日期：2026-10-10。结构体及其字段约定见 [interface.md](interface.md)。本文件定义“各模块怎样调用”，全部函数声明位于 `include/minic/`，均附中文注释。
 
@@ -28,17 +28,17 @@ if (syntax.ok()) {
 
 | 负责人对应任务 | 头文件 | 约定实现文件 | 公共接口 |
 |---|---|---|---|
-| 词法分析 | lexer.hpp | src/frontend/lexer.cpp | lex |
-| 语法分析 | parser.hpp | src/frontend/parser.cpp | parse |
-| 符号表管理 | symbol_table.hpp | src/semantic/symbol_table.cpp | SymbolTable、register_builtins（已实现） |
-| 统一出错处理 | diagnostic.hpp | src/common/diagnostic.cpp | DiagnosticEngine（已实现） |
-| 语义分析 | semantic.hpp | src/semantic/semantic.cpp、src/semantic/type_rules.cpp | analyze（当前教学范围）；共用类型规则 |
-| 中间代码生成 | ir.hpp | src/backend/ir.cpp | generate（当前教学范围） |
-| 常量池（IR 公共支持） | constant_pool.hpp | src/backend/constant_pool.cpp | ConstantPool、constant_operand（已实现） |
-| 四元式解释器 | interpreter.hpp | src/backend/interpreter.cpp | run（当前教学范围） |
-| 主流程整合 | compiler.hpp | src/driver/compiler.cpp、src/common/compilation_result.cpp | compile、CompilationResult::ok（已实现并接入正式前端） |
-| 类型内存管理 | type_arena.hpp | src/semantic/type_arena.cpp | TypeArena、TypeArenaScope、make_type_info |
-| 文本展示与导出 | display.hpp | src/common/display.cpp | print_tokens / ast / symbols / ir / diagnostics（已实现） |
+| 词法分析 | lexer.hpp | src/frontend.cpp | lex |
+| 语法分析 | parser.hpp | src/frontend.cpp | parse |
+| 符号表管理 | symbol_table.hpp | src/semantic.cpp | SymbolTable、register_builtins（已实现） |
+| 统一出错处理 | diagnostic.hpp | src/common.cpp | DiagnosticEngine（已实现） |
+| 语义分析 | semantic.hpp | src/semantic.cpp | analyze（当前教学范围）；共用类型规则 |
+| 中间代码生成 | ir.hpp | src/backend.cpp | generate（当前教学范围） |
+| 常量池（IR 公共支持） | constant_pool.hpp | src/backend.cpp | ConstantPool、constant_operand（已实现） |
+| 四元式解释器 | interpreter.hpp | src/backend.cpp | run（当前教学范围） |
+| 主流程整合 | compiler.hpp | src/compiler.cpp、src/common.cpp | compile、CompilationResult::ok（已实现并接入正式前端） |
+| 类型内存管理 | type_arena.hpp | src/semantic.cpp | TypeArena、TypeArenaScope、make_type_info |
+| 文本展示与导出 | display.hpp | src/common.cpp | print_tokens / ast / symbols / ir / diagnostics（已实现） |
 
 词法、语法、union、扩展数值类型、extern 和宏预处理均有实现；项目范围与完整 C 的差异见 [frontend.md](frontend.md)、[backend-completion.md](backend-completion.md)。基础支持模块见 [symbol-table.md](symbol-table.md) 和 [constant-pool.md](constant-pool.md)。四个编译阶段用普通函数返回明确结果，符号表、常量池和诊断收集器通过类封装状态。
 
@@ -137,7 +137,7 @@ diagnostics.report(Level::Error, node.range,
 
 这三个函数不打印、不登记符号、不收集诊断，也不检查左值属性；调用者结合 AST 的 category 和 const 限定符诊断。Error 子表达式向父节点传播时应抑制重复报错。比较与逻辑表达式结果类型为 int，不能把结果类型当成两个操作数的公共算术类型。M1 以外的转换按后续语言规格统一扩展。
 
-实现位于 src/semantic/type_rules.cpp。same_type 比较类型结构及记录身份；函数签名中将数组形参调整为内部地址，忽略形参顶层 const。函数体内的 const 对象仍不可修改。can_assign 和 arithmetic_result 处理数值转换及算术提升；保留 MiniC 的 char/int/float 隐式缩窄限制。
+实现位于 src/semantic.cpp。same_type 比较类型结构及记录身份；函数签名中将数组形参调整为内部地址，忽略形参顶层 const。函数体内的 const 对象仍不可修改。can_assign 和 arithmetic_result 处理数值转换及算术提升；保留 MiniC 的 char/int/float 隐式缩窄限制。
 
 analyze 另外检查结构体同型拷贝、数组实参及 scanf 输入地址，generate/run 使用一致的内部类型规则。源码不能声明内部地址类型，不能进行普通取地址或函数间接调用。
 
@@ -202,5 +202,4 @@ g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -I include -fsyntax-only example
 
 这验证头文件、函数参数、返回类型和流程调用是否兼容，不验证编译器行为。compile_and_run.cpp 现可链接运行，真实前端行为由 frontend_test 检查。M1 后续模块已有实际行为测试：运行 `tools/test_backend.ps1`，或使用根目录 CMakeLists.txt 和 CTest。compiler_flow_test.cpp 中的词法/语法替身只检查总控调用顺序，不属于正式扫描器或解析器。
 
-v1.1 将四个已有入口迁入各模块头文件；v1.2 新增常量池并在 IRProgram 中保存数据。原来只含 interface.hpp 的调用代码如需调用模块函数，改含对应头文件或 modules.hpp；interface_demo.cpp 从 v1.2 起需同时链接 src/backend/constant_pool.cpp。
-
+v1.1 将四个已有入口迁入各模块头文件；v1.2 新增常量池并在 IRProgram 中保存数据。原来只含 interface.hpp 的调用代码如需调用模块函数，改含对应头文件或 modules.hpp；interface_demo.cpp 从 v1.2 起需同时链接 src/backend.cpp。

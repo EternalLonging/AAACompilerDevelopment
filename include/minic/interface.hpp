@@ -37,21 +37,21 @@ inline constexpr EmptyValue emptyValue{};
 // ==================== 公共基础：各阶段共用 ====================
 
 // 符号编号。
-using SymbolId = std::uint32_t;
+using SymbolId = unsigned;
 // 作用域编号。
-using ScopeId = std::uint32_t;
+using ScopeId = unsigned;
 // 记录类型编号。
-using RecordId = std::uint32_t;
+using RecordId = unsigned;
 // 常量编号。
-using ConstantId = std::uint32_t;
+using ConstantId = unsigned;
 // 无效编号，表示尚未绑定或没有对应条目。
-inline constexpr std::uint32_t invalid_id =
-    std::numeric_limits<std::uint32_t>::max();
+inline constexpr unsigned invalid_id =
+    std::numeric_limits<unsigned>::max();
 
 // 源码中的一个位置。
 struct SourceLocation {
-    std::uint32_t line = 1; // 行号，从 1 开始。
-    std::uint32_t col = 1; // 字节列号，从 1 开始。
+    unsigned line = 1; // 行号，从 1 开始。
+    unsigned col = 1; // 字节列号，从 1 开始。
     std::size_t offset = 0; // 从文件开头算起的字节位置，从 0 开始。
 };
 
@@ -71,8 +71,8 @@ enum class Level { Note, Warning, Error, Fatal };
 struct Diagnostic {
     Phase phase = Phase::Lexer; // 产生诊断的编译阶段。
     Level level = Level::Error; // 诊断级别：说明、警告、错误或致命错误。
-    std::uint32_t line = 1; // 报错行号，与 range.begin.line 一致。
-    std::uint32_t col = 1; // 报错列号，与 range.begin.col 一致。
+    unsigned line = 1; // 报错行号，与 range.begin.line 一致。
+    unsigned col = 1; // 报错列号，与 range.begin.col 一致。
     std::string message; // 给用户看的中文提示。
     std::string code; // 错误代码，用于分类和查询。
     SourceRange range; // 主要报错位置。
@@ -95,13 +95,13 @@ using TypePtr = const TypeInfo*;
 enum class ConstantKind { Empty, Integer, Unsigned, Floating, Text };
 struct ConstantValue {
     ConstantKind kind = ConstantKind::Empty;
-    std::int64_t integer = 0;
-    std::uint64_t unsigned_integer = 0;
+    long long integer = 0;
+    unsigned long long unsigned_integer = 0;
     double floating = 0;
     std::string text;
     ConstantValue() = default;
-    ConstantValue(std::int64_t value) : kind(ConstantKind::Integer), integer(value) {}
-    ConstantValue(std::uint64_t value) : kind(ConstantKind::Unsigned), unsigned_integer(value) {}
+    ConstantValue(long long value) : kind(ConstantKind::Integer), integer(value) {}
+    ConstantValue(unsigned long long value) : kind(ConstantKind::Unsigned), unsigned_integer(value) {}
     ConstantValue(double value) : kind(ConstantKind::Floating), floating(value) {}
     ConstantValue(const std::string& value) : kind(ConstantKind::Text), text(value) {}
     ConstantValue(std::string&& value) : kind(ConstantKind::Text), text(std::move(value)) {}
@@ -111,13 +111,13 @@ template <typename T> const T* constant_get_if(const ConstantValue& value);
 template <typename T> T* constant_get_if(ConstantValue& value) {
     return const_cast<T*>(constant_get_if<T>(static_cast<const ConstantValue&>(value)));
 }
-template <> inline const std::int64_t* constant_get_if<std::int64_t>(const ConstantValue& value) { return value.kind == ConstantKind::Integer ? &value.integer : nullptr; }
-template <> inline const std::uint64_t* constant_get_if<std::uint64_t>(const ConstantValue& value) { return value.kind == ConstantKind::Unsigned ? &value.unsigned_integer : nullptr; }
+template <> inline const long long* constant_get_if<long long>(const ConstantValue& value) { return value.kind == ConstantKind::Integer ? &value.integer : nullptr; }
+template <> inline const unsigned long long* constant_get_if<unsigned long long>(const ConstantValue& value) { return value.kind == ConstantKind::Unsigned ? &value.unsigned_integer : nullptr; }
 template <> inline const double* constant_get_if<double>(const ConstantValue& value) { return value.kind == ConstantKind::Floating ? &value.floating : nullptr; }
 template <> inline const std::string* constant_get_if<std::string>(const ConstantValue& value) { return value.kind == ConstantKind::Text ? &value.text : nullptr; }
 template <typename T> const T& constant_get(const ConstantValue& value);
-template <> inline const std::int64_t& constant_get<std::int64_t>(const ConstantValue& value) { return value.integer; }
-template <> inline const std::uint64_t& constant_get<std::uint64_t>(const ConstantValue& value) { return value.unsigned_integer; }
+template <> inline const long long& constant_get<long long>(const ConstantValue& value) { return value.integer; }
+template <> inline const unsigned long long& constant_get<unsigned long long>(const ConstantValue& value) { return value.unsigned_integer; }
 template <> inline const double& constant_get<double>(const ConstantValue& value) { return value.floating; }
 template <> inline const std::string& constant_get<std::string>(const ConstantValue& value) { return value.text; }
 
@@ -151,8 +151,8 @@ enum class TokenType {
 struct Token {
     TokenType type = TokenType::END_OF_FILE; // 单词种别，如关键字、标识符、运算符。
     std::string lexeme; // 单词原文，保留引号和转义。
-    std::uint32_t line = 1; // 单词起始行号，与 range.begin.line 一致。
-    std::uint32_t col = 1; // 单词起始列号，与 range.begin.col 一致。
+    unsigned line = 1; // 单词起始行号，与 range.begin.line 一致。
+    unsigned col = 1; // 单词起始列号，与 range.begin.col 一致。
     SourceRange range; // 单词在源码中的位置范围。
 };
 
@@ -268,8 +268,8 @@ struct SymbolEntry {
     SymbolKind kind = SymbolKind::Variable; // 符号类别，如变量、形参、函数。
     TypePtr type = nullptr; // 符号类型；函数类型包含返回类型和形参。
     ScopeId scope = invalid_id; // 声明所在的作用域编号。
-    std::uint32_t line = 1; // 声明行号，与 range.begin.line 一致。
-    std::uint32_t col = 1; // 声明列号，与 range.begin.col 一致。
+    unsigned line = 1; // 声明行号，与 range.begin.line 一致。
+    unsigned col = 1; // 声明列号，与 range.begin.col 一致。
     SourceRange range; // 声明在源码中的位置范围。
     StorageClass storage = StorageClass::None; // 声明的存储类别，如 static、extern。
     bool is_defined = false; // 是否已有定义，而不只是声明。
@@ -291,7 +291,7 @@ enum class RecordKind { Struct, Union, Enum };
 // 一条枚举项信息。
 struct EnumValue {
     std::string name; // 枚举项名字。
-    std::int64_t value = 0; // 枚举项的整数值。
+    long long value = 0; // 枚举项的整数值。
     SymbolId symbol_id = invalid_id; // 枚举项在普通符号表中的编号。
     SourceRange range; // 枚举项的声明位置。
 };

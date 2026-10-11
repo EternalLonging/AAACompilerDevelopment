@@ -1,4 +1,4 @@
-﻿#include "minic/interface.hpp"
+#include "minic/interface.hpp"
 #include "minic/constant_pool.hpp"
 
 #include <iostream>
@@ -174,10 +174,10 @@ int main() {
     IRResult ir;
     // 常量按类型和值去重，数值和格式串均通过 %c<ID> 在四元式中引用。
     ConstantPool pool;
-    const auto five = pool.intern(int_type, std::int64_t{5}, "5");
+    const auto five = pool.intern(int_type, static_cast<long long>(5), "5");
     const auto format = pool.intern(derived(TypeKind::Array, char_type, 3),
                                     std::string("%d"), "\"%d\"");
-    const auto zero = pool.intern(int_type, std::int64_t{0}, "0");
+    const auto zero = pool.intern(int_type, static_cast<long long>(0), "0");
     ir.program.constants = std::move(pool).release();
     // 展示常量池编号与首次拼写，核对四元式 %c<ID> 所指向的条目。
     for (const auto& constant : ir.program.constants.entries) {
@@ -208,5 +208,3 @@ int main() {
               << (parsed.ok() && semantic.ok() && ir.ok() ? "ok" : "stop")
               << '\n';
 }
-
-

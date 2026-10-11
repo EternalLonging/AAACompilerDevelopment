@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "minic/interface.hpp"
 
 
@@ -32,7 +32,7 @@ Node tree(NodeType kind, const std::string& name, Children... children) {
 
 inline Node id(const std::string& name) { return node(NodeType::Identifier, name); }
 inline Node integer(int value) {
-    if (value < 0) return tree(NodeType::UnaryOp, "-", node(NodeType::IntLiteral, std::to_string(-static_cast<std::int64_t>(value))));
+    if (value < 0) return tree(NodeType::UnaryOp, "-", node(NodeType::IntLiteral, std::to_string(-static_cast<long long>(value))));
     return node(NodeType::IntLiteral, std::to_string(value));
 }
 inline Node floating(const std::string& value) { return node(NodeType::FloatLiteral, value); }
@@ -129,5 +129,3 @@ inline Node aggregate_program() {
 }
 
 }
-
-

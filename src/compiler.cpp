@@ -10,7 +10,7 @@ namespace minic {
 namespace {
 void remap(SourceRange& range, const PreprocessResult& preprocessing) {
     if (preprocessing.lines.empty()) return;
-    const auto position = [&](std::uint32_t line) {
+    const auto position = [&](unsigned line) {
         auto origin = preprocessing.lines[std::min<std::size_t>(line ? line - 1 : 0, preprocessing.lines.size() - 1)];
         if (line > preprocessing.lines.size()) ++origin.line;
         return origin;

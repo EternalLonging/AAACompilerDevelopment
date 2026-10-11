@@ -24,9 +24,9 @@ int main() {
         return 1;
     }
     ConstantValue empty;
-    ConstantValue integer(std::int64_t{7});
-    if (!constant_empty(empty) || constant_empty(integer) || !constant_get_if<std::int64_t>(integer) ||
-        *constant_get_if<std::int64_t>(integer) != 7) {
+    ConstantValue integer(static_cast<long long>(7));
+    if (!constant_empty(empty) || constant_empty(integer) || !constant_get_if<long long>(integer) ||
+        *constant_get_if<long long>(integer) != 7) {
         std::cerr << "常量显式状态错误\n";
         return 1;
     }

@@ -1,4 +1,633 @@
-﻿#include "minic/interpreter.hpp"
+// ===== merged from backend/constant_pool.cpp =====
+#include "minic/constant_pool.hpp"
+
+#include <cmath>
+#include <stdexcept>
+#include <utility>
+
+namespace minic {
+namespace {
+
+// 将对象表示的字节加入内部键；仅在本次编译进程内使用，不作为磁盘序列化格式。
+template <typename T>
+void append_bytes(std::string& key, const T& value) {
+    key.append(reinterpret_cast<const char*>(&value), sizeof(value));
+}
+
+bool integer_kind(TypeKind kind) {
+    return kind == TypeKind::Char || kind == TypeKind::Short ||
+           kind == TypeKind::Int || kind == TypeKind::Long;
+}
+
+// 复制合法类型，避免调用者修改原对象后改变已登记常量的类型。
+TypePtr snapshot_type(const TypePtr& type) {
+    if (!type || type->base || type->array_length || !type->params.empty() ||
+        type->variadic || !type->has_prototype || !type->name.empty() ||
+        type->record_id != invalid_id) {
+        throw std::invalid_argument("常量标量类型的字段不符合合同");
+    }
+    return make_type_info(*type);
+}
+
+void append_scalar_type(std::string& key, const TypeInfo& type) {
+    append_bytes(key, type.kind);
+    append_bytes(key, type.is_unsigned);
+    append_bytes(key, type.is_const);
+}
+
+} // 内部辅助函数不作为跨模块接口。
+
+ConstantId ConstantPool::intern(TypePtr type, ConstantValue value,
+                                const std::string& spelling,
+                                const SourceRange& range) {
+    if (!type) throw std::invalid_argument("常量类型不能为空");
+    std::string key;
+    if (integer_kind(type->kind)) {
+        type = snapshot_type(type);
+        append_scalar_type(key, *type);
+        if (type->is_unsigned) {
+            const auto number = constant_get_if<unsigned long long>(value);
+            if (!number) throw std::invalid_argument("无符号整数常量需要 unsigned long long 值");
+            append_bytes(key, *number);
+        } else {
+            const auto number = constant_get_if<long long>(value);
+            if (!number) throw std::invalid_argument("有符号整数常量需要 long long 值");
+            append_bytes(key, *number);
+        }
+    } else if (type->kind == TypeKind::Float || type->kind == TypeKind::Double || type->kind == TypeKind::LongDouble) {
+        type = snapshot_type(type);
+        if (type->is_unsigned) throw std::invalid_argument("浮点类型不能带 unsigned");
+        auto number = constant_get_if<double>(value);
+        if (!number || !std::isfinite(*number)) {
+            throw std::invalid_argument("浮点常量需要有限的 double 值");
+        }
+        append_scalar_type(key, *type);
+        if (type->kind == TypeKind::Float) {
+            // 先判断范围，避免把超出 float 范围的值直接窄化转换。
+            if (std::fabs(*number) > std::numeric_limits<float>::max()) {
+                throw std::invalid_argument("浮点常量超出 float 可表示范围");
+            }
+            const float rounded = static_cast<float>(*number);
+            *number = static_cast<double>(rounded);
+        }
+        // 不做 == 或近似比较：正负零必须分开，不同浮点位表示不能误合并。
+        append_bytes(key, *number);
+    } else if (type->kind == TypeKind::Array) {
+        const auto bytes = constant_get_if<std::string>(value);
+        if (!bytes || !type->base || type->base->kind != TypeKind::Char ||
+            type->is_unsigned || !type->array_length ||
+            *type->array_length == 0 || *type->array_length - 1 != bytes->size() ||
+            !type->params.empty() || type->variadic || !type->has_prototype ||
+            !type->name.empty() || type->record_id != invalid_id) {
+            throw std::invalid_argument("字符串常量需要长度包含终止零的窄 char[N] 类型");
+        }
+        const auto base = snapshot_type(type->base);
+        if (base->is_unsigned) throw std::invalid_argument("字符串元素必须为普通 char");
+        auto copy = make_type_info(*type);
+        copy->base = base;
+        type = std::move(copy);
+        append_scalar_type(key, *type);
+        append_bytes(key, *type->array_length);
+        append_scalar_type(key, *type->base);
+        key.append(*bytes); // std::string 按长度追加，内容中的零字节不会被截断。
+    } else {
+        throw std::invalid_argument("该常量类型尚未支持，不能丢失类型或精度后入池");
+    }
+
+    const auto found = index_.find(key);
+    if (found != index_.end()) return found->second;
+    if (data_.entries.size() >= invalid_id) {
+        throw std::length_error("常量编号已耗尽");
+    }
+    const auto id = static_cast<ConstantId>(data_.entries.size());
+    data_.entries.push_back({id, std::move(type), std::move(value), spelling, range});
+    try {
+        index_.emplace(std::move(key), id);
+    } catch (...) {
+        data_.entries.pop_back(); // 索引分配失败时不留下没有去重索引的半条记录。
+        throw;
+    }
+    return id;
+}
+
+const ConstantEntry* ConstantPool::get(ConstantId id) const noexcept {
+    return id < data_.entries.size() ? &data_.entries[id] : nullptr;
+}
+
+std::size_t ConstantPool::size() const noexcept { return data_.entries.size(); }
+
+const ConstantPoolData& ConstantPool::data() const noexcept { return data_; }
+
+ConstantPoolData ConstantPool::release() && {
+    ConstantPoolData result;
+    result.entries.swap(data_.entries);
+    index_.clear();
+    return result;
+}
+
+std::string constant_operand(ConstantId id) {
+    if (id == invalid_id) throw std::invalid_argument("无效常量编号不能生成操作数");
+    return "%c" + std::to_string(id);
+}
+
+} // minic 命名空间
+
+// ===== merged from backend/ir.cpp =====
+#include "minic/ir.hpp"
+#include "minic/constant_pool.hpp"
+#include "minic/diagnostic.hpp"
+#include "minic/semantic.hpp"
+#include "internal.hpp"
+
+#include <utility>
+#include <algorithm>
+#include <unordered_map>
+
+namespace minic {
+namespace {
+
+class Generator {
+    const SymbolTableData& symbols_; // 本次语义分析的符号信息。
+    IRGenerationOptions options_; // 本次是否启用常量折叠。
+    DiagnosticEngine diagnostics_{Phase::IR};
+    ConstantPool constants_; // 所有函数共用的常量池。
+    IRProgram program_;
+    std::vector<Quadruple>* quads_ = &program_.global_initializers;
+    std::vector<SourceRange>* locations_ = &program_.global_locations;
+    std::vector<TemporaryEntry>* temporaries_ = &program_.global_temporaries;
+    std::vector<std::pair<std::string, std::string>> loops_; // 循环结束和继续标号。
+    std::size_t next_label_ = 0;
+    std::size_t depth_ = 0;
+    std::vector<std::unordered_map<const ASTNode*, std::string>> switches_; // case 节点对应的标号。
+    SourceRange current_range_; // 生成失败时的源码位置。
+
+    const ASTNode& child(const ASTNode& node, std::size_t index) const {
+        if (index >= node.children.size() || !node.children[index]) throw std::runtime_error("语法树孩子缺失");
+        return *node.children[index];
+    }
+
+    void count(const ASTNode& node, std::size_t low, std::size_t high) const {
+        if (node.children.size() < low || node.children.size() > high) throw std::runtime_error("语法树孩子数量不正确");
+        for (std::size_t i = 0; i < node.children.size(); ++i) child(node, i);
+    }
+
+    const SymbolEntry& binding(const ASTNode& node) const {
+        if (node.symbol_id >= symbols_.symbols.size()) throw std::runtime_error("语法树缺少有效符号编号");
+        const auto& entry = symbols_.symbols[node.symbol_id];
+        if (entry.id != node.symbol_id || entry.name != node.name || !same_type(entry.type, node.type))
+            throw std::runtime_error("语法树与符号表不属于同一次成功的语义分析");
+        return entry;
+    }
+
+    void emit(const std::string& op, const std::string& first, const std::string& second,
+              const std::string& result, const SourceRange& range) {
+        quads_->push_back({op, first, second, result});
+        locations_->push_back(range);
+    }
+
+    std::string temporary(TypePtr type) {
+        if (!type || type->kind == TypeKind::Error) throw std::runtime_error("临时量类型尚未检查");
+        const auto name = "%t" + std::to_string(temporaries_->size());
+        temporaries_->push_back({name, std::move(type)});
+        return name;
+    }
+
+    std::string label() { return "L" + std::to_string(next_label_++); }
+    void mark(const std::string& value, const SourceRange& range) { emit("label", "-", "-", value, range); }
+
+    std::string integer(long long value) {
+        return constant_operand(constants_.intern(detail::type(TypeKind::Int), value, std::to_string(value)));
+    }
+
+    std::string snapshot(const std::string& source, const TypePtr& type, const SourceRange& range) {
+        const auto value = temporary(type);
+        emit("=", source, "-", value, range);
+        return value;
+    }
+
+    // 左值求地址，赋值不提前读取尚未初始化的目标。
+    std::string address(const ASTNode& node, std::size_t depth = 0) {
+        if (depth > 128 || !node.type) throw std::runtime_error("地址表达式类型无效或过深");
+        const auto result = temporary(detail::address_type(node.type));
+        if (node.kind == NodeType::Identifier) {
+            binding(node); emit("addr", detail::symbol_name(node.symbol_id), "-", result, node.range);
+        } else if (node.kind == NodeType::ArrayAccess) {
+            count(node, 2, 2);
+            const bool array_parameter = child(node, 0).type->kind == TypeKind::Address;
+            const auto base = array_parameter ? snapshot(expression(child(node, 0)), child(node, 0).type, node.range) : address(child(node, 0), depth + 1);
+            const auto index = expression(child(node, 1));
+            emit(array_parameter ? "offsetaddr" : "indexaddr", base, index, result, node.range);
+        } else if (node.kind == NodeType::MemberAccess) {
+            count(node, 1, 1);
+            if (node.record_id >= symbols_.records.size() || !node.member_index ||
+                *node.member_index >= symbols_.records[node.record_id].members.size()) throw std::runtime_error("成员绑定无效");
+            const auto& member = symbols_.records[node.record_id].members[*node.member_index];
+            if (member.name != node.name || !member.offset) throw std::runtime_error("成员名字或布局无效");
+            const auto base = address(child(node, 0), depth + 1);
+            emit("memberaddr", base, std::to_string(*member.offset), result, node.range);
+        } else if (detail::aggregate(node.type) && node.category == ValueCategory::RValue) {
+            const auto value = snapshot(expression(node), node.type, node.range);
+            emit("tempaddr", value, "-", result, node.range);
+        } else throw std::runtime_error("此表达式不能求对象地址");
+        return result;
+    }
+
+    void initialize(const std::string& destination, const TypePtr& target, const ASTNode& init) {
+        if (init.kind == NodeType::InitList) {
+            for (std::size_t i = 0; i < init.children.size(); ++i) {
+                if (detail::numeric(target) || target->kind == TypeKind::Address) { initialize(destination, target, child(init, i)); continue; }
+                TypePtr element = nullptr;
+                std::string selected;
+                if (target->kind == TypeKind::Array) {
+                    element = target->base;
+                    selected = temporary(detail::address_type(element));
+                    emit("indexaddr", destination, integer(static_cast<long long>(i)), selected, init.range);
+                } else {
+                    const auto& member = symbols_.records.at(target->record_id).members.at(i);
+                    element = member.type;
+                    selected = temporary(detail::address_type(element));
+                    emit("memberaddr", destination, std::to_string(*member.offset), selected, init.range);
+                }
+                initialize(selected, element, child(init, i));
+            }
+        } else if (target->kind == TypeKind::Array && init.kind == NodeType::StringLiteral) {
+            const auto& text = constant_get<std::string>(init.value);
+            for (std::size_t i = 0; i < text.size(); ++i) {
+                const auto selected = temporary(detail::address_type(target->base));
+                emit("indexaddr", destination, integer(static_cast<long long>(i)), selected, init.range);
+                const auto byte = static_cast<unsigned char>(text[i]);
+                const auto character = byte <= 127 ? static_cast<long long>(byte) : static_cast<long long>(byte) - 256;
+                const auto byte_value = constant_operand(constants_.intern(detail::type(TypeKind::Char), character, std::to_string(character), init.range));
+                emit("store", byte_value, "-", selected, init.range);
+            }
+        } else emit("store", expression(init), "-", destination, init.range);
+    }
+
+    std::string expression(const ASTNode& node) {
+        current_range_ = node.range;
+        if (++depth_ > 512) throw std::runtime_error("语法树嵌套过深");
+        if (!node.type || node.type->kind == TypeKind::Unknown || node.type->kind == TypeKind::Error ||
+            node.scope_id >= symbols_.scopes.size()) throw std::runtime_error("表达式尚未通过语义检查");
+        std::string result;
+        // 仅折叠无副作用且不会溢出/除零的数值常量表达式。
+        if (options_.constant_folding && (node.kind == NodeType::BinaryOp || node.kind == NodeType::UnaryOp ||
+            node.kind == NodeType::ImplicitCast || node.kind == NodeType::Cast)) {
+            if (const auto value = detail::folded_value(node)) {
+                --depth_;
+                return constant_operand(constants_.intern(node.type, *value, "<折叠常量>", node.range));
+            }
+        }
+        switch (node.kind) {
+        case NodeType::ArrayAccess: case NodeType::MemberAccess:
+            result = temporary(node.type);
+            emit("load", address(node), "-", result, node.range);
+            break;
+        case NodeType::Conditional: {
+            count(node, 3, 3);
+            const auto no = label(), end = label();
+            result = temporary(node.type);
+            emit("jz", expression(child(node, 0)), "-", no, node.range);
+            emit("=", expression(child(node, 1)), "-", result, node.range);
+            emit("jmp", "-", "-", end, node.range);
+            mark(no, node.range);
+            emit("=", expression(child(node, 2)), "-", result, node.range);
+            mark(end, node.range);
+            break;
+        }
+        case NodeType::Identifier:
+            count(node, 0, 0);
+            binding(node);
+            if (node.type->kind == TypeKind::Function) throw std::runtime_error("函数名字不能作为值生成四元式");
+            result = detail::symbol_name(node.symbol_id);
+            break;
+        case NodeType::IntLiteral: case NodeType::FloatLiteral:
+        case NodeType::CharLiteral: case NodeType::StringLiteral:
+            count(node, 0, 0);
+            result = constant_operand(constants_.intern(node.type, node.value, node.name, node.range));
+            break;
+        case NodeType::ImplicitCast: case NodeType::Cast: {
+            count(node, 1, 1);
+            if (child(node, 0).type->kind == TypeKind::Array && child(node, 0).kind != NodeType::StringLiteral && node.type->kind == TypeKind::Address) {
+                result = temporary(node.type); emit("decay", address(child(node, 0)), "-", result, node.range); break;
+            }
+            const auto source = expression(child(node, 0));
+            result = temporary(node.type);
+            const bool i2f = node.type->kind == TypeKind::Float && child(node, 0).type->kind == TypeKind::Int;
+            emit(i2f ? "cvt_i2f" : "cvt", source, "-", result, node.range);
+            break;
+        }
+        case NodeType::BinaryOp: {
+            count(node, 2, 2);
+            const auto left = expression(child(node, 0));
+            if (node.name == ",") { result = expression(child(node, 1)); break; }
+            result = temporary(node.type);
+            if (node.name == "&&" || node.name == "||") {
+                const auto branch = label();
+                const auto end = label();
+                const auto jump = node.name == "&&" ? "jz" : "jnz";
+                emit(jump, left, "-", branch, node.range);
+                const auto right = expression(child(node, 1));
+                emit(jump, right, "-", branch, node.range);
+                emit("=", integer(node.name == "&&" ? 1 : 0), "-", result, node.range);
+                emit("jmp", "-", "-", end, node.range);
+                mark(branch, node.range);
+                emit("=", integer(node.name == "&&" ? 0 : 1), "-", result, node.range);
+                mark(end, node.range);
+            } else {
+                const auto saved = snapshot(left, child(node, 0).type, node.range);
+                const auto right = expression(child(node, 1));
+                emit(node.name, saved, right, result, node.range);
+            }
+            break;
+        }
+        case NodeType::Assign: {
+            count(node, 2, 2);
+            const auto& target = child(node, 0);
+            if (target.category != ValueCategory::LValue) throw std::runtime_error("赋值目标必须是左值");
+            const auto destination = address(target);
+            std::string original;
+            if (node.name != "=") {
+                original = temporary(target.type);
+                emit("load", destination, "-", original, node.range);
+            }
+            const auto source = expression(child(node, 1));
+            if (node.name == "=") emit("store", source, "-", destination, node.range);
+            else {
+                if (node.name != "+=" && node.name != "-=" && node.name != "*=" && node.name != "/=" && node.name != "%=" &&
+                    node.name != "&=" && node.name != "|=" && node.name != "^=" && node.name != "<<=" && node.name != ">>=")
+                    throw std::runtime_error("不支持的复合赋值");
+                const auto value = temporary(node.type);
+                emit(node.name.substr(0, node.name.size() - 1), original, source, value, node.range);
+                emit("store", value, "-", destination, node.range);
+            }
+            result = temporary(node.type);
+            emit("load", destination, "-", result, node.range);
+            break;
+        }
+        case NodeType::UnaryOp: {
+            count(node, 1, 1);
+            const auto& operand = child(node, 0);
+            if (node.name == "&") { result = address(operand); break; }
+            const bool update = node.name == "pre++" || node.name == "post++" || node.name == "pre--" || node.name == "post--";
+            if (update) {
+                const auto destination = address(operand);
+                const auto original = temporary(operand.type);
+                emit("load", destination, "-", original, node.range);
+                const auto updated = temporary(node.type);
+                const bool increment = node.name.find("++") != std::string::npos;
+                emit(increment ? "+" : "-", original, integer(1), updated, node.range);
+                emit("store", updated, "-", destination, node.range);
+                result = node.name.compare(0, 4, "post") == 0 ? original : updated;
+                break;
+            }
+            const auto source = expression(operand);
+            if (node.name == "+") { result = source; break; }
+            result = temporary(node.type);
+            if (node.name == "-" || node.name == "!" || node.name == "~")
+                emit(node.name == "-" ? "neg" : node.name == "!" ? "not" : "bnot", source, "-", result, node.range);
+            else throw std::runtime_error("不支持的一元运算");
+            break;
+        }
+        case NodeType::Call: {
+            count(node, 1, invalid_id);
+            const auto& callee = child(node, 0);
+            const auto target = detail::symbol_name(binding(callee).id);
+            std::vector<std::string> arguments;
+            for (std::size_t i = 1; i < node.children.size(); ++i) {
+                const auto value = expression(child(node, i));
+                // 实参逐个快照，嵌套调用在外层 arg 之前完成。
+                arguments.push_back(snapshot(value, child(node, i).type, child(node, i).range));
+            }
+            for (const auto& value : arguments) emit("arg", value, "-", "-", node.range);
+            result = node.type->kind == TypeKind::Void ? "-" : temporary(node.type);
+            emit("call", target, std::to_string(arguments.size()), result, node.range);
+            break;
+        }
+        default: throw std::runtime_error("此表达式不能生成 M1 四元式");
+        }
+        --depth_;
+        return result;
+    }
+
+    void statement(const ASTNode& node) {
+        current_range_ = node.range;
+        if (++depth_ > 512) throw std::runtime_error("语法树嵌套过深");
+        if (node.scope_id >= symbols_.scopes.size()) throw std::runtime_error("语句缺少作用域标注");
+        switch (node.kind) {
+        case NodeType::DoWhile: {
+            count(node, 2, 2);
+            const auto start = label(), condition = label(), end = label();
+            mark(start, node.range);
+            loops_.push_back({end, condition}); statement(child(node, 0)); loops_.pop_back();
+            mark(condition, node.range);
+            emit("jnz", expression(child(node, 1)), "-", start, node.range);
+            mark(end, node.range);
+            break;
+        }
+        case NodeType::Switch: {
+            count(node, 2, 2);
+            const auto value = snapshot(expression(child(node, 0)), child(node, 0).type, node.range);
+            const auto end = label();
+            std::unordered_map<const ASTNode*, std::string> labels;
+            collect_cases(child(node, 1), labels);
+            std::string default_label = end;
+            for (const auto& item : labels) {
+                if (item.first->kind == NodeType::Default) default_label = item.second;
+                else {
+                    const auto constant = constant_get_if<long long>(item.first->value);
+                    if (!constant) throw std::runtime_error("case 缺少整型常量标注");
+                    const auto match = temporary(detail::type(TypeKind::Int));
+                    emit("==", value, integer(*constant), match, item.first->range);
+                    emit("jnz", match, "-", item.second, item.first->range);
+                }
+            }
+            emit("jmp", "-", "-", default_label, node.range);
+            switches_.push_back(std::move(labels)); loops_.push_back({end, ""});
+            statement(child(node, 1));
+            switches_.pop_back(); loops_.pop_back();
+            mark(end, node.range);
+            break;
+        }
+        case NodeType::Case: case NodeType::Default:
+            count(node, node.kind == NodeType::Case ? 2 : 1, node.kind == NodeType::Case ? 2 : 1);
+            if (switches_.empty() || !switches_.back().count(&node)) throw std::runtime_error("case/default 缺少 switch 绑定");
+            mark(switches_.back().at(&node), node.range);
+            statement(*node.children.back());
+            break;
+        case NodeType::Block:
+            count(node, 0, invalid_id);
+            for (const auto& value : node.children) statement(*value);
+            break;
+        case NodeType::VarDecl: {
+            count(node, 0, 1);
+            const auto& entry = binding(node);
+            if (node.storage == StorageClass::Extern && node.children.empty()) break;
+            const auto destination = detail::symbol_name(entry.id);
+            auto* saved_quads = quads_; auto* saved_locations = locations_; auto* saved_temporaries = temporaries_;
+            const bool local_static = entry.scope != 0 && entry.storage == StorageClass::Static;
+            if (local_static) {
+                program_.globals.push_back(entry.id);
+                quads_ = &program_.global_initializers; locations_ = &program_.global_locations; temporaries_ = &program_.global_temporaries;
+            } else if (entry.scope != 0) emit("local", "-", "-", destination, node.range);
+            if (!node.children.empty()) {
+                const auto selected = temporary(detail::address_type(node.type));
+                emit("addr", destination, "-", selected, node.range);
+                if (detail::aggregate(node.type) && (child(node, 0).kind == NodeType::InitList || child(node, 0).kind == NodeType::StringLiteral))
+                    emit("zero", "-", "-", destination, node.range);
+                initialize(selected, node.type, child(node, 0));
+            }
+            quads_ = saved_quads; locations_ = saved_locations; temporaries_ = saved_temporaries;
+            break;
+        }
+        case NodeType::StructDef: case NodeType::UnionDef: case NodeType::EnumDef: case NodeType::TypedefDecl: break;
+        case NodeType::Label:
+            count(node, 1, 1);
+            mark("user_" + node.name, node.range); statement(child(node, 0)); break;
+        case NodeType::Goto:
+            count(node, 0, 0); emit("jmp", "-", "-", "user_" + node.name, node.range); break;
+        case NodeType::ExprStmt:
+            count(node, 1, 1); expression(child(node, 0)); break;
+        case NodeType::Return:
+            count(node, 0, 1);
+            emit("ret", node.children.empty() ? "-" : expression(child(node, 0)), "-", "-", node.range);
+            break;
+        case NodeType::If: {
+            count(node, 2, 3);
+            const auto no = label();
+            const auto end = label();
+            emit("jz", expression(child(node, 0)), "-", no, node.range);
+            statement(child(node, 1));
+            emit("jmp", "-", "-", end, node.range);
+            mark(no, node.range);
+            if (node.children.size() == 3) statement(child(node, 2));
+            mark(end, node.range);
+            break;
+        }
+        case NodeType::While: case NodeType::For: {
+            const bool for_loop = node.kind == NodeType::For;
+            count(node, for_loop ? 4 : 2, for_loop ? 4 : 2);
+            const auto start = label();
+            const auto update = label();
+            const auto end = label();
+            if (for_loop) component(child(node, 0));
+            mark(start, node.range);
+            const auto& condition = child(node, for_loop ? 1 : 0);
+            if (condition.kind != NodeType::Empty)
+                emit("jz", expression(condition), "-", end, node.range);
+            loops_.push_back({end, for_loop ? update : start});
+            statement(*node.children.back());
+            loops_.pop_back();
+            if (for_loop) { mark(update, node.range); component(child(node, 2)); }
+            emit("jmp", "-", "-", start, node.range);
+            mark(end, node.range);
+            break;
+        }
+        case NodeType::Break: case NodeType::Continue:
+            count(node, 0, 0);
+            if (loops_.empty()) throw std::runtime_error("循环跳转缺少循环上下文");
+            if (node.kind == NodeType::Break) emit("jmp", "-", "-", loops_.back().first, node.range);
+            else {
+                auto found = loops_.rbegin();
+                while (found != loops_.rend() && found->second.empty()) ++found;
+                if (found == loops_.rend()) throw std::runtime_error("continue 缺少循环上下文");
+                emit("jmp", "-", "-", found->second, node.range);
+            }
+            break;
+        case NodeType::Empty: count(node, 0, 0); break;
+        default: throw std::runtime_error("此语句不能生成 M1 四元式");
+        }
+        --depth_;
+    }
+
+    void component(const ASTNode& node) {
+        if (node.kind == NodeType::Empty || node.kind == NodeType::ExprStmt || node.kind == NodeType::VarDecl)
+            statement(node);
+        else expression(node);
+    }
+
+    void collect_cases(const ASTNode& node, std::unordered_map<const ASTNode*, std::string>& labels, std::size_t depth = 0) {
+        if (depth > 512) throw std::runtime_error("switch 嵌套过深");
+        if (node.kind == NodeType::Switch) return;
+        if (node.kind == NodeType::Case || node.kind == NodeType::Default) labels.emplace(&node, label());
+        for (const auto& child : node.children) {
+            if (!child) throw std::runtime_error("switch 孩子为空");
+            collect_cases(*child, labels, depth + 1);
+        }
+    }
+
+public:
+    Generator(const SymbolTableData& symbols, IRGenerationOptions options) : symbols_(symbols), options_(options) {}
+
+    IRResult generate(const Program& root) {
+        try {
+            current_range_ = root.range;
+            if (root.kind != NodeType::Program || root.scope_id != 0 || symbols_.scopes.empty())
+                throw std::runtime_error("IR 生成需要已检查的 Program 和符号表");
+            count(root, 0, invalid_id);
+            for (const auto& child_node : root.children) {
+                const auto& node = *child_node;
+                current_range_ = node.range;
+                if (node.kind == NodeType::VarDecl) {
+                    if (binding(node).scope != 0) throw std::runtime_error("顶层变量不属于全局作用域");
+                    const auto& entry = binding(node);
+                    if (entry.storage == StorageClass::Extern && !entry.is_defined) continue;
+                    if (std::find(program_.globals.begin(), program_.globals.end(), node.symbol_id) == program_.globals.end()) program_.globals.push_back(node.symbol_id);
+                    statement(node);
+                } else if (node.kind == NodeType::TypedefDecl) {
+                    if (node.symbol_id >= symbols_.symbols.size()) throw std::runtime_error("类型别名缺少符号绑定");
+                } else if (node.kind == NodeType::StructDef || node.kind == NodeType::UnionDef || node.kind == NodeType::EnumDef) {
+                    if (node.record_id >= symbols_.records.size()) throw std::runtime_error("结构体缺少记录绑定");
+                } else if (node.kind == NodeType::FunctionDecl) {
+                    if (binding(node).kind != SymbolKind::Function) throw std::runtime_error("函数声明绑定无效");
+                } else if (node.kind == NodeType::FunctionDef) {
+                    const auto& entry = binding(node);
+                    if (!entry.is_defined || entry.kind != SymbolKind::Function) throw std::runtime_error("函数定义绑定无效");
+                    count(node, entry.type->params.size() + 1, entry.type->params.size() + 1);
+                    IRFunction function;
+                    function.symbol_id = node.symbol_id;
+                    for (std::size_t i = 0; i < entry.type->params.size(); ++i) {
+                        const auto& parameter = child(node, i);
+                        if (parameter.kind != NodeType::ParamDecl || binding(parameter).kind != SymbolKind::Parameter)
+                            throw std::runtime_error("形参符号绑定无效");
+                        function.parameters.push_back(parameter.symbol_id);
+                    }
+                    quads_ = &function.quads;
+                    locations_ = &function.locations;
+                    temporaries_ = &function.temporaries;
+                    if (node.children.back()->kind != NodeType::Block) throw std::runtime_error("函数体必须是 Block");
+                    statement(*node.children.back());
+                    if (entry.type->base->kind == TypeKind::Void) emit("ret", "-", "-", "-", node.range);
+                    program_.functions.push_back(std::move(function));
+                    if (entry.name == "main") program_.entry_function = entry.id;
+                    quads_ = &program_.global_initializers;
+                    locations_ = &program_.global_locations;
+                    temporaries_ = &program_.global_temporaries;
+                } else throw std::runtime_error("不支持的顶层语法节点");
+            }
+        } catch (const std::runtime_error& exception) {
+            diagnostics_.report(Level::Error, current_range_, exception.what(), "IR_INVALID_AST");
+        } catch (const std::invalid_argument& exception) {
+            diagnostics_.report(Level::Error, current_range_, exception.what(), "IR_INVALID_CONSTANT");
+        }
+        program_.constants = std::move(constants_).release();
+        return {std::move(program_), diagnostics_.take_diagnostics()};
+    }
+};
+
+}
+
+IRResult generate(const Program& program, const SymbolTableData& symbols) {
+    return generate(program, symbols, {});
+}
+
+IRResult generate(const Program& program, const SymbolTableData& symbols, const IRGenerationOptions& options) {
+    return Generator(symbols, options).generate(program);
+}
+
+}
+
+// ===== merged from backend/interpreter.cpp =====
+#include "minic/interpreter.hpp"
 #include "minic/constant_pool.hpp"
 #include "minic/diagnostic.hpp"
 #include "minic/semantic.hpp"
@@ -18,7 +647,7 @@ namespace minic {
 namespace {
 
 struct Address {
-    std::uint64_t frame = 0; // 0 是全局区，其余是调用帧的唯一编号。
+    unsigned long long frame = 0; // 0 是全局区，其余是调用帧的唯一编号。
     SymbolId symbol = invalid_id; // 所指对象编号，invalid_id 表示没有绑定变量。
     std::size_t offset = 0; // 子对象相对根对象的字节偏移。
     TypePtr type = nullptr; // 当前地址所指向的子对象类型。
@@ -31,13 +660,13 @@ struct Aggregate;
 enum class ValueKind { Empty, Integer, Floating, Text, Address, Aggregate };
 struct Value {
     ValueKind kind = ValueKind::Empty;
-    std::int64_t integer = 0;
+    long long integer = 0;
     double floating = 0;
     std::string text;
     Address address;
     Aggregate* aggregate = nullptr;
     Value() = default;
-    Value(std::int64_t value) : kind(ValueKind::Integer), integer(value) {}
+    Value(long long value) : kind(ValueKind::Integer), integer(value) {}
     Value(double value) : kind(ValueKind::Floating), floating(value) {}
     Value(const std::string& value) : kind(ValueKind::Text), text(value) {}
     Value(std::string&& value) : kind(ValueKind::Text), text(std::move(value)) {}
@@ -52,21 +681,21 @@ struct Aggregate {
 };
 
 template <typename T> bool holds(const Value& value);
-template <> inline bool holds<std::int64_t>(const Value& value) { return value.kind == ValueKind::Integer; }
+template <> inline bool holds<long long>(const Value& value) { return value.kind == ValueKind::Integer; }
 template <> inline bool holds<double>(const Value& value) { return value.kind == ValueKind::Floating; }
 template <> inline bool holds<std::string>(const Value& value) { return value.kind == ValueKind::Text; }
 template <> inline bool holds<Address>(const Value& value) { return value.kind == ValueKind::Address; }
 template <> inline bool holds<Aggregate*>(const Value& value) { return value.kind == ValueKind::Aggregate; }
 inline bool value_empty(const Value& value) { return value.kind == ValueKind::Empty; }
 template <typename T> T* get_if(Value* value);
-template <> inline std::int64_t* get_if<std::int64_t>(Value* value) { return value->kind == ValueKind::Integer ? &value->integer : nullptr; }
+template <> inline long long* get_if<long long>(Value* value) { return value->kind == ValueKind::Integer ? &value->integer : nullptr; }
 template <> inline double* get_if<double>(Value* value) { return value->kind == ValueKind::Floating ? &value->floating : nullptr; }
 template <> inline std::string* get_if<std::string>(Value* value) { return value->kind == ValueKind::Text ? &value->text : nullptr; }
 template <> inline Address* get_if<Address>(Value* value) { return value->kind == ValueKind::Address ? &value->address : nullptr; }
 template <> inline Aggregate** get_if<Aggregate*>(Value* value) { return value->kind == ValueKind::Aggregate ? &value->aggregate : nullptr; }
 template <typename T> const T* get_if(const Value* value) { return get_if<T>(const_cast<Value*>(value)); }
 template <typename T> T& get(Value& value);
-template <> inline std::int64_t& get<std::int64_t>(Value& value) { return value.integer; }
+template <> inline long long& get<long long>(Value& value) { return value.integer; }
 template <> inline double& get<double>(Value& value) { return value.floating; }
 template <> inline std::string& get<std::string>(Value& value) { return value.text; }
 template <> inline Address& get<Address>(Value& value) { return value.address; }
@@ -100,7 +729,7 @@ struct Code {
 
 struct Frame {
     const Code* code = nullptr;
-    std::uint64_t id = 0;
+    unsigned long long id = 0;
     std::size_t pc = 0; // 下一条待执行指令。
     std::unordered_map<std::string, Value> values; // 局部对象和临时量的值。
     std::vector<Value> arguments; // 当前调用的实参队列。
@@ -126,7 +755,7 @@ std::size_t operand_id(const std::string& value, char kind) {
 }
 
 double number(const Value& value) {
-    if (const auto* integer = get_if<std::int64_t>(&value)) return static_cast<double>(*integer);
+    if (const auto* integer = get_if<long long>(&value)) return static_cast<double>(*integer);
     if (const auto* floating = get_if<double>(&value)) return *floating;
     throw std::runtime_error("指令需要数值操作数");
 }
@@ -157,16 +786,16 @@ Value convert_value(const Value& value, const TypePtr& target) {
         if (detail::floating(target)) return target->kind == TypeKind::Float ? detail::checked_float(numeric) : numeric;
         const double truncated = std::trunc(numeric);
         const auto bits = detail::integer_bits(target);
-        const auto modulus = std::uint64_t{1} << bits;
+        const auto modulus = static_cast<unsigned long long>(1) << bits;
         if (target->is_unsigned) {
-            if (holds<std::int64_t>(value)) return static_cast<std::int64_t>(static_cast<std::uint64_t>(get<std::int64_t>(value)) % modulus);
+            if (holds<long long>(value)) return static_cast<long long>(static_cast<unsigned long long>(get<long long>(value)) % modulus);
             if (truncated < 0 || truncated >= static_cast<double>(modulus)) throw std::runtime_error("浮点转无符号整数超出范围");
-            return static_cast<std::int64_t>(truncated);
+            return static_cast<long long>(truncated);
         }
-        const auto low = -(std::int64_t{1} << (bits - 1)), high = (std::int64_t{1} << (bits - 1)) - 1;
+        const auto low = -(static_cast<long long>(1) << (bits - 1)), high = (static_cast<long long>(1) << (bits - 1)) - 1;
         if (truncated < static_cast<double>(low) || truncated > static_cast<double>(high))
             throw std::runtime_error("浮点转整数或整数结果超出范围");
-        return static_cast<std::int64_t>(truncated);
+        return static_cast<long long>(truncated);
     }
     if (target->kind == TypeKind::Address && target->base) {
         if (const auto* text = get_if<std::string>(&value); text && target->base->kind == TypeKind::Char)
@@ -192,7 +821,7 @@ class Machine {
     std::unordered_set<SymbolId> globals_;
     std::unordered_map<std::string, Value> global_values_;
     std::vector<Frame> frames_; // 显式调用栈，递归不占用宿主 C++ 调用栈。
-    std::uint64_t next_frame_ = 1;
+    unsigned long long next_frame_ = 1;
     RunResult result_;
     SourceRange location_;
 
@@ -417,9 +1046,9 @@ class Machine {
             if (detail::numeric(entry.type)) {
                 if (detail::floating(entry.type)) convert_value(constant_get<double>(entry.value), entry.type);
                 else if (entry.type->is_unsigned) {
-                    const auto value = constant_get<std::uint64_t>(entry.value);
-                    if (value >= (std::uint64_t{1} << detail::integer_bits(entry.type))) throw std::runtime_error("无符号常量超出范围");
-                } else convert_value(constant_get<std::int64_t>(entry.value), entry.type);
+                    const auto value = constant_get<unsigned long long>(entry.value);
+                    if (value >= (static_cast<unsigned long long>(1) << detail::integer_bits(entry.type))) throw std::runtime_error("无符号常量超出范围");
+                } else convert_value(constant_get<long long>(entry.value), entry.type);
             } else if (!(entry.type->kind == TypeKind::Array && entry.type->base->kind == TypeKind::Char))
                 throw std::runtime_error("M1 常量池类型不受支持");
         }
@@ -462,8 +1091,8 @@ class Machine {
     Value read(const std::string& name, const Frame& frame) const {
         if (name.size() > 2 && name[1] == 'c') {
             const auto& constant = program_.constants.entries.at(operand_id(name, 'c'));
-            if (const auto* value = constant_get_if<std::int64_t>(constant.value)) return *value;
-            if (const auto* value = constant_get_if<std::uint64_t>(constant.value)) return static_cast<std::int64_t>(*value);
+            if (const auto* value = constant_get_if<long long>(constant.value)) return *value;
+            if (const auto* value = constant_get_if<unsigned long long>(constant.value)) return static_cast<long long>(*value);
             if (const auto* value = constant_get_if<double>(constant.value)) return *value;
             if (const auto* value = constant_get_if<std::string>(constant.value)) return *value;
             throw std::runtime_error("常量值无效");
@@ -480,7 +1109,7 @@ class Machine {
         if (detail::aggregate(type)) {
             auto object = make_aggregate(); object->zero = zero; return object;
         }
-        return zero ? convert_value(std::int64_t{0}, type) : Value{};
+        return zero ? convert_value(static_cast<long long>(0), type) : Value{};
     }
 
     Value& root_value(const Address& address) {
@@ -518,7 +1147,7 @@ class Machine {
             if (!address.type || address.type->kind != TypeKind::Char || address.offset >= address.last)
                 throw std::runtime_error("字符串地址越界或类型无效");
             const auto byte = address.offset == address.literal->size() ? 0 : static_cast<unsigned char>((*address.literal)[address.offset]);
-            return static_cast<std::int64_t>(byte > 127 ? byte - 256 : byte);
+            return static_cast<long long>(byte > 127 ? byte - 256 : byte);
         }
         auto& root = root_value(address);
         TypeInfo temporary_root; temporary_root.kind = TypeKind::Struct;
@@ -527,11 +1156,11 @@ class Machine {
             if (value_empty(root)) throw std::runtime_error("读取尚未初始化的变量");
             if (!detail::same_unqualified(root_type, address.type)) {
                 if (address.type->kind != TypeKind::Char || !detail::numeric(root_type)) throw std::runtime_error("内部地址类型与根对象不兼容");
-                std::uint64_t bits;
-                if (detail::integral(root_type)) bits = static_cast<std::uint64_t>(get<std::int64_t>(root));
-                else if (root_type->kind == TypeKind::Float) { const auto value = static_cast<float>(get<double>(root)); std::uint32_t word; std::memcpy(&word, &value, 4); bits = word; }
+                unsigned long long bits;
+                if (detail::integral(root_type)) bits = static_cast<unsigned long long>(get<long long>(root));
+                else if (root_type->kind == TypeKind::Float) { const auto value = static_cast<float>(get<double>(root)); unsigned word; std::memcpy(&word, &value, 4); bits = word; }
                 else { const auto value = get<double>(root); std::memcpy(&bits, &value, 8); }
-                const auto byte = static_cast<std::int64_t>((bits >> (8 * address.offset)) & 255);
+                const auto byte = static_cast<long long>((bits >> (8 * address.offset)) & 255);
                 return address.type->is_unsigned || byte < 128 ? byte : byte - 256;
             }
             return root;
@@ -554,19 +1183,19 @@ class Machine {
             for (const auto& cell : object->cells)
                 if (cell.first < address.offset + size && cell.first + 8 > address.offset)
                     throw std::runtime_error("不能把地址信息读取为数值");
-            std::uint64_t bits = 0;
+            unsigned long long bits = 0;
             for (std::size_t i = 0; i < size; ++i) {
                 const auto byte = object->bytes.find(address.offset + i);
                 if (object->unknown.count(address.offset + i) || (byte == object->bytes.end() && !object->zero)) throw std::runtime_error("读取尚未初始化的数值字节");
                 if (object->cells.count(address.offset + i)) throw std::runtime_error("不能把地址信息读取为数值");
-                bits |= static_cast<std::uint64_t>(byte == object->bytes.end() ? 0 : byte->second) << (8 * i);
+                bits |= static_cast<unsigned long long>(byte == object->bytes.end() ? 0 : byte->second) << (8 * i);
             }
             if (detail::floating(address.type)) {
-                if (size == 4) { const auto word = static_cast<std::uint32_t>(bits); float value; std::memcpy(&value, &word, 4); return convert_value(static_cast<double>(value), address.type); }
+                if (size == 4) { const auto word = static_cast<unsigned>(bits); float value; std::memcpy(&value, &word, 4); return convert_value(static_cast<double>(value), address.type); }
                 double value; std::memcpy(&value, &bits, 8); return convert_value(value, address.type);
             }
-            if (!address.type->is_unsigned && (bits & (std::uint64_t{1} << (size * 8 - 1)))) return static_cast<std::int64_t>(bits) - static_cast<std::int64_t>(std::uint64_t{1} << (size * 8));
-            return static_cast<std::int64_t>(bits);
+            if (!address.type->is_unsigned && (bits & (static_cast<unsigned long long>(1) << (size * 8 - 1)))) return static_cast<long long>(bits) - static_cast<long long>(static_cast<unsigned long long>(1) << (size * 8));
+            return static_cast<long long>(bits);
         }
         const auto cell = object->cells.find(address.offset);
         if (cell != object->cells.end()) {
@@ -576,7 +1205,7 @@ class Machine {
         for (std::size_t i = 0; i < detail::layout(address.type, symbols_).size; ++i)
             if (object->bytes.count(address.offset + i) || object->unknown.count(address.offset + i)) throw std::runtime_error("不能把数值表示读取为内部地址");
         if (!object->zero) throw std::runtime_error("读取尚未初始化的数组元素或结构体成员");
-        return convert_value(std::int64_t{0}, address.type);
+        return convert_value(static_cast<long long>(0), address.type);
     }
 
     void store_address(const Address& address, const Value& value) {
@@ -588,19 +1217,19 @@ class Machine {
             if (!detail::same_unqualified(root_type, address.type)) {
                 if (address.type->kind != TypeKind::Char || !detail::numeric(root_type) || value_empty(root))
                     throw std::runtime_error("地址写入类型不兼容或原对象未初始化");
-                std::uint64_t bits;
-                if (detail::integral(root_type)) bits = static_cast<std::uint64_t>(get<std::int64_t>(root));
-                else if (root_type->kind == TypeKind::Float) { const auto value = static_cast<float>(get<double>(root)); std::uint32_t word; std::memcpy(&word, &value, 4); bits = word; }
+                unsigned long long bits;
+                if (detail::integral(root_type)) bits = static_cast<unsigned long long>(get<long long>(root));
+                else if (root_type->kind == TypeKind::Float) { const auto value = static_cast<float>(get<double>(root)); unsigned word; std::memcpy(&word, &value, 4); bits = word; }
                 else { const auto value = get<double>(root); std::memcpy(&bits, &value, 8); }
-                bits = (bits & ~(std::uint64_t{255} << (8 * address.offset))) | ((static_cast<std::uint64_t>(get<std::int64_t>(converted)) & 255) << (8 * address.offset));
+                bits = (bits & ~(static_cast<unsigned long long>(255) << (8 * address.offset))) | ((static_cast<unsigned long long>(get<long long>(converted)) & 255) << (8 * address.offset));
                 if (detail::floating(root_type)) {
-                    if (root_type->kind == TypeKind::Float) { const auto word = static_cast<std::uint32_t>(bits); float value; std::memcpy(&value, &word, 4); root = convert_value(static_cast<double>(value), root_type); }
+                    if (root_type->kind == TypeKind::Float) { const auto word = static_cast<unsigned>(bits); float value; std::memcpy(&value, &word, 4); root = convert_value(static_cast<double>(value), root_type); }
                     else { double value; std::memcpy(&value, &bits, 8); root = convert_value(value, root_type); }
                 } else {
                     const auto size = detail::integer_bits(root_type);
-                    bits &= (std::uint64_t{1} << size) - 1;
-                    root = !root_type->is_unsigned && (bits & (std::uint64_t{1} << (size - 1))) ?
-                        Value{static_cast<std::int64_t>(bits) - static_cast<std::int64_t>(std::uint64_t{1} << size)} : Value{static_cast<std::int64_t>(bits)};
+                    bits &= (static_cast<unsigned long long>(1) << size) - 1;
+                    root = !root_type->is_unsigned && (bits & (static_cast<unsigned long long>(1) << (size - 1))) ?
+                        Value{static_cast<long long>(bits) - static_cast<long long>(static_cast<unsigned long long>(1) << size)} : Value{static_cast<long long>(bits)};
                 }
                 return;
             }
@@ -614,9 +1243,9 @@ class Machine {
             }
             for (std::size_t i = 0; i < size; ++i) { object->bytes.erase(address.offset + i); object->unknown.erase(address.offset + i); }
             if (detail::numeric(address.type)) {
-                std::uint64_t bits;
-                if (detail::integral(address.type)) bits = static_cast<std::uint64_t>(get<std::int64_t>(converted));
-                else if (size == 4) { const auto value = static_cast<float>(get<double>(converted)); std::uint32_t word; std::memcpy(&word, &value, 4); bits = word; }
+                unsigned long long bits;
+                if (detail::integral(address.type)) bits = static_cast<unsigned long long>(get<long long>(converted));
+                else if (size == 4) { const auto value = static_cast<float>(get<double>(converted)); unsigned word; std::memcpy(&word, &value, 4); bits = word; }
                 else { const auto value = get<double>(converted); std::memcpy(&bits, &value, 8); }
                 for (std::size_t i = 0; i < size; ++i) object->bytes[address.offset + i] = static_cast<unsigned char>(bits >> (8 * i));
             } else object->cells[address.offset] = std::move(converted);
@@ -652,7 +1281,7 @@ class Machine {
             }
             else for (std::size_t i = 0; i < size; ++i) if (!object.bytes.count(offset + i)) object.unknown.insert(offset + i);
         } else if (type->kind == TypeKind::Address) {
-            if (!object.cells.count(offset)) object.cells[offset] = object.zero ? convert_value(std::int64_t{0}, type) : Value{};
+            if (!object.cells.count(offset)) object.cells[offset] = object.zero ? convert_value(static_cast<long long>(0), type) : Value{};
         } else if (type->kind == TypeKind::Array) {
             const auto stride = detail::layout(type->base, symbols_).size;
             for (std::size_t i = 0; i < *type->array_length; ++i) materialize_default(object, type->base, offset + i * stride, depth + 1);
@@ -724,19 +1353,19 @@ class Machine {
                     if (text.empty()) throw std::runtime_error("scanf 无法读取字符串");
                     if (!part.width && input_.peek() != std::char_traits<char>::eof() && !std::isspace(static_cast<unsigned char>(input_.peek())))
                         throw std::runtime_error("scanf 输入字符串超过数组容量");
-                    for (const unsigned char byte : text) { store_address(address, std::int64_t{byte > 127 ? byte - 256 : byte}); ++address.offset; }
-                    store_address(address, std::int64_t{0});
+                    for (const unsigned char byte : text) { store_address(address, static_cast<long long>(byte > 127 ? byte - 256 : byte)); ++address.offset; }
+                    store_address(address, static_cast<long long>(0));
                     continue;
                 } else if (part.conversion == 'd') {
-                    std::int64_t integer = 0;
+                    long long integer = 0;
                     if (!(input_ >> integer)) throw std::runtime_error("scanf 无法读取整数");
                     input_value = convert_value(integer, expected);
                 } else if (part.conversion == 'u' || part.conversion == 'x' || part.conversion == 'o') {
-                    std::uint64_t integer = 0;
+                    unsigned long long integer = 0;
                     input_ >> (part.conversion == 'x' ? std::hex : part.conversion == 'o' ? std::oct : std::dec) >> integer;
                     input_ >> std::dec;
-                    if (!input_ || integer >= (std::uint64_t{1} << detail::integer_bits(expected))) throw std::runtime_error("scanf 无符号输入超出范围");
-                    input_value = static_cast<std::int64_t>(integer);
+                    if (!input_ || integer >= (static_cast<unsigned long long>(1) << detail::integer_bits(expected))) throw std::runtime_error("scanf 无符号输入超出范围");
+                    input_value = static_cast<long long>(integer);
                 } else if (part.conversion == 'f') {
                     double floating = 0;
                     if (!(input_ >> floating)) throw std::runtime_error("scanf 无法读取浮点数");
@@ -745,7 +1374,7 @@ class Machine {
                     char character = 0;
                     if (!input_.get(character)) throw std::runtime_error("scanf 无法读取字符");
                     const auto byte = static_cast<unsigned char>(character);
-                    input_value = std::int64_t{byte > 127 ? byte - 256 : byte};
+                    input_value = static_cast<long long>(byte > 127 ? byte - 256 : byte);
                 }
                 write_address(get<Address>(value), input_value, expected);
             } else {
@@ -756,11 +1385,11 @@ class Machine {
                     if (!holds<double>(value)) throw std::runtime_error("%f 需要 float");
                     formatted << std::fixed << std::setprecision(6) << get<double>(value);
                 } else {
-                    if (!holds<std::int64_t>(value)) throw std::runtime_error("%d/%c 需要整数");
-                    const auto integer = get<std::int64_t>(value);
+                    if (!holds<long long>(value)) throw std::runtime_error("%d/%c 需要整数");
+                    const auto integer = get<long long>(value);
                     if (part.conversion == 'c') formatted << static_cast<char>(static_cast<unsigned char>(integer));
                     else if (part.conversion == 'u' || part.conversion == 'x' || part.conversion == 'o')
-                        formatted << (part.conversion == 'x' ? std::hex : part.conversion == 'o' ? std::oct : std::dec) << static_cast<std::uint64_t>(integer);
+                        formatted << (part.conversion == 'x' ? std::hex : part.conversion == 'o' ? std::oct : std::dec) << static_cast<unsigned long long>(integer);
                     else formatted << integer;
                 }
                 output_ << formatted.str();
@@ -769,7 +1398,7 @@ class Machine {
             if (!scanning && !output_) throw std::runtime_error("程序输出失败");
         }
         if (!scanning && !output_) throw std::runtime_error("程序输出失败");
-        return detail::checked_integer(static_cast<std::int64_t>(scanning ? conversions : written));
+        return detail::checked_integer(static_cast<long long>(scanning ? conversions : written));
     }
 
     // 沿字符数组地址读取到终止零，越界或未初始化时立即报错。
@@ -779,7 +1408,7 @@ class Machine {
         auto address = get<Address>(value); std::string text;
         if (!address.type || address.type->kind != TypeKind::Char) throw std::runtime_error("字符串地址类型错误");
         while (address.offset < address.last) {
-            const auto byte = get<std::int64_t>(read_address(address));
+            const auto byte = get<long long>(read_address(address));
             if (byte == 0) return text;
             text.push_back(static_cast<char>(static_cast<unsigned char>(byte))); ++address.offset;
         }
@@ -852,11 +1481,11 @@ class Machine {
                     selected.last = selected.offset + detail::layout(selected.type, symbols_).size;
                 } else {
                     const auto index_value = read(q.arg2, frame);
-                    if (!holds<std::int64_t>(index_value)) throw std::runtime_error("数组形参寻址需要整型下标");
+                    if (!holds<long long>(index_value)) throw std::runtime_error("数组形参寻址需要整型下标");
                     const auto stride = detail::layout(selected.type, symbols_).size;
-                    const auto delta = get<std::int64_t>(index_value) * static_cast<std::int64_t>(stride);
-                    const auto offset = static_cast<std::int64_t>(selected.offset) + delta;
-                    if (offset < static_cast<std::int64_t>(selected.first) || offset >= static_cast<std::int64_t>(selected.last))
+                    const auto delta = get<long long>(index_value) * static_cast<long long>(stride);
+                    const auto offset = static_cast<long long>(selected.offset) + delta;
+                    if (offset < static_cast<long long>(selected.first) || offset >= static_cast<long long>(selected.last))
                         throw std::runtime_error("数组形参寻址越界");
                     selected.offset = static_cast<std::size_t>(offset);
                 }
@@ -869,9 +1498,9 @@ class Machine {
                 root_value(selected);
                 if (q.op == "indexaddr") {
                     const auto index_value = read(q.arg2, frame);
-                    if (!holds<std::int64_t>(index_value) || !selected.type || selected.type->kind != TypeKind::Array)
+                    if (!holds<long long>(index_value) || !selected.type || selected.type->kind != TypeKind::Array)
                         throw std::runtime_error("数组寻址的下标或地址类型无效");
-                    const auto index = get<std::int64_t>(index_value);
+                    const auto index = get<long long>(index_value);
                     if (index < 0 || static_cast<std::size_t>(index) >= *selected.type->array_length)
                         throw std::runtime_error("数组下标越界");
                     selected.first = selected.offset;
@@ -909,34 +1538,34 @@ class Machine {
                 const auto destination = frame.destination;
                 frames_.pop_back();
                 if (frames_.empty()) {
-                    result_.exit_code = static_cast<std::int32_t>(get<std::int64_t>(returned));
+                    result_.exit_code = static_cast<int>(get<long long>(returned));
                 } else if (destination != "-") write(destination, returned, frames_.back());
             } else if (q.op == "neg" || q.op == "not" || q.op == "bnot") {
                 const auto value = read(q.arg1, frame);
-                write(q.result, q.op == "not" ? Value{std::int64_t{!truth(value)}} :
-                    q.op == "bnot" ? Value{~get<std::int64_t>(value)} :
-                    holds<std::int64_t>(value) ? Value{-get<std::int64_t>(value)} : Value{-number(value)}, frame);
+                write(q.result, q.op == "not" ? Value{static_cast<long long>(!truth(value))} :
+                    q.op == "bnot" ? Value{~get<long long>(value)} :
+                    holds<long long>(value) ? Value{-get<long long>(value)} : Value{-number(value)}, frame);
             } else {
                 const auto left_value = read(q.arg1, frame);
                 const auto right_value = read(q.arg2, frame);
                 const double left = number(left_value), right = number(right_value);
                 Value value;
-                if (q.op == "<") value = std::int64_t{left < right};
-                else if (q.op == "<=") value = std::int64_t{left <= right};
-                else if (q.op == ">") value = std::int64_t{left > right};
-                else if (q.op == ">=") value = std::int64_t{left >= right};
-                else if (q.op == "==") value = std::int64_t{left == right};
-                else if (q.op == "!=") value = std::int64_t{left != right};
-                else if (holds<std::int64_t>(left_value) && holds<std::int64_t>(right_value)) {
-                    const auto a = get<std::int64_t>(left_value), b = get<std::int64_t>(right_value);
+                if (q.op == "<") value = static_cast<long long>(left < right);
+                else if (q.op == "<=") value = static_cast<long long>(left <= right);
+                else if (q.op == ">") value = static_cast<long long>(left > right);
+                else if (q.op == ">=") value = static_cast<long long>(left >= right);
+                else if (q.op == "==") value = static_cast<long long>(left == right);
+                else if (q.op == "!=") value = static_cast<long long>(left != right);
+                else if (holds<long long>(left_value) && holds<long long>(right_value)) {
+                    const auto a = get<long long>(left_value), b = get<long long>(right_value);
                     const auto target = destination_type(q.result, frame);
                     if (target->is_unsigned && q.op == "*") {
-                        const auto product = static_cast<std::uint64_t>(a) * static_cast<std::uint64_t>(b);
-                        write(q.result, static_cast<std::int64_t>(product & ((std::uint64_t{1} << detail::integer_bits(target)) - 1)), frame);
+                        const auto product = static_cast<unsigned long long>(a) * static_cast<unsigned long long>(b);
+                        write(q.result, static_cast<long long>(product & ((static_cast<unsigned long long>(1) << detail::integer_bits(target)) - 1)), frame);
                         continue;
                     }
                     if ((q.op == "/" || q.op == "%") && b == 0) throw std::runtime_error("整数除零");
-                    if ((q.op == "/" || q.op == "%") && a == std::numeric_limits<std::int32_t>::min() && b == -1)
+                    if ((q.op == "/" || q.op == "%") && a == std::numeric_limits<int>::min() && b == -1)
                         throw std::runtime_error("整数除法溢出");
                     if (q.op == "+") value = a + b;
                     else if (q.op == "-") value = a - b;
@@ -948,8 +1577,8 @@ class Machine {
                     else if (q.op == "^") value = a ^ b;
                     else if (q.op == "<<" || q.op == ">>") {
                         if (b < 0 || b >= detail::integer_bits(target) || (q.op == "<<" && a < 0)) throw std::runtime_error("移位数量或左移操作数无效");
-                        const auto divisor = std::int64_t{1} << b;
-                        if (target->is_unsigned && q.op == "<<") value = static_cast<std::int64_t>((static_cast<std::uint64_t>(a) << b) & 0xffffffffu);
+                        const auto divisor = static_cast<long long>(1) << b;
+                        if (target->is_unsigned && q.op == "<<") value = static_cast<long long>((static_cast<unsigned long long>(a) << b) & 0xffffffffu);
                         else value = q.op == "<<" ? a * divisor : (a >= 0 ? a / divisor : -((-a + divisor - 1) / divisor));
                     } else throw std::runtime_error("整型运算符无效");
                 } else {
@@ -995,9 +1624,3 @@ RunResult run(const IRProgram& program, const SymbolTableData& symbols,
 }
 
 }
-
-
-
-
-
-

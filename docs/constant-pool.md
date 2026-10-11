@@ -1,8 +1,8 @@
-﻿# 常量池 v1.2
+# 常量池 v1.2
 
 常量池是本次编译所有函数和全局初始化共享的常量存储表。它不按名字查询，不入作用域栈，也不替代变量、函数等普通符号。由语义阶段解码并检查常量，IR 生成阶段登记，解释器、优化和展示读取。
 
-数据定义在 [interface.hpp](../include/minic/interface.hpp)，接口在 [constant_pool.hpp](../include/minic/constant_pool.hpp)，登记和去重实现位于 [constant_pool.cpp](../src/backend/constant_pool.cpp)。generate/run 已接入常量池，并通过后续流程测试。
+数据定义在 [interface.hpp](../include/minic/interface.hpp)，接口在 [constant_pool.hpp](../include/minic/constant_pool.hpp)，登记和去重实现位于 [constant_pool.cpp](../src/backend.cpp)。generate/run 已接入常量池，并通过后续流程测试。
 
 type 是普通指针，快照对象由当前 TypeArena 保存。单独使用池时先建立 TypeArena 和 TypeArenaScope，管理器必须保留到池及其 release 后的数据都不再使用。复制 ConstantPoolData 只复制类型指针，不转交或复制类型对象；通过 compile 生成时由 CompilationResult.types 管理。
 
@@ -81,16 +81,15 @@ print_ir 展示指令时同时展示常量池编号、类型和值；导出可�
 独立检查去重、类型区别、精度、零字节字符串、非法输入、扩容编号及数据归属：
 
 ```powershell
-g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -I include tests/constant_pool_test.cpp src/backend/constant_pool.cpp src/semantic/type_arena.cpp -o constant_pool_test.exe
+g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -I include tests/constant_pool_test.cpp src/backend.cpp src/semantic.cpp -o constant_pool_test.exe
 .\constant_pool_test.exe
 ```
 
 运行使用常量池的结构体组装示例：
 
 ```powershell
-g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -I include examples/interface_demo.cpp src/backend/constant_pool.cpp src/semantic/type_arena.cpp -o interface_demo.exe
+g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -I include examples/interface_demo.cpp src/backend.cpp src/semantic.cpp -o interface_demo.exe
 .\interface_demo.exe
 ```
 
 测试是独立的行为检查程序，不依赖尚未配置的 GoogleTest；后续 CMake/GoogleTest 集成时应保留这些行为覆盖。
-
