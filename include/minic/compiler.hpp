@@ -11,12 +11,12 @@ enum class CompileTarget { Tokens, Parse, Check, IR };
 struct CompilationResult {
     TypeArena types; // 保存本次编译的类型对象，其他结果销毁后再统一释放。
     CompileTarget target = CompileTarget::IR; // 请求编译到哪个阶段。
-    std::optional<LexResult> lexical; // 词法分析结果；未执行时为空。
-    std::optional<ParseResult> syntax; // 语法分析结果；未执行时为空。
-    std::optional<SemanticResult> semantic; // 语义分析结果；未执行时为空。
-    std::optional<IRResult> ir; // 中间代码生成结果；未执行时为空。
+    MaybeValue<LexResult> lexical; // 词法分析结果；未执行时为空。
+    MaybeValue<ParseResult> syntax; // 语法分析结果；未执行时为空。
+    MaybeValue<SemanticResult> semantic; // 语义分析结果；未执行时为空。
+    MaybeValue<IRResult> ir; // 中间代码生成结果；未执行时为空。
     std::vector<Diagnostic> diagnostics; // 所有已执行阶段的诊断汇总。
-    std::optional<PreprocessResult> preprocessing; // 预处理结果；直接调用 compile 时为空。
+    MaybeValue<PreprocessResult> preprocessing; // 预处理结果；直接调用 compile 时为空。
     // 判断是否成功编译到请求阶段。成功返回 true，否则返回 false。
     bool ok() const;
 };

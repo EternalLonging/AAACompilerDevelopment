@@ -7,9 +7,9 @@
 
 namespace {
 // 读取源码或头文件，找不到时返回空值。
-std::optional<std::string> read_file(const std::filesystem::path& path) {
+minic::MaybeValue<std::string> read_file(const std::filesystem::path& path) {
     std::ifstream input(path, std::ios::binary);
-    if (!input) return std::nullopt;
+    if (!input) return minic::emptyValue;
     std::string text{std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>()};
     if (input.bad()) throw std::runtime_error("读取联调文件失败");
     return text;

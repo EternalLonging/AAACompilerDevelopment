@@ -204,7 +204,7 @@ class Parser {
     // 声明符中的一层数组或函数。
     struct Layer {
         TypeKind kind = TypeKind::Array; // 这一层是数组还是函数。
-        std::optional<std::size_t> length; // 数组元素个数；省略界限时为空。
+        MaybeValue<std::size_t> length; // 数组元素个数；省略界限时为空。
         bool prototype = true; // 函数是否写了参数类型；空括号表示未写原型。
         bool variadic = false; // 函数参数表是否以省略号结束。
         std::vector<Node> params; // 本层函数的形参节点，按声明顺序保存。

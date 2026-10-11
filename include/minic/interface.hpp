@@ -5,13 +5,36 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
-#include <optional>
 #include <string>
 #include <unordered_map>
 #include <variant>
 #include <vector>
 
 namespace minic {
+
+template <typename T>
+struct MaybeValue {
+    bool present = false;
+    T data{};
+    MaybeValue() = default;
+    MaybeValue(const T& value) : present(true), data(value) {}
+    MaybeValue(T&& value) : present(true), data(std::move(value)) {}
+    bool has_value() const noexcept { return present; }
+    explicit operator bool() const noexcept { return present; }
+    T& value() { return data; }
+    const T& value() const { return data; }
+    T& operator*() { return data; }
+    const T& operator*() const { return data; }
+    T* operator->() { return &data; }
+    const T* operator->() const { return &data; }
+    template <typename U>
+    T value_or(U&& fallback) const { return present ? data : static_cast<T>(std::forward<U>(fallback)); }
+    void reset() noexcept { present = false; data = T{}; }
+    bool operator==(const MaybeValue& other) const { return present == other.present && (!present || data == other.data); }
+    bool operator!=(const MaybeValue& other) const { return !(*this == other); }
+};
+struct EmptyValue { template <typename T> operator MaybeValue<T>() const { return {}; } };
+inline constexpr EmptyValue emptyValue{};
 
 // ==================== 公共基础：各阶段共用 ====================
 
@@ -143,7 +166,7 @@ struct ASTNode {
     SymbolId symbol_id = invalid_id; // 对应的变量、形参或函数编号。
     ScopeId scope_id = invalid_id; // 节点所属的作用域编号。
     RecordId record_id = invalid_id; // 节点涉及的结构体、联合体或枚举编号。
-    std::optional<std::size_t> member_index; // 成员在成员表中的下标；非成员访问时为空。
+    MaybeValue<std::size_t> member_index; // 成员在成员表中的下标；非成员访问时为空。
     std::vector<std::unique_ptr<ASTNode>> children; // 子节点列表；排列顺序见 docs/interface.md。
 };
 
@@ -175,7 +198,7 @@ struct TypeInfo {
     bool is_unsigned = false; // 是否为无符号整型。
     bool is_const = false; // 当前这一层类型是否带 const。
     TypePtr base = nullptr; // 内部地址的目标类型、数组的元素类型或函数的返回类型。
-    std::optional<std::size_t> array_length; // 本层数组长度；为空表示尚未确定。
+    MaybeValue<std::size_t> array_length; // 本层数组长度；为空表示尚未确定。
     std::vector<TypePtr> params; // 函数的形参类型表，按声明顺序保存。
     bool variadic = false; // 函数是否接受可变数量的参数。
     bool has_prototype = true; // 是否有参数原型；f() 与 f(void) 用此区分。
@@ -203,14 +226,14 @@ struct SymbolEntry {
     StorageClass storage = StorageClass::None; // 声明的存储类别，如 static、extern。
     bool is_defined = false; // 是否已有定义，而不只是声明。
     BuiltinKind builtin = BuiltinKind::None; // 内建函数标记，如 printf、scanf。
-    std::optional<std::size_t> offset; // 对象的存储字节偏移；未分配时为空。
+    MaybeValue<std::size_t> offset; // 对象的存储字节偏移；未分配时为空。
 };
 
 // 一条成员信息。
 struct MemberEntry {
     std::string name; // 成员名字。
     TypePtr type = nullptr; // 成员的数据类型。
-    std::optional<std::size_t> offset; // 成员相对对象起点的字节偏移；未计算时为空。
+    MaybeValue<std::size_t> offset; // 成员相对对象起点的字节偏移；未计算时为空。
     SourceRange range; // 成员声明的位置。
 };
 
@@ -234,8 +257,8 @@ struct StructEntry {
     bool is_complete = false; // 是否已完成定义。
     std::vector<MemberEntry> members; // 结构体或联合体的成员信息表。
     std::vector<EnumValue> enumerators; // 枚举项信息表。
-    std::optional<std::size_t> size; // 对象总字节数，包含填充；未计算时为空。
-    std::optional<std::size_t> alignment; // 对象的字节对齐要求；未计算时为空。
+    MaybeValue<std::size_t> size; // 对象总字节数，包含填充；未计算时为空。
+    MaybeValue<std::size_t> alignment; // 对象的字节对齐要求；未计算时为空。
     SourceRange range; // 标签声明或定义的位置。
 };
 

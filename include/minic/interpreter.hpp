@@ -13,7 +13,7 @@ struct RunOptions {
 
 // 程序执行结果。
 struct RunResult {
-    std::optional<std::int32_t> exit_code; // main 的退出码；执行失败时为空。
+    MaybeValue<std::int32_t> exit_code; // main 的退出码；执行失败时为空。
     std::uint64_t executed_steps = 0; // 实际执行的指令数。
     std::vector<Diagnostic> diagnostics; // 程序执行时的诊断列表。
     // 判断程序是否正常执行完毕。正常返回 true，否则返回 false。

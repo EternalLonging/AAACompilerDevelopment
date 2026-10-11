@@ -99,16 +99,16 @@ inline bool address_compatible(const TypePtr& target, const TypePtr& source) {
 }
 
 // 读取纯整型常量表达式；不执行调用、赋值或变量读取。
-inline std::optional<std::int64_t> integer_constant(const ASTNode& node, std::size_t depth = 0) {
-    if (depth > 128 || !integral(node.type)) return std::nullopt;
+inline MaybeValue<std::int64_t> integer_constant(const ASTNode& node, std::size_t depth = 0) {
+    if (depth > 128 || !integral(node.type)) return emptyValue;
     if (node.kind == NodeType::IntLiteral || node.kind == NodeType::CharLiteral) {
         if (const auto* value = std::get_if<std::int64_t>(&node.value)) return *value;
         if (const auto* value = std::get_if<std::uint64_t>(&node.value); value && *value <= std::numeric_limits<std::uint32_t>::max()) return static_cast<std::int64_t>(*value);
-        return std::nullopt;
+        return emptyValue;
     }
-    if (node.children.empty() || !node.children[0]) return std::nullopt;
+    if (node.children.empty() || !node.children[0]) return emptyValue;
     const auto left = integer_constant(*node.children[0], depth + 1);
-    if (!left) return std::nullopt;
+    if (!left) return emptyValue;
     std::int64_t value;
     if (node.kind == NodeType::ImplicitCast || node.kind == NodeType::Cast) value = *left;
     else if (node.kind == NodeType::UnaryOp) {
@@ -116,12 +116,12 @@ inline std::optional<std::int64_t> integer_constant(const ASTNode& node, std::si
         else if (node.name == "-") value = -*left;
         else if (node.name == "!") value = !*left;
         else if (node.name == "~") value = ~*left;
-        else return std::nullopt;
+        else return emptyValue;
     } else if (node.kind == NodeType::BinaryOp && node.children.size() == 2 && node.children[1]) {
         if (node.name == "&&" && !*left) return 0;
         if (node.name == "||" && *left) return 1;
         const auto right = integer_constant(*node.children[1], depth + 1);
-        if (!right) return std::nullopt;
+        if (!right) return emptyValue;
         if (node.name == "+") value = *left + *right;
         else if (node.name == "-") value = *left - *right;
         else if (node.name == "*") {
@@ -132,12 +132,12 @@ inline std::optional<std::int64_t> integer_constant(const ASTNode& node, std::si
         else if (node.name == "|") value = *left | *right;
         else if (node.name == "^") value = *left ^ *right;
         else if (node.name == "<<" || node.name == ">>") {
-            if (*right < 0 || *right >= 32 || (node.name == "<<" && *left < 0)) return std::nullopt;
+            if (*right < 0 || *right >= 32 || (node.name == "<<" && *left < 0)) return emptyValue;
             const auto divisor = std::int64_t{1} << *right;
             value = node.name == "<<" ? *left * divisor : (*left >= 0 ? *left / divisor : -((-*left + divisor - 1) / divisor));
         }
         else if (node.name == "/" || node.name == "%") {
-            if (!*right || (*left == std::numeric_limits<std::int32_t>::min() && *right == -1)) return std::nullopt;
+            if (!*right || (*left == std::numeric_limits<std::int32_t>::min() && *right == -1)) return emptyValue;
             value = node.name == "/" ? *left / *right : *left % *right;
         } else if (node.name == "<") value = *left < *right;
         else if (node.name == "<=") value = *left <= *right;
@@ -147,13 +147,13 @@ inline std::optional<std::int64_t> integer_constant(const ASTNode& node, std::si
         else if (node.name == "!=") value = *left != *right;
         else if (node.name == "&&") value = *left && *right;
         else if (node.name == "||") value = *left || *right;
-        else return std::nullopt;
-    } else return std::nullopt;
+        else return emptyValue;
+    } else return emptyValue;
     const auto bits = integer_bits(node.type);
     if (node.type->is_unsigned) return static_cast<std::int64_t>(static_cast<std::uint64_t>(value) & ((std::uint64_t{1} << bits) - 1));
     const auto low = -(std::int64_t{1} << (bits - 1));
     const auto high = (std::int64_t{1} << (bits - 1)) - 1;
-    if (value < low || value > high) return std::nullopt;
+    if (value < low || value > high) return emptyValue;
     return value;
 }
 
@@ -172,17 +172,17 @@ inline double checked_float(double value) {
 }
 
 // 安全折叠数值常量，保留每一步 float 舍入；失败则保留原表达式。
-inline std::optional<ConstantValue> folded_value(const ASTNode& node, std::size_t depth = 0) {
+inline MaybeValue<ConstantValue> folded_value(const ASTNode& node, std::size_t depth = 0) {
     // 新的整数宽度及 unsigned 保留运行求值，避免套用旧的 32 位折叠规则。
-    if (depth > 128 || !numeric(node.type) || node.type->is_unsigned || node.type->kind == TypeKind::Long || node.type->kind == TypeKind::Short) return std::nullopt;
+    if (depth > 128 || !numeric(node.type) || node.type->is_unsigned || node.type->kind == TypeKind::Long || node.type->kind == TypeKind::Short) return emptyValue;
     if (const auto integer = integer_constant(node, depth)) return ConstantValue{*integer};
     if (node.kind == NodeType::FloatLiteral) {
         if (const auto* value = std::get_if<double>(&node.value)) return ConstantValue{*value};
-        return std::nullopt;
+        return emptyValue;
     }
-    if (node.children.empty() || !node.children[0]) return std::nullopt;
+    if (node.children.empty() || !node.children[0]) return emptyValue;
     const auto left_value = folded_value(*node.children[0], depth + 1);
-    if (!left_value) return std::nullopt;
+    if (!left_value) return emptyValue;
     const auto number = [](const ConstantValue& value) {
         if (const auto* integer = std::get_if<std::int64_t>(&value)) return static_cast<double>(*integer);
         return std::get<double>(value);
@@ -194,17 +194,17 @@ inline std::optional<ConstantValue> folded_value(const ASTNode& node, std::size_
         if (node.name == "+") result = left;
         else if (node.name == "-") result = -left;
         else if (node.name == "!") result = !left;
-        else return std::nullopt;
+        else return emptyValue;
     } else if (node.kind == NodeType::BinaryOp && node.children.size() == 2 && node.children[1]) {
         if (node.name == "&&" && left == 0) return ConstantValue{std::int64_t{0}};
         if (node.name == "||" && left != 0) return ConstantValue{std::int64_t{1}};
         const auto right_value = folded_value(*node.children[1], depth + 1);
-        if (!right_value) return std::nullopt;
+        if (!right_value) return emptyValue;
         const auto right = number(*right_value);
         if (node.name == "+") result = left + right;
         else if (node.name == "-") result = left - right;
         else if (node.name == "*") result = left * right;
-        else if (node.name == "/") { if (right == 0) return std::nullopt; result = left / right; }
+        else if (node.name == "/") { if (right == 0) return emptyValue; result = left / right; }
         else if (node.name == "<") result = left < right;
         else if (node.name == "<=") result = left <= right;
         else if (node.name == ">") result = left > right;
@@ -213,18 +213,18 @@ inline std::optional<ConstantValue> folded_value(const ASTNode& node, std::size_
         else if (node.name == "!=") result = left != right;
         else if (node.name == "&&") result = left != 0 && right != 0;
         else if (node.name == "||") result = left != 0 || right != 0;
-        else return std::nullopt;
+        else return emptyValue;
         // 整型运算失败时不能经 double 换一套规则后成功折叠。
         if (node.kind == NodeType::BinaryOp && std::holds_alternative<std::int64_t>(*left_value) &&
-            std::holds_alternative<std::int64_t>(*right_value)) return std::nullopt;
-    } else return std::nullopt;
+            std::holds_alternative<std::int64_t>(*right_value)) return emptyValue;
+    } else return emptyValue;
     try {
-        if (floating(node.type)) return std::isfinite(result) ? std::optional<ConstantValue>{node.type->kind == TypeKind::Float ? ConstantValue{checked_float(result)} : ConstantValue{result}} : std::nullopt;
+        if (floating(node.type)) return std::isfinite(result) ? MaybeValue<ConstantValue>{node.type->kind == TypeKind::Float ? ConstantValue{checked_float(result)} : ConstantValue{result}} : emptyValue;
         const auto truncated = std::trunc(result);
         if (!std::isfinite(truncated) || truncated < std::numeric_limits<std::int32_t>::min() ||
-            truncated > std::numeric_limits<std::int32_t>::max()) return std::nullopt;
+            truncated > std::numeric_limits<std::int32_t>::max()) return emptyValue;
         return ConstantValue{checked_integer(static_cast<std::int64_t>(truncated), node.type->kind)};
-    } catch (const std::runtime_error&) { return std::nullopt; }
+    } catch (const std::runtime_error&) { return emptyValue; }
 }
 
 inline int hex_digit(char value) {

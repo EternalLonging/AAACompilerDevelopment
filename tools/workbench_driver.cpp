@@ -25,9 +25,9 @@ std::string quoted(const std::string& text) {
     }
     return out + '"';
 }
-std::optional<std::string> read(const std::filesystem::path& path) {
+minic::MaybeValue<std::string> read(const std::filesystem::path& path) {
     std::ifstream file(path, std::ios::binary);
-    if (!file) return std::nullopt;
+    if (!file) return minic::emptyValue;
     std::string text{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
     if (file.bad()) throw std::runtime_error("文件读取失败");
     return text;
@@ -66,7 +66,7 @@ std::string value_text(const minic::ConstantValue& value) {
 }
 // 记录真实四元式、常量池和执行统计，优化两侧分别执行同一份输入。
 void ir(std::ostream& out, const minic::IRResult& result, const minic::SymbolTableData& symbols,
-        const std::optional<minic::RunResult>& execution, const std::string& output) {
+        const minic::MaybeValue<minic::RunResult>& execution, const std::string& output) {
     out << "{\"ok\":" << (result.ok() ? "true" : "false") << ",\"diagnostics\":";
     diagnostics(out, result.diagnostics);
     std::ostringstream text; minic::print_ir(result.program, symbols, text);
@@ -142,7 +142,7 @@ int driver(const std::vector<std::string>& args) {
         const auto& symbols = compiled.semantic->symbols;
         auto baseline = minic::generate(*compiled.syntax->root, symbols, {false});
         auto optimized = minic::generate(*compiled.syntax->root, symbols, {true});
-        std::optional<minic::RunResult> before, after;
+        minic::MaybeValue<minic::RunResult> before, after;
         std::ostringstream before_out, after_out;
         if (args[1] == "run" && baseline.ok() && optimized.ok()) {
             const auto input = read(std::filesystem::u8path(args[3])).value_or("");

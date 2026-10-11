@@ -13,7 +13,7 @@ static TypePtr basic(TypeKind kind) {
 }
 
 static TypePtr derived(TypeKind kind, TypePtr base,
-                       std::optional<std::size_t> length = std::nullopt) {
+                       MaybeValue<std::size_t> length = emptyValue) {
     auto type = make_type_info();
     type->kind = kind;
     type->base = std::move(base);

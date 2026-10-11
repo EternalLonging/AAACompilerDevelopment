@@ -78,13 +78,13 @@ bool SymbolTable::exit_scope() {
     return true;
 }
 
-std::optional<SymbolId> SymbolTable::insert(SymbolEntry entry) {
+MaybeValue<SymbolId> SymbolTable::insert(SymbolEntry entry) {
     if (entry.name.empty() || !same_type(entry.type, entry.type) ||
         (entry.kind == SymbolKind::Function && entry.type->kind != TypeKind::Function) ||
         (object_kind(entry.kind) && (entry.type->kind == TypeKind::Void ||
                                    entry.type->kind == TypeKind::Function))) {
         diagnostics_.report(Level::Error, entry.range, "符号名字或类型无效", "SYM_INVALID_ENTRY");
-        return std::nullopt;
+        return emptyValue;
     }
     auto& names = data_.scopes[current_scope()].symbols;
     const auto found = names.find(entry.name);
@@ -104,7 +104,7 @@ std::optional<SymbolId> SymbolTable::insert(SymbolEntry entry) {
         diagnostics_.report(Level::Error, entry.range,
                             "同一作用域中的声明冲突：" + entry.name,
                             "SYM_DECL_CONFLICT", {previous.range});
-        return std::nullopt;
+        return emptyValue;
     }
     entry.id = next_id(data_.symbols);
     entry.scope = current_scope();
@@ -117,16 +117,16 @@ std::optional<SymbolId> SymbolTable::insert(SymbolEntry entry) {
     return id;
 }
 
-std::optional<SymbolId> SymbolTable::lookup(const std::string& name) const {
+MaybeValue<SymbolId> SymbolTable::lookup(const std::string& name) const {
     for (auto it = data_.active_scopes.rbegin(); it != data_.active_scopes.rend(); ++it) {
         const auto& names = data_.scopes[*it].symbols;
         const auto found = names.find(name);
         if (found != names.end()) return found->second;
     }
-    return std::nullopt;
+    return emptyValue;
 }
 
-std::optional<SymbolId> SymbolTable::declare_object(SymbolEntry entry) {
+MaybeValue<SymbolId> SymbolTable::declare_object(SymbolEntry entry) {
     const auto scope = current_scope();
     if (scope != 0 && entry.storage != StorageClass::Extern) return insert(std::move(entry));
     auto& global = data_.scopes[0].symbols;
@@ -138,7 +138,7 @@ std::optional<SymbolId> SymbolTable::declare_object(SymbolEntry entry) {
             (previous.is_defined && entry.is_defined) ||
             (entry.storage == StorageClass::Static && previous.storage != StorageClass::Static) ||
             (previous.storage == StorageClass::Static && entry.storage == StorageClass::None)) {
-            diagnostics_.report(Level::Error, entry.range, "对象声明类型、链接或定义冲突：" + entry.name, "SYM_DECL_CONFLICT", {previous.range}); return std::nullopt;
+            diagnostics_.report(Level::Error, entry.range, "对象声明类型、链接或定义冲突：" + entry.name, "SYM_DECL_CONFLICT", {previous.range}); return emptyValue;
         }
         previous.is_defined = previous.is_defined || entry.is_defined;
         if (entry.storage != StorageClass::Extern) previous.storage = entry.storage;
@@ -148,23 +148,23 @@ std::optional<SymbolId> SymbolTable::declare_object(SymbolEntry entry) {
         data_.active_scopes.push_back(0);
         const auto created = insert(std::move(entry));
         data_.active_scopes.pop_back();
-        if (!created) return std::nullopt;
+        if (!created) return emptyValue;
         id = *created;
     }
     if (scope != 0) {
         const auto local = data_.scopes[scope].symbols.find(data_.symbols[id].name);
         if (local != data_.scopes[scope].symbols.end() && local->second != id) {
-            diagnostics_.report(Level::Error, data_.symbols[id].range, "extern 与本层名字冲突", "SYM_DECL_CONFLICT"); return std::nullopt;
+            diagnostics_.report(Level::Error, data_.symbols[id].range, "extern 与本层名字冲突", "SYM_DECL_CONFLICT"); return emptyValue;
         }
         data_.scopes[scope].symbols[data_.symbols[id].name] = id;
     }
     return id;
 }
 
-std::optional<SymbolId> SymbolTable::lookup_current(const std::string& name) const {
+MaybeValue<SymbolId> SymbolTable::lookup_current(const std::string& name) const {
     const auto& names = data_.scopes[current_scope()].symbols;
     const auto found = names.find(name);
-    return found == names.end() ? std::nullopt : std::optional<SymbolId>(found->second);
+    return found == names.end() ? emptyValue : MaybeValue<SymbolId>(found->second);
 }
 
 const SymbolEntry* SymbolTable::symbol(SymbolId id) const noexcept {
@@ -182,7 +182,7 @@ bool SymbolTable::set_symbol_offset(SymbolId id, std::size_t offset) {
     return true;
 }
 
-std::optional<RecordId> SymbolTable::declare_record(const std::string& tag, RecordKind kind,
+MaybeValue<RecordId> SymbolTable::declare_record(const std::string& tag, RecordKind kind,
                                                    const SourceRange& range) {
     auto& tags = data_.scopes[current_scope()].tags;
     if (!tag.empty()) {
@@ -192,7 +192,7 @@ std::optional<RecordId> SymbolTable::declare_record(const std::string& tag, Reco
             if (previous.kind == kind) return previous.id;
             diagnostics_.report(Level::Error, range, "标签种类冲突：" + tag,
                                 "SYM_TAG_CONFLICT", {previous.range});
-            return std::nullopt;
+            return emptyValue;
         }
     }
     StructEntry entry;
@@ -254,31 +254,31 @@ bool SymbolTable::complete_record(RecordId id, StructEntry definition) {
     return true;
 }
 
-std::optional<RecordId> SymbolTable::lookup_tag(const std::string& tag) const {
+MaybeValue<RecordId> SymbolTable::lookup_tag(const std::string& tag) const {
     for (auto it = data_.active_scopes.rbegin(); it != data_.active_scopes.rend(); ++it) {
         const auto& tags = data_.scopes[*it].tags;
         const auto found = tags.find(tag);
         if (found != tags.end()) return found->second;
     }
-    return std::nullopt;
+    return emptyValue;
 }
 
-std::optional<RecordId> SymbolTable::lookup_tag_current(const std::string& tag) const {
+MaybeValue<RecordId> SymbolTable::lookup_tag_current(const std::string& tag) const {
     const auto& tags = data_.scopes[current_scope()].tags;
     const auto found = tags.find(tag);
-    return found == tags.end() ? std::nullopt : std::optional<RecordId>(found->second);
+    return found == tags.end() ? emptyValue : MaybeValue<RecordId>(found->second);
 }
 
 const StructEntry* SymbolTable::record(RecordId id) const noexcept {
     return id < data_.records.size() ? &data_.records[id] : nullptr;
 }
 
-std::optional<std::size_t> SymbolTable::find_member(RecordId id, const std::string& name) const {
+MaybeValue<std::size_t> SymbolTable::find_member(RecordId id, const std::string& name) const {
     const auto* entry = record(id);
-    if (!entry || !entry->is_complete || entry->kind == RecordKind::Enum) return std::nullopt;
+    if (!entry || !entry->is_complete || entry->kind == RecordKind::Enum) return emptyValue;
     for (std::size_t i = 0; i < entry->members.size(); ++i)
         if (entry->members[i].name == name) return i;
-    return std::nullopt;
+    return emptyValue;
 }
 
 const SymbolTableData& SymbolTable::data() const noexcept { return data_; }

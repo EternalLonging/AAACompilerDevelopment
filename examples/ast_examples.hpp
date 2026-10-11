@@ -90,7 +90,7 @@ inline Node loop_program() {
         ret(integer(0)))));
 }
 
-inline TypePtr array(TypePtr element, std::optional<std::size_t> length) {
+inline TypePtr array(TypePtr element, MaybeValue<std::size_t> length) {
     auto value = make_type_info();
     value->kind = TypeKind::Array; value->base = std::move(element); value->array_length = length;
     return value;
