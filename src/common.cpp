@@ -105,9 +105,8 @@ const char* node_name(NodeType type) {
     static const char* names[] = {
         "Program", "FunctionDecl", "FunctionDef", "ParamDecl", "VarDecl", "StructDef", "MemberDecl", "Block", "ExprStmt",
         "If", "While", "For", "Return", "Empty", "Identifier", "IntLiteral", "FloatLiteral", "CharLiteral", "StringLiteral",
-        "Assign", "BinaryOp", "UnaryOp", "Call", "ImplicitCast", "ArrayAccess", "MemberAccess", "Break", "Continue", "Switch",
-        "Case", "Default", "DoWhile", "Conditional", "Cast", "Sizeof", "TypedefDecl",
-        "InitList", "Label", "Goto", "Error"
+        "Assign", "BinaryOp", "UnaryOp", "Call", "ImplicitCast", "ArrayAccess", "MemberAccess", "Break", "Continue",
+        "Conditional", "Cast", "Sizeof", "InitList", "Error"
     };
     const auto index = static_cast<std::size_t>(type);
     return index < sizeof(names) / sizeof(names[0]) ? names[index] : "InvalidNode";
@@ -117,7 +116,7 @@ std::string type_text(const TypePtr& type, std::size_t depth = 0) {
     if (!type) return "未标注";
     if (depth > 64) return "类型过深";
     static const char* names[] = {"Unknown", "Error", "void", "char", "short", "int", "long", "float", "double", "long double",
-                                 "address", "array", "function", "struct", "named"};
+                                 "address", "array", "function", "struct"};
     const auto index = static_cast<std::size_t>(type->kind);
     std::string value = index < sizeof(names) / sizeof(names[0]) ? names[index] : "InvalidType";
     if (type->kind == TypeKind::Address) value = "地址(" + type_text(type->base, depth + 1) + ")";
@@ -175,7 +174,7 @@ std::string describe_type(const TypePtr& type) { return type_text(type); }
 
 void print_symbols(const SymbolTableData& symbols, std::ostream& output) {
     output << "符号编号\t名字\t类别\t类型\t作用域\t位置\n";
-    static const char* kinds[] = {"变量", "形参", "数组", "函数", "类型别名"};
+    static const char* kinds[] = {"变量", "形参", "数组", "函数"};
     for (const auto& entry : symbols.symbols) {
         const auto kind = static_cast<std::size_t>(entry.kind);
         output << "%s" << entry.id << '\t' << entry.name << '\t'

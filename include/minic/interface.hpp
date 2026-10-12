@@ -123,9 +123,6 @@ template <> inline const std::string& constant_get<std::string>(const ConstantVa
 
 // 表达式类别：非表达式、左值、右值或函数。
 enum class ValueCategory { None, LValue, RValue, Function };
-// 存储类别，如 static、extern。
-enum class StorageClass { None, Auto, Register, Static, Extern, Typedef };
-
 // ==================== 1. 词法分析：单词与单词表 ====================
 
 // 单词种别，预留种别不代表语法功能已实现。
@@ -172,9 +169,9 @@ enum class NodeType {
     MemberDecl, Block, ExprStmt, If, While, For, Return, Empty,
     Identifier, IntLiteral, FloatLiteral, CharLiteral, StringLiteral,
     Assign, BinaryOp, UnaryOp, Call, ImplicitCast,
-    ArrayAccess, MemberAccess, Break, Continue, Switch, Case, Default,
-    DoWhile, Conditional, Cast, Sizeof,
-    TypedefDecl, InitList, Label, Goto, Error
+    ArrayAccess, MemberAccess, Break, Continue,
+    Conditional, Cast, Sizeof,
+    InitList, Error
 };
 
 // 抽象语法树节点。
@@ -186,7 +183,6 @@ struct ASTNode {
     TypePtr declared_type = nullptr; // 源码中写出的声明或转换目标类型。
     TypePtr type = nullptr; // 语义检查后的类型；检查前为空。
     ValueCategory category = ValueCategory::None; // 节点是左值、右值、函数还是非表达式。
-    StorageClass storage = StorageClass::None; // 声明的存储类别，如 static、extern。
     SymbolId symbol_id = invalid_id; // 对应的变量、形参或函数编号。
     ScopeId scope_id = invalid_id; // 节点所属的作用域编号。
     RecordId record_id = invalid_id; // 节点涉及的结构体编号。
@@ -237,7 +233,7 @@ struct ParseResult {
 // C 数据类型的种类。
 enum class TypeKind {
     Unknown, Error, Void, Char, Short, Int, Long, Float, Double, LongDouble,
-    Address, Array, Function, Struct, Named // Address 只供内部寻址，源码不能声明。
+    Address, Array, Function, Struct // Address 只供内部寻址，源码不能声明。
 };
 
 // C 类型信息。
@@ -250,14 +246,14 @@ struct TypeInfo {
     std::vector<TypePtr> params; // 函数的形参类型表，按声明顺序保存。
     bool variadic = false; // 函数是否接受可变数量的参数。
     bool has_prototype = true; // 是否有参数原型；f() 与 f(void) 用此区分。
-    std::string name; // 标签名或尚未解析的类型别名。
+    std::string name; // 结构体标签名。
     RecordId record_id = invalid_id; // 对应的结构体编号。
 };
 
 // ==================== 4. 符号表：名字、作用域、记录类型与常量池 ====================
 
 // 普通符号的类别。
-enum class SymbolKind { Variable, Parameter, Array, Function, Typedef };
+enum class SymbolKind { Variable, Parameter, Array, Function };
 // 内建函数种类。
 enum class BuiltinKind { None, Printf, Scanf };
 
@@ -271,7 +267,6 @@ struct SymbolEntry {
     unsigned line = 1; // 声明行号，与 range.begin.line 一致。
     unsigned col = 1; // 声明列号，与 range.begin.col 一致。
     SourceRange range; // 声明在源码中的位置范围。
-    StorageClass storage = StorageClass::None; // 声明的存储类别，如 static、extern。
     bool is_defined = false; // 是否已有定义，而不只是声明。
     BuiltinKind builtin = BuiltinKind::None; // 内建函数标记，如 printf、scanf。
     MaybeValue<std::size_t> offset; // 对象的存储字节偏移；未分配时为空。
@@ -380,7 +375,7 @@ struct IRFunction {
 // 整个程序的中间代码。
 struct IRProgram {
     ConstantPoolData constants; // 整个程序共享的常量池。
-    std::vector<SymbolId> globals; // 静态存储对象编号表，包括全局对象和 static 局部对象。
+    std::vector<SymbolId> globals; // 全局变量和全局数组的符号编号表。
     std::vector<Quadruple> global_initializers; // 进入 main 前执行的初始化指令。
     std::vector<SourceRange> global_locations; // 全局初始化指令的位置表，与指令一一对应。
     std::vector<TemporaryEntry> global_temporaries; // 全局初始化使用的临时变量表。

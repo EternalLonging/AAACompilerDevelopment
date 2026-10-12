@@ -11,13 +11,7 @@ using namespace minic::examples;
 static void require(bool condition, const char* message) {
     if (!condition) throw std::runtime_error(message);
 }
-static TypePtr named(const std::string& name, TypeKind kind = TypeKind::Named) {
-    auto type = make_type_info(); type->kind = kind; type->name = name; return type;
-}
 static Node unary(const std::string& op, Node value) { return tree(NodeType::UnaryOp, op, std::move(value)); }
-static Node alias(const std::string& name, TypePtr type) {
-    auto value = node(NodeType::TypedefDecl, name); value->declared_type = std::move(type); return value;
-}
 static Node main_program(Node body) { return program(function("main", TypeKind::Int, std::move(body))); }
 struct Compiled { SemanticResult semantic; IRResult ir; };
 static Compiled compile_ast(Node ast) {
@@ -47,14 +41,6 @@ static void rejects(Node ast, const std::string& code) {
     require(!result.ok() && found, "错误 AST 应有指定诊断");
 }
 
-static void aliases() {
-    succeeds(program(alias("Number", basic(TypeKind::Int)), alias("Row", array(named("Number"), 2)),
-        function("main", TypeKind::Int, block(object("row", named("Row"), list(integer(2), integer(5))),
-            block(alias("Number", basic(TypeKind::Char)), object("c", named("Number"), node(NodeType::CharLiteral, "'A'"))),
-            ret(index(id("row"), integer(1)))))), 5);
-    rejects(main_program(block(object("x", named("Missing")), ret(integer(0)))), "SEM_TYPEDEF");
-}
-
 static void integer_operators() {
     succeeds(main_program(block(variable("x", TypeKind::Int, integer(12)), statement(assign("x", integer(2), ">>=")),
         statement(assign("x", integer(4), "|=")), statement(assign("x", integer(3), "^=")),
@@ -66,34 +52,11 @@ static void integer_operators() {
     rejects(main_program(block(ret(binary("&", floating("1.5"), integer(1))))), "SEM_OPERANDS");
 }
 
-static void static_storage() {
-    auto counter = variable("count", TypeKind::Int, integer(0)); counter->storage = StorageClass::Static;
-    succeeds(program(function("next", TypeKind::Int, block(std::move(counter), ret(unary("pre++", id("count"))))),
-        function("main", TypeKind::Int, block(variable("first", TypeKind::Int, call("next")), ret(binary("+", id("first"), call("next")))))), 3);
-    auto dynamic = variable("value", TypeKind::Int, call("make")); dynamic->storage = StorageClass::Static;
-    rejects(program(function("make", TypeKind::Int, block(ret(integer(7)))),
-        function("main", TypeKind::Int, block(std::move(dynamic), ret(integer(0))))), "SEM_GLOBAL_INIT");
-}
-
-static void labels_and_gotos() {
-    succeeds(main_program(block(variable("x", TypeKind::Int, integer(0)), node(NodeType::Goto, "start"),
-        statement(assign("x", integer(99))), tree(NodeType::Label, "start", statement(assign("x", integer(1), "+="))),
-        tree(NodeType::If, "", binary("<", id("x"), integer(3)), node(NodeType::Goto, "start")), ret(id("x")))), 3);
-    rejects(main_program(block(node(NodeType::Goto, "missing"), ret(integer(0)))), "SEM_GOTO");
-    rejects(main_program(block(tree(NodeType::Label, "same", node(NodeType::Empty)), tree(NodeType::Label, "same", ret(integer(0))))), "SEM_LABEL");
-    fails(main_program(block(node(NodeType::Goto, "end"), variable("x", TypeKind::Int, integer(5)),
-        tree(NodeType::Label, "end", ret(id("x"))))), "未初始化");
-    const auto compiled = compile_ast(main_program(block(tree(NodeType::Label, "again", node(NodeType::Goto, "again")), ret(integer(0)))));
-    RunOptions options; options.max_steps = 20;
-    const auto result = execute(compiled, "", options);
-    require(!result.ok() && result.executed_steps == 20, "无限 goto 必须受执行上限约束");
-}
-
 int main() {
     minic::TypeArena types; // 手工类型及语法树借用的内存，保留到示例/测试结束。
     minic::TypeArenaScope type_scope(types);
     try {
-        aliases(); labels_and_gotos(); integer_operators(); static_storage();
-        std::cout << "类型别名、标签、位运算和静态存储：4 组测试全部通过\n"; return 0;
+        integer_operators();
+        std::cout << "位运算与整数边界测试全部通过\n"; return 0;
     } catch (const std::exception& error) { std::cerr << "测试失败：" << error.what() << '\n'; return 1; }
 }

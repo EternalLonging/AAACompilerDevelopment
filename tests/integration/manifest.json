@@ -30,7 +30,7 @@
     },
     {
       "id": "04_control",
-      "description": "while、do、continue 和 switch 贯穿",
+      "description": "while、if、break 和 continue",
       "source": "programs/04_control.c",
       "stdin": "",
       "stdout": "control = 12\n",
@@ -77,21 +77,23 @@
     },
     {
       "id": "09_static_extern",
-      "description": "extern 复用全局对象与 static 局部保值",
+      "description": "拒绝已移除的声明或类型别名",
       "source": "programs/09_static_extern.c",
       "stdin": "",
-      "stdout": "storage = 3 1 2\n",
-      "expect": "run",
-      "exit_code": 0
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Parser",
+      "code": "PARSE_DECLARATION_REMOVED"
     },
     {
       "id": "10_typedef_goto",
-      "description": "typedef 和 goto 标签",
+      "description": "拒绝已移除的声明或类型别名",
       "source": "programs/10_typedef_goto.c",
       "stdin": "",
-      "stdout": "names = 4\n",
-      "expect": "run",
-      "exit_code": 0
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Parser",
+      "code": "PARSE_DECLARATION_REMOVED"
     },
     {
       "id": "11_numeric",
@@ -303,6 +305,106 @@
       "expect": "reject",
       "phase": "Lexer",
       "code": "LEX_INVALID_CHAR"
+    },
+    {
+      "id": "e19_do_removed",
+      "description": "拒绝已删除的教学语言功能",
+      "source": "errors/e19_do_removed.c",
+      "stdin": "",
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Parser",
+      "code": "PARSE_CONTROL_REMOVED"
+    },
+    {
+      "id": "e20_switch_removed",
+      "description": "拒绝已删除的教学语言功能",
+      "source": "errors/e20_switch_removed.c",
+      "stdin": "",
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Parser",
+      "code": "PARSE_CONTROL_REMOVED"
+    },
+    {
+      "id": "e21_goto_removed",
+      "description": "拒绝已删除的教学语言功能",
+      "source": "errors/e21_goto_removed.c",
+      "stdin": "",
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Parser",
+      "code": "PARSE_CONTROL_REMOVED"
+    },
+    {
+      "id": "e22_label_removed",
+      "description": "拒绝已删除的教学语言功能",
+      "source": "errors/e22_label_removed.c",
+      "stdin": "",
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Parser",
+      "code": "PARSE_LABEL_REMOVED"
+    },
+    {
+      "id": "e23_auto_removed",
+      "description": "拒绝已删除的教学语言功能",
+      "source": "errors/e23_auto_removed.c",
+      "stdin": "",
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Parser",
+      "code": "PARSE_DECLARATION_REMOVED"
+    },
+    {
+      "id": "e24_register_removed",
+      "description": "拒绝已删除的教学语言功能",
+      "source": "errors/e24_register_removed.c",
+      "stdin": "",
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Parser",
+      "code": "PARSE_DECLARATION_REMOVED"
+    },
+    {
+      "id": "e25_static_removed",
+      "description": "拒绝已删除的教学语言功能",
+      "source": "errors/e25_static_removed.c",
+      "stdin": "",
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Parser",
+      "code": "PARSE_DECLARATION_REMOVED"
+    },
+    {
+      "id": "e26_case_removed",
+      "description": "拒绝已删除的教学语言功能",
+      "source": "errors/e26_case_removed.c",
+      "stdin": "",
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Parser",
+      "code": "PARSE_CONTROL_REMOVED"
+    },
+    {
+      "id": "e27_default_removed",
+      "description": "拒绝已删除的教学语言功能",
+      "source": "errors/e27_default_removed.c",
+      "stdin": "",
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Parser",
+      "code": "PARSE_CONTROL_REMOVED"
+    },
+    {
+      "id": "e28_extern_removed",
+      "description": "拒绝已删除的教学语言功能",
+      "source": "errors/e28_extern_removed.c",
+      "stdin": "",
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Parser",
+      "code": "PARSE_DECLARATION_REMOVED"
     }
   ]
 }

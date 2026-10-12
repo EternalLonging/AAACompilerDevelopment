@@ -17,7 +17,7 @@
 
 1. 创建 `DiagnosticEngine(Phase::Semantic)`，再创建 `SymbolTable`。构造时自动建立全局作用域，编号为 0。
 2. 调用 `register_builtins(table)`，登记内建 printf 和 scanf，签名的内部地址类型供格式检查使用。
-3. 用 `insert(entry)` 登记形参、函数、类型别名；对象声明使用 `declare_object(entry)`，合并兼容的全局声明和 extern，普通局部对象内部仍使用 insert。返回空值说明失败，原因已放入诊断列表。
+3. 用 `insert(entry)` 登记形参、函数；对象声明使用 `declare_object(entry)`，合并兼容的全局声明，普通局部对象内部仍使用 insert。返回空值说明失败，原因已放入诊断列表。
 4. 进入函数时调用 `enter_scope(Function, range)`；形参与最外层函数体放在这一层。嵌套花括号才建立 Block 层。
 5. 用 `declare_record` 取得结构体等记录的编号，再用 `complete_record` 提交检查后的成员和布局。
 6. 退出时调用 `exit_scope()`。退出只改变查询环境，已经登记的数据会保留，供 IR 和展示层使用。
@@ -45,7 +45,7 @@ if (id) {
 
 符号编号、记录编号和作用域编号都对应各自表的下标，只追加、不重新排序。同层重复变量会报错，内层同名变量可以遮蔽外层。兼容的函数原型和后续定义复用同一个编号，并保留首次声明的位置。保存编号即可；不要跨插入保存 `symbol()` 或 `record()` 返回的指针，因为表扩容可能使指针失效。
 
-`register_builtins` 可重复调用。已有相同签名、尚未定义且非 static 的原型会复用编号并补上内建标记；已有用户定义或签名冲突则报错，不覆盖用户记录。登记前会检查两个名字，名字冲突时不会只登记一个函数。
+`register_builtins` 可重复调用。已有相同签名、尚未定义的原型会复用编号并补上内建标记；已有用户定义或签名冲突则报错，不覆盖用户记录。登记前会检查两个名字，名字冲突时不会只登记一个函数。
 
 ## 3. 怎么报错
 
@@ -78,10 +78,10 @@ demo.c:4:9 同一作用域中的声明冲突：count
 
 ## 5. 当前范围
 
-符号表现已接入数组、结构体、typedef 和函数的 `analyze` 遍历，并通过语义→IR→解释执行联动测试。真实词法和语法已接入，可直接编译 C 源码。见 [backend-extensions.md](backend-extensions.md)。
+符号表现已接入数组、结构体和函数的 `analyze` 遍历，并通过语义→IR→解释执行联动测试。真实词法和语法已接入，可直接编译 C 源码。见 [backend-extensions.md](backend-extensions.md)。
 
-类型比较包含数组、函数、记录身份和内部地址，数组形参会调整为内部地址。declare_object 合并兼容全局对象声明、暂定定义和 extern，两个带初始化的定义会冲突；普通局部对象和 typedef 同层重复仍拒绝。扩展数值规则已覆盖 short/long/unsigned/double/long double，保留原 MiniC 的 char/int/float 隐式缩窄限制。完整 C 原型兼容、链接和重声明规则尚未全部实现。
+类型比较包含数组、函数、记录身份和内部地址，数组形参会调整为内部地址。declare_object 合并兼容全局对象声明、暂定定义，两个带初始化的定义会冲突；普通局部对象同层重复仍拒绝。扩展数值规则已覆盖 short/long/unsigned/double/long double，保留原 MiniC 的 char/int/float 隐式缩窄限制。完整 C 原型兼容、链接和重声明规则尚未全部实现。
 
 结构体布局由语义模块计算后提交。本部分检查身份、名字、可存储的成员类型、必要布局字段和基本偏移合法性，不自行假定目标机器的类型大小，也不替代完整布局校验。补全及前缀查询接口已删除。
 
-语义阶段实际建表方式：对象使用 declare_object；形参/typedef使用 insert；函数使用 insert 合并兼容声明；struct 先 declare_record，再 complete_record。static 局部对象仍保留原块作用域，存储由 IR 静态对象清单单独决定。函数内的 goto 标签使用语义阶段独立标签集合，不与类型标签表混用。常量值由 ConstantPool::intern 单独登记，不拆成变量表和函数表。
+语义阶段实际建表方式：对象使用 declare_object；形参和函数使用 insert；struct 先 declare_record，再 complete_record。存储类别、typedef 和 goto 标签信息已删除。常量值由 ConstantPool::intern 单独登记，不拆成变量表和函数表。

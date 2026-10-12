@@ -3,8 +3,8 @@
 语义分析使用语法制导的 AST 遍历：登记声明、建立作用域、绑定符号编号、检查类型，必要时插入转换节点；IR 遍历标注后的 AST 生成四元式。符号表保存普通名字、类型标签、成员与作用域，常量池单独按类型和值去重。
 
 
-C 语言指针、volatile、自动补全、头文件包含、宏、union、enum 已删除；for 声明和同块语句后声明被拒绝。完整范围以 [language-scope.md](language-scope.md) 为准，存储和寻址规则见 [backend-extensions.md](backend-extensions.md)。
+C 语言指针、volatile、自动补全、头文件包含、宏、union、enum、typedef、存储类别、do-while、switch/case/default、goto 和语句标签已删除；for 声明和同块语句后声明被拒绝。完整范围以 [language-scope.md](language-scope.md) 为准，存储和寻址规则见 [backend-extensions.md](backend-extensions.md)。
 
 尚不提供完整 C89/C99、宽字面量语义、位域、旧式函数定义、用户变参函数、完整链接规则、跨翻译单元链接、动态内存、标准库或真实机器代码。词法识别完整参考种别不代表语法和语义支持所有标准功能。
 
-完整测试入口是 CMake/CTest（18 项）；正式命令行、32 份源码夹具、课堂演示与工作台服务都在回归中。编辑器交互另用浏览器验证。
+完整测试入口是 CMake/CTest（18 项）；正式命令行、42 份源码夹具、课堂演示与工作台服务都在回归中。编辑器交互另用浏览器验证。

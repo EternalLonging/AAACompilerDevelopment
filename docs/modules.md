@@ -95,7 +95,7 @@ SymbolTable 构造时借用一个语义 DiagnosticEngine，创建全局作用域
 | std::move(table).release() | 无 | 移动出持久数据 | 之后本对象只可析构，不再调用其他方法 |
 | register_builtins(table) | 全局环境中的符号表 | 登记 printf/scanf，返回 bool | 非全局/签名冲突报告错误；重复调用不重复插入 |
 
-insert 的 id/scope 由表分配，line/col 从 entry.range.begin 同步，调用者不预先指定身份。M1 同层局部对象重复声明报错；类型兼容的函数原型重声明、原型后定义复用编号，重复定义和签名不兼容报错。插入失败不能覆写原符号或破坏名字映射。后续 extern、typedef 等按里程碑扩展重声明规则。
+insert 的 id/scope 由表分配，line/col 从 entry.range.begin 同步，调用者不预先指定身份。M1 同层局部对象重复声明报错；类型兼容的函数原型重声明、原型后定义复用编号，重复定义和签名不兼容报错。插入失败不能覆写原符号或破坏名字映射。static、extern、auto、register 和 typedef 已删除；普通全局对象可合并兼容声明，局部对象不能同层重复声明。
 
 declare_record 查当前层，外层同名标签不会阻止新标签遮蔽；空标签表示匿名类型，仅分配编号、不加入 tags。定义前先取得编号再处理成员，保证记录类型使用统一身份。
 

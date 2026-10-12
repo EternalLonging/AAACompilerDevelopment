@@ -95,8 +95,7 @@ static void test_types() {
     const auto floating = basic(TypeKind::Float);
     require(same_type(integer, basic(TypeKind::Int)), "同型不能依赖共享指针地址");
     require(!same_type(nullptr, nullptr) && !same_type(basic(TypeKind::Error), basic(TypeKind::Error)) &&
-            !same_type(basic(TypeKind::Unknown), basic(TypeKind::Unknown)) &&
-            !same_type(basic(TypeKind::Named), basic(TypeKind::Named)), "无效或未解析类型不能相等");
+            !same_type(basic(TypeKind::Unknown), basic(TypeKind::Unknown)), "无效类型不能相等");
     auto qualified = make_type_info(*integer);
     qualified->is_const = true;
     require(!same_type(integer, qualified) && can_assign(qualified, integer),

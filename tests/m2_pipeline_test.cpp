@@ -30,7 +30,6 @@ static void succeeds(const Compiled& compiled, int code, const std::string& expe
     require(result.ok() && result.exit_code == code && text == expected, "执行结果或输出错误");
 }
 static Node main_program(Node body) { return program(function("main", TypeKind::Int, std::move(body))); }
-static Node case_node(int value, Node body) { return tree(NodeType::Case, "", integer(value), std::move(body)); }
 
 static void arrays() {
     const auto compiled = compile_ast(main_program(block(
@@ -85,23 +84,15 @@ static void initialization_and_sizeof() {
 }
 
 static void control_flow() {
-    const auto compiled = compile_ast(main_program(block(variable("x", TypeKind::Int, integer(0)),
-        tree(NodeType::DoWhile, "", block(statement(tree(NodeType::UnaryOp, "pre++", id("x"))),
-            tree(NodeType::If, "", binary("<", id("x"), integer(3)), node(NodeType::Continue))),
-            binary("<", id("x"), integer(3))),
-        tree(NodeType::Switch, "", id("x"), block(
-            case_node(1, statement(assign("x", integer(10)))),
-            case_node(3, statement(assign("x", integer(20)))),
-            case_node(4, block(statement(assign("x", integer(2), "+=")), node(NodeType::Break))),
-            tree(NodeType::Default, "", statement(assign("x", integer(99)))))), ret(id("x")))));
-    succeeds(compiled, 22); // case 3 落入 case 4，break 退出 switch。
-    const auto nested = compile_ast(main_program(block(variable("i", TypeKind::Int, integer(0)), variable("sum", TypeKind::Int, integer(0)),
-        tree(NodeType::While, "", binary("<", id("i"), integer(3)), block(
+    const auto nested = compile_ast(main_program(block(
+        variable("i", TypeKind::Int, integer(0)), variable("sum", TypeKind::Int, integer(0)),
+        tree(NodeType::While, "", binary("<", id("i"), integer(4)), block(
             statement(tree(NodeType::UnaryOp, "pre++", id("i"))),
-            tree(NodeType::Switch, "", id("i"), block(case_node(2, node(NodeType::Continue)),
-                tree(NodeType::Default, "", node(NodeType::Break)))),
-            statement(assign("sum", id("i"), "+=")))), ret(id("sum")))));
-    succeeds(nested, 4); // switch 中的 continue 必须跳到外层循环。
+            tree(NodeType::If, "", binary("==", id("i"), integer(2)), node(NodeType::Continue)),
+            statement(assign("sum", id("i"), "+=")),
+            tree(NodeType::If, "", binary("==", id("i"), integer(3)), node(NodeType::Break)))),
+        ret(id("sum")))));
+    succeeds(nested, 4); // continue 跳过 2，break 在 3 时退出循环。
     succeeds(compile_ast(main_program(block(ret(tree(NodeType::Conditional, "", integer(0),
         binary("/", integer(1), integer(0)), integer(7)))))), 7);
 }
@@ -131,9 +122,6 @@ static void semantic_errors() {
     rejects(main_program(block(object("a", array(basic(TypeKind::Int), 1), list(integer(1), integer(2))), ret(integer(0)))), "SEM_INIT_COUNT");
     rejects(program(tree(NodeType::StructDef, "S", member("x", basic(TypeKind::Int)), member("x", basic(TypeKind::Int)))), "SYM_RECORD_INVALID");
     rejects(program(tree(NodeType::StructDef, "S", member("s", record_type("S")))), "SEM_LAYOUT");
-    rejects(main_program(block(tree(NodeType::Switch, "", integer(0), block(case_node(1, node(NodeType::Empty)), case_node(1, node(NodeType::Empty)))), ret(integer(0)))), "SEM_SWITCH_DUPLICATE");
-    rejects(main_program(block(tree(NodeType::Switch, "", floating("1.5"), block()), ret(integer(0)))), "SEM_SWITCH");
-    rejects(main_program(block(case_node(1, node(NodeType::Empty)), ret(integer(0)))), "SEM_SWITCH");
     rejects(main_program(block(object("a", array(basic(TypeKind::Int), 2)), ret(index(id("a"), floating("1.5"))))), "SEM_INDEX");
     auto constant = make_type_info(); constant->kind = TypeKind::Int; constant->is_const = true;
     rejects(program(tree(NodeType::StructDef, "S", member("x", constant)),
