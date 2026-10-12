@@ -216,17 +216,16 @@ static void test_records() {
     const auto node = table.declare_record("Node", RecordKind::Struct, at(10)).value();
     require(table.lookup("Node") == ordinary && table.lookup_tag("Node") == node,
             "普通名字与标签应使用独立名字表");
-    require(table.declare_record("Node", RecordKind::Struct, at(20)) == node &&
-            !table.declare_record("Node", RecordKind::Union, at(20)), "前向声明应复用，种类冲突应拒绝");
+    require(table.declare_record("Node", RecordKind::Struct, at(20)) == node, "前向声明应复用");
     require(!table.find_member(node, "value") && !table.record(invalid_id), "不完整记录不能查成员");
     auto node_type = make_type_info();
     node_type->kind = TypeKind::Struct;
     node_type->record_id = node;
     StructEntry definition = *table.record(node);
-    definition.size = 16;
-    definition.alignment = 8;
+    definition.size = 8;
+    definition.alignment = 4;
     definition.members = {{"value", basic(TypeKind::Int), 0, at(30)},
-                          {"next", indirect(TypeKind::Address, node_type), 8, at(40)}};
+                          {"count", basic(TypeKind::Int), 4, at(40)}};
     auto bad = definition;
     bad.members[1].name = "value";
     require(!table.complete_record(node, bad) && !table.record(node)->is_complete &&
@@ -239,41 +238,32 @@ static void test_records() {
     require(!table.complete_record(node, bad), "错误记录身份应拒绝");
     bad = definition;
     bad.members[1].type = node_type;
-    require(!table.complete_record(node, bad), "记录不能直接包含自身，只能用指针");
+    require(!table.complete_record(node, bad), "结构体不能直接包含自身");
     bad = definition;
     bad.alignment = 3;
     require(!table.complete_record(node, bad), "非法对齐应拒绝");
     require(table.complete_record(node, definition) && table.record(node)->is_complete &&
-            table.find_member(node, "next") == 1 && !table.find_member(node, "unknown"),
+            table.find_member(node, "count") == 1 && !table.find_member(node, "unknown"),
             "完成定义后应能按成员名查下标");
     require(!table.complete_record(node, definition) && table.record(node)->members.size() == 2,
             "重复记录定义不能覆盖旧成员");
     table.enter_scope(ScopeKind::Block, at(50));
     require(!table.lookup_tag_current("Node") && table.lookup_tag("Node") == node,
             "标签查找应从内向外");
-    const auto inner = table.declare_record("Node", RecordKind::Union, at(60)).value();
-    require(inner != node && table.lookup_tag("Node") == inner, "内层标签可遮蔽不同种类的外层标签");
-    auto union_definition = *table.record(inner);
-    union_definition.size = 4;
-    union_definition.alignment = 4;
-    union_definition.members = {{"number", basic(TypeKind::Int), 1, at(60)}};
-    require(!table.complete_record(inner, union_definition), "联合体成员偏移应为 0");
-    union_definition.members[0].offset = 0;
-    require(table.complete_record(inner, union_definition), "有效联合体应可完成");
+    const auto inner = table.declare_record("Node", RecordKind::Struct, at(60)).value();
+    require(inner != node && table.lookup_tag("Node") == inner, "内层标签可遮蔽外层标签");
+    auto inner_definition = *table.record(inner);
+    inner_definition.size = 4;
+    inner_definition.alignment = 4;
+    inner_definition.members = {{"number", basic(TypeKind::Int), 4, at(60)}};
+    require(!table.complete_record(inner, inner_definition), "成员偏移不能超出结构体大小");
+    inner_definition.members[0].offset = 0;
+    require(table.complete_record(inner, inner_definition), "有效结构体应可完成");
     table.exit_scope();
     require(table.lookup_tag("Node") == node, "退出作用域应恢复外层标签");
     const auto anonymous = table.declare_record("", RecordKind::Struct, at(70)).value();
     require(anonymous != table.declare_record("", RecordKind::Struct, at(71)).value() &&
             !table.lookup_tag(""), "匿名记录不能加入标签名映射");
-    const auto enumeration = table.declare_record("Color", RecordKind::Enum, at(80)).value();
-    auto enum_definition = *table.record(enumeration);
-    enum_definition.size = 4;
-    enum_definition.alignment = 4;
-    enum_definition.enumerators = {{"Red", 0, invalid_id, at(81)}};
-    require(!table.complete_record(enumeration, enum_definition), "枚举项必须先登记普通符号");
-    enum_definition.enumerators[0].symbol_id = table.insert(declaration("Red", 81, SymbolKind::EnumConstant)).value();
-    require(table.complete_record(enumeration, enum_definition) && table.lookup("Red") &&
-            !table.find_member(enumeration, "Red"), "枚举项属于普通名字，不属于成员表");
     require(!table.complete_record(invalid_id, definition), "非法记录编号不能越界");
 }
 

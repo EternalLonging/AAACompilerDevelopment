@@ -18,7 +18,7 @@ type 是普通指针，快照对象由当前 TypeArena 保存。单独使用池�
 | ConstantPoolData.entries | 按首次登记顺序存储的条目，不删除、不排序 |
 | IRProgram.constants | 拥有本 IR 程序的常量池，所有函数共享 |
 
-AST.value 与原文仍保留，便于语义检查和展示。const 变量依然进入普通符号表；枚举项依然有 SymbolEntry。它们作为表达式已知的值需要用于 IR 时，才按结果类型登记入池。
+AST.value 与原文仍保留，便于语义检查和展示。const 变量依然进入普通符号表。它们作为表达式已知的值需要用于 IR 时，才按结果类型登记入池。
 
 ## 去重规则
 

@@ -11,19 +11,19 @@
 <div class="file-bar"><select id="file" aria-label="正在编辑的文件"><option>main.c</option></select><button id="add-file" title="新建源文件（Ctrl+N）">＋ 新建文件</button><button id="import" title="打开电脑上的 C 源文件或项目">打开文件</button><button id="save-source" title="保存当前文件到电脑（Ctrl+S）">保存文件</button><input id="upload" type="file" accept=".c,.json" hidden></div>
 <div class="entry-bar"><label for="entry">编译文件</label><select id="entry" aria-label="编译的源文件"><option>main.c</option></select><span>每次只编译所选源文件</span></div>
 <div class="code-wrap"><div id="lines" aria-hidden="true">1</div><textarea id="editor" spellcheck="false" aria-label="源码编辑器" autocomplete="off" autocapitalize="off" wrap="off"></textarea></div>
-<div class="editor-footer"><span id="position">行 1 · 列 1</span><span>Ctrl+N 新建 · Ctrl+S 保存 · Ctrl+Space 补全 · Ctrl+Enter 运行</span></div>
+<div class="editor-footer"><span id="position">行 1 · 列 1</span><span>Ctrl+N 新建 · Ctrl+S 保存 · Ctrl+Enter 运行</span></div>
 <div class="input-box"><label for="stdin">程序输入 <small>供 scanf 读取，两侧执行使用相同输入</small></label><textarea id="stdin" rows="2" placeholder="例如：5" aria-label="程序输入"></textarea></div>
 <div class="project-actions"><button id="save-project">保存项目</button><button id="reset">清空编辑器</button></div>
 </div>
 <div class="result-panel">
-<nav class="stage-tabs" aria-label="编译阶段"><button data-view="ast" class="active">语法树</button><button data-view="tokens">单词表</button><button data-view="symbols">符号表</button><button data-view="ir">四元式</button><button data-view="compare">优化对比</button><button data-view="preprocessed">预处理</button></nav>
+<nav class="stage-tabs" aria-label="编译阶段"><button data-view="ast" class="active">语法树</button><button data-view="tokens">单词表</button><button data-view="symbols">符号表</button><button data-view="ir">四元式</button><button data-view="compare">优化对比</button></nav>
 <div class="result-heading"><div><span class="eyebrow" id="view-kicker">SYNTAX TREE</span><h2 id="view-title">语法树</h2><p id="view-description">真实节点与父子关系。点击节点可以定位到源码。</p></div><button id="export" class="secondary small">导出结果 ↓</button></div>
 <div id="result" class="result-body"><div class="empty"><span>⌘</span><h3>先写一段代码</h3><p>点击「分析源码」，查看编译器实际生成的结果。</p></div></div>
 <div class="terminal"><div class="terminal-title"><span>运行输出</span><span id="run-detail">尚未执行</span></div><pre id="output">输出将显示在这里。</pre></div>
 <div class="diagnostics"><div class="diagnostic-title">诊断 <span id="diagnostic-count">0</span></div><div id="diagnostics"><span class="muted">尚未分析。</span></div></div>
 </div>
 </section>
-<footer><span>项目语言 · C++17 编译器 / 四元式解释执行</span><span>内建 printf / scanf · 支持同文件宏</span></footer>
+<footer><span>项目语言 · C++17 编译器 / 四元式解释执行</span><span>内建 printf / scanf · 支持数组、记录和控制流</span></footer>
 </main>
 <div id="toast" role="alert" hidden></div>
 <dialog id="new-file-dialog" aria-labelledby="new-file-title">

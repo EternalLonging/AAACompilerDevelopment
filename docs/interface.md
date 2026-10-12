@@ -44,7 +44,6 @@ Token / Diagnostic 保留需求资料中的 `line`、`col` 简便字段，它们
 
 `Diagnostic{phase, level, line, col, message, code, range, related}`：
 
-- phase 区分预处理、词法、语法、语义、IR 和运行时。
 - level 为 Note / Warning / Error / Fatal；只有 Error / Fatal 阻止下一阶段。
 - message 是可读的中文说明；code 是稳定检索标识，如 `SEM_UNDECLARED`。
 - related 可定位到先前的声明，便于解释重复声明、类型冲突。
@@ -69,7 +68,7 @@ Token / Diagnostic 保留需求资料中的 `line`、`col` 简便字段，它们
 
 `TypeArena` 用 `std::vector<TypeInfo*>` 保存它 new 出来的对象，析构时逐个 delete；表扩容不改变类型对象地址。`TypeInfo::base` 和 params 中的子类型指针只借用，不递归释放。`create()` 返回可填写成员的 `TypeInfo*`，填好后交给 TypePtr 只读使用。
 
-调用 compile / compile_preprocessed 时，返回的 CompilationResult.types 持有全部编译类型。保留整份 CompilationResult，直到语法树、符号表和 IR 都不再使用；单独复制某张表不会复制类型对象。移动编译结果会转交类型所有权，并保留对象地址。
+调用 compile / compile 时，返回的 CompilationResult.types 持有全部编译类型。保留整份 CompilationResult，直到语法树、符号表和 IR 都不再使用；单独复制某张表不会复制类型对象。移动编译结果会转交类型所有权，并保留对象地址。
 
 单独调用 parse、analyze、generate、register_builtins、ConstantPool::intern 或 arithmetic_result 前，先创建 TypeArena 和 TypeArenaScope；管理器必须比借用它的结果活得更久。再次生成已有编译结果的 IR 时，用 `TypeArenaScope scope(compiled.types)`。make_type_info 在当前管理器中创建类型；没有活动 Scope 时抛 logic_error，避免无人释放的对象。run 自行管理执行时的临时类型。
 
@@ -142,7 +141,6 @@ M1/M2 的数组长度可直接存确定的整型长度。尚未实现的常量�
 | Conditional | — | `[条件, 真值表达式, 假值表达式]` |
 | Sizeof | 对类型求值时 declared_type 非空 | 对表达式为 `[表达式]`；对类型无孩子 |
 | TypedefDecl | 别名；被命名的 declared_type | 无 |
-| EnumDef / EnumMember | 标签 / 枚举项名 | EnumDef 为枚举项列表；EnumMember 无或 `[常量表达式]` |
 | InitList | — | 初始化项列表，顺序保存；指定初始化为后续扩展 |
 | Label / Goto | 标签名 | Label 为 `[所属语句]`；Goto 无孩子 |
 | Identifier | 名字 | 无 |
@@ -153,7 +151,7 @@ Case/Default 的链可表示连续标签，Block 表示其后的顺序语句。B
 
 Function 节点的 ParamDecl 类型和 declared_type.params 必须一致。无名原型形参不进符号表；定义中每个具名形参都登记。函数体最外层 Block 与形参共享 Function 作用域，因此 `int f(int x){int x;}` 应报重复声明；只有更内层的 Block 才可遮蔽 x。
 
-比较签名时，数组形参调整为内部 Address，忽略形参顶层 const；函数体的 const 形参仍不能修改。临时 struct/union 的数组成员可读取，其结果不是可修改左值。
+比较签名时，数组形参调整为内部 Address，忽略形参顶层 const；函数体的 const 形参仍不能修改。临时 struct 的数组成员可读取，其结果不是可修改左值。
 
 普通窄字符串的 value 保存解码后的字节串（不附终止零），name 保存原文；相邻字符串合为一个 StringLiteral，name 以空格分隔各段完整拼写，语义分别解码再拼接；语义类型是包含终止零的 char 数组，长度为 `value.size()+1`。用于函数实参时，语义插入数组到内部地址的转换。字符常量的 value 用 int64_t 保存解码码值，M1 先遵循本组 char 规则，后续完整 C 对字符常量类型的调整集中在语义模块。最终词法已能识别 L 前缀、完整转义和多字符常量；宽字符/宽字符串的语义存储需在实现中明确，不能直接套用窄字节串的长度规则。
 
@@ -175,18 +173,18 @@ SymbolId / ScopeId / RecordId 是各自 vector 的下标，从 0 分配；invali
 
 `SymbolEntry` 保存 id、name、kind、type、scope、行列、范围、storage、is_defined、builtin 和可选 offset。函数 type 是完整 Function 类型，返回类型在 type->base，形参在 type->params，不再额外存一份容易不同步的 params。函数原型和定义指向同一 SymbolId；同一作用域的对象重声明是否合法，按里程碑的语言规则检查，不能只看到同名就覆盖条目。
 
-`MemberEntry{name, type, offset, range}` 保存成员声明顺序与字节偏移。`StructEntry` 保存 id、tag、kind、scope、is_complete、members、enumerators、size、alignment 和源码范围。
+`MemberEntry{name, type, offset, range}` 保存成员声明顺序与字节偏移。`StructEntry` 保存 id、tag、kind、scope、is_complete、members、size、alignment 和源码范围。
 
 结构体先分配 RecordId 并登记标签，再处理成员和布局。不完整记录不能直接分配对象，也不能按值包含自身。尚未布局和 offset=0 不同。
 
-布局必须选定目标模型，不能用宿主机器 sizeof。目前 char=1、int=4、float=4、内部地址=8 字节，各自同大小对齐。struct 成员按对齐向上取整后确定 offset，末尾补齐到最大对齐。例如 `{char c; int x;}` 中 c 偏移 0、x 偏移 4，总大小 8，不能简单累计成 5。short=2/2、long=4/4、double/long double=8/8，union 按最大成员大小和对齐布局；完整目标约定见 [backend-completion.md](backend-completion.md)。
+布局必须选定目标模型，不能用宿主机器 sizeof。目前 char=1、int=4、float=4、内部地址=8 字节，各自同大小对齐。struct 成员按对齐向上取整后确定 offset，末尾补齐到最大对齐。例如 `{char c; int x;}` 中 c 偏移 0、x 偏移 4，总大小 8，不能简单累计成 5。short=2/2、long=4/4、double/long double=8/8；完整目标约定见 [backend-completion.md](backend-completion.md)。
 
 `ScopeEntry` 内两张映射：
 
-- symbols：普通名字 → SymbolId（变量、函数、typedef、枚举常量共享普通命名空间）。
-- tags：标签名字 → RecordId（struct / union / enum 共享标签命名空间）。
+- symbols：普通名字 → SymbolId（变量、函数、typedef共享普通命名空间）。
+- tags：标签名字 → RecordId（struct 使用独立的标签命名空间）。
 
-成员名字只在各记录的 members 中查询。`struct node {...}; int node;` 合法，但同一层把 node 先定义为 struct 再定义为 union，应诊断冲突。标签也必须按作用域查询，不能只有一张全局 tag 表；这能处理局部标签遮蔽。
+成员名字只在各记录的 members 中查询。`struct node {...}; int node;` 合法，同一层不能重复定义同名结构体。标签也必须按作用域查询，不能只有一张全局 tag 表；这能处理局部标签遮蔽。
 
 `SymbolTableData` 将所有条目和作用域永久保存，active_scopes 只记录当前查询栈：
 

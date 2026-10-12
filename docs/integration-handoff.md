@@ -1,6 +1,5 @@
 # 源码联调交接
 
-> 2026-10-10 范围更新：volatile、补全、C 指针及头文件包含已删除；for 内声明和同块执行后声明被拒绝。以下早期示例与里程碑记录供历史参考；当前以 [语言范围](language-scope.md) 和测试清单为准。宏夹具已改为同文件声明，指针夹具用于验证拒绝。
 
 当前先按同学交付的类 C89 文法联调：同一块先声明再写语句，for 初始化用表达式，if/else/while/for/do/switch 控制体带花括号。后端更宽的支持保留；本套样例不要求扩大当前语法范围。
 
@@ -8,9 +7,8 @@
 
 源码夹具位于 `tests/integration/`，`manifest.json` 为唯一预期清单。正常用例记录输入、完整输出和 main 返回值，错误用例记录最早失败阶段、已固定的错误代码或关键词。不以 GCC 对错误样例的行为作为项目判据，也不运行其中的未定义行为。
 
-`tests/integration_driver.cpp` 是测试入口：调用 `compile_preprocessed`，成功后用受限解释器执行。它不实现 lex/parse，不使用测试替身冒充前端。被测程序输出写 stdout，诊断和测试标记写 stderr；驱动退出 0 表示成功、1 表示项目诊断失败、2 表示夹具/驱动故障。main 的返回值另用 `[fixture_exit=N]` 记录，避免与驱动故障混淆。指令上限为 10,000，调用深度上限为 128，Python 单用例限时 20 秒。
+`tests/integration_driver.cpp` 是测试入口：调用 `compile`，成功后用受限解释器执行。它不实现 lex/parse，不使用测试替身冒充前端。被测程序输出写 stdout，诊断和测试标记写 stderr；驱动退出 0 表示成功、1 表示项目诊断失败、2 表示夹具/驱动故障。main 的返回值另用 `[fixture_exit=N]` 记录，避免与驱动故障混淆。指令上限为 10,000，调用深度上限为 128，Python 单用例限时 20 秒。
 
-测试头文件读取器只用于夹具内的本地头文件，当前宏样例为单层头文件加重复包含守卫；它不提供系统头文件或完整系统路径搜索。printf/scanf 由项目内建登记，源码不包含 stdio.h；GCC 参考验证会强制包含 stdio.h，以取得宿主声明。
 
 ## 正式 AST 必须遵守的约定
 
@@ -67,24 +65,20 @@ apply(fn, 6)
 
 函数指针类型不是 Function 的返回类型 Pointer；两者不可交换。`int apply(int (*fn)(int), int x)` 的函数签名保存 [Pointer(Function), Int]，对应两个 ParamDecl，然后才是函数体 Block。
 
-### 10_typedef_enum.c 与 13_macros.c
 
 typedef 用 TypedefDecl(name="Count", declared_type=Int)，后续 `Count n` 的声明类型用 Named(name="Count")，交给语义阶段解析。语法阶段需要自己的轻量 typedef 作用域分类，不能等整棵 AST 建好后才识别类型名，也不能一次性重分类全部 ID。Label/Goto 的 name 保存标签，不与类型标签共用表。
 
-宏样例先预处理，HASH/HASH_HASH 及 include 指令不进入普通 AST。展开后的主体相当于 `int value3=3+4; printf("macro = %d %s\n", value3, "3");`。正式总控用 `compile_preprocessed`；minic 命令行已默认启用预处理和本地头文件读取，原 compile 及命令行的 --raw 模式保持直接编译行为。新增 cli_preprocessing 独立验收正式命令行，不改变本套夹具预期。
 
 ## 联调顺序
 
 1. 先用 01、02 检查 Token 原文、EOF、函数体、表达式优先级和输入输出。
 2. 接 03、04 检查调用、递归、返回和控制流。
 3. 接 05–12、15、16 检查声明符、初始化、类型及符号绑定。
-4. 接 13、14 检查预处理入口和短路副作用。
 5. 最后跑全部错误用例，确认最早失败阶段正确，失败后不继续执行。
 
 接入阶段允许先报告尚未完成的样例，但不能修改清单把失败伪装成通过。若决定改变语言约定，应一起改文法、样例、清单与说明。
 
 ## 当前验证与待办
 
-准备阶段已核实清单、实际预处理和词法规则；16 个正常样例的输出通过 GCC 参考执行核实。另用同学的上下文预测核心验证 30 个非词法/预处理错误样例的接受或拒绝；typedef 样例明确给出类型名位置，这不验证完整作用域适配器。
 
 正式 lexer.cpp/parser.cpp 已接入，**32 个用例已通过本项目真实源码全链路验收**。source_integration 逐一检查正常输出、main 返回值、失败阶段和指定诊断，清单及预期未修改。Windows 驱动使用 UTF-16 参数和 UTF-8 文件名映射，已在中文目录验证。完整回归现有 14 项 CTest 检查。

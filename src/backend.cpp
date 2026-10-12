@@ -479,7 +479,7 @@ class Generator {
             quads_ = saved_quads; locations_ = saved_locations; temporaries_ = saved_temporaries;
             break;
         }
-        case NodeType::StructDef: case NodeType::UnionDef: case NodeType::EnumDef: case NodeType::TypedefDecl: break;
+        case NodeType::StructDef: case NodeType::TypedefDecl: break;
         case NodeType::Label:
             count(node, 1, 1);
             mark("user_" + node.name, node.range); statement(child(node, 0)); break;
@@ -575,7 +575,7 @@ public:
                     statement(node);
                 } else if (node.kind == NodeType::TypedefDecl) {
                     if (node.symbol_id >= symbols_.symbols.size()) throw std::runtime_error("类型别名缺少符号绑定");
-                } else if (node.kind == NodeType::StructDef || node.kind == NodeType::UnionDef || node.kind == NodeType::EnumDef) {
+                } else if (node.kind == NodeType::StructDef) {
                     if (node.record_id >= symbols_.records.size()) throw std::runtime_error("结构体缺少记录绑定");
                 } else if (node.kind == NodeType::FunctionDecl) {
                     if (binding(node).kind != SymbolKind::Function) throw std::runtime_error("函数声明绑定无效");
@@ -675,7 +675,7 @@ struct Value {
 };
 struct Aggregate {
     std::unordered_map<std::size_t, Value> cells; // 按字节偏移保存已写入的数值叶子。
-    std::unordered_map<std::size_t, unsigned char> bytes; // 数值对象的小端字节，联合体成员共享这些字节。
+    std::unordered_map<std::size_t, unsigned char> bytes; // 按字节偏移保存数值对象的小端字节。
     std::unordered_set<std::size_t> unknown; // 默认零对象中仍未初始化的字节。
     bool zero = false; // 未写入的叶子是否已零初始化。
 };
@@ -958,7 +958,7 @@ class Machine {
                 detail::layout(base->base, symbols_);
             } else if (q.op == "memberaddr") {
                 const auto base = input_type(q.arg1), target = destination_type();
-                if (base->kind != TypeKind::Address || !base->base || (base->base->kind != TypeKind::Struct && base->base->kind != TypeKind::Union) ||
+                if (base->kind != TypeKind::Address || !base->base || (base->base->kind != TypeKind::Struct) ||
                     target->kind != TypeKind::Address || !target->base)
                     throw std::runtime_error("memberaddr 类型无效");
                 const auto offset = decimal(q.arg2);
@@ -1287,18 +1287,7 @@ class Machine {
             for (std::size_t i = 0; i < *type->array_length; ++i) materialize_default(object, type->base, offset + i * stride, depth + 1);
         } else {
             const auto& members = symbols_.records.at(type->record_id).members;
-            if (type->kind == TypeKind::Union) {
-                const auto size = detail::layout(type, symbols_).size;
-                for (std::size_t i = 0; i < size; ++i) {
-                    const auto position = offset + i;
-                    bool address_byte = false;
-                    for (const auto& cell : object.cells)
-                        if (position >= cell.first && position - cell.first < 8) { address_byte = true; break; }
-                    if (address_byte) continue;
-                    if (object.zero) { if (!object.unknown.count(position)) object.bytes.emplace(position, 0); }
-                    else if (!object.bytes.count(position)) object.unknown.insert(position);
-                }
-            } else for (const auto& member : members) materialize_default(object, member.type, offset + *member.offset, depth + 1);
+            for (const auto& member : members) materialize_default(object, member.type, offset + *member.offset, depth + 1);
         }
     }
 

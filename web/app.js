@@ -8,11 +8,10 @@ let resolveFileChoice = null; // 保存提示等待中的选择，避免同时�
 let savingFile = false; // 正在保存时保留当前文件，防止保存与放弃同时发生。
 const labels = {
   ast: ["SYNTAX TREE", "语法树", "真实节点与父子关系。点击节点可以定位到源码。"],
-  tokens: ["LEXICAL ANALYSIS", "单词表", "预处理后的真实单词序列，位置映射到原始文件与行号。"],
+  tokens: ["LEXICAL ANALYSIS", "单词表", "源码经过词法分析得到的单词序列。"],
   symbols: ["SYMBOL TABLE", "符号表", "变量、函数与形参的类型和作用域。不同编号区分同名符号。"],
   ir: ["INTERMEDIATE REPRESENTATION", "四元式与常量池", "默认开启常量折叠；操作数引用符号、临时变量或常量编号。"],
   compare: ["CONSTANT FOLDING", "优化前后对比", "同一棵语义树分别生成四元式。运行时分别执行，检查输出与退出码。"],
-  preprocessed: ["PREPROCESSOR", "预处理源码", "查看宏展开后，交给词法分析的实际内容。"]
 };
 function toast(message) { $("toast").textContent = message; $("toast").hidden = false; clearTimeout(toast.timer); toast.timer = setTimeout(() => $("toast").hidden = true, 4500); }
 function textElement(tag, text, cls) { const e = document.createElement(tag); e.textContent = text; if (cls) e.className = cls; return e; }
@@ -148,7 +147,6 @@ function render() {
     result.append(table(["函数", "序号", "op", "arg1", "arg2", "result"], data.optimized.quads.map(q => [q.function, q.index, q.op, q.arg1, q.arg2, q.result])));
     result.append(textElement("h3", "常量池", "plain"), table(["编号", "类型", "值"], data.optimized.constants.map(c => ["%c" + c.id, c.type, c.value])));
   } else if (view === "compare" && data.baseline) result.append(compare());
-  else if (view === "preprocessed") result.append(textElement("pre", data.preprocessed, "plain"));
   else result.append(textElement("div", "该阶段未完成。请查看下方诊断并修改源码。", "empty"));
 }
 function showDiagnostics() {
@@ -177,7 +175,6 @@ function editingContext(source, cursor) {
   for (let i = 0; i < cursor; i++) {
     const c = source[i], next = i + 1 < cursor ? source[i + 1] : "";
     if (state === "line") { if (c === "\n") state = "code"; }
-    else if (state === "directive") { if (c === "\n" && source[i - 1] !== "\\") state = "code"; }
     else if (state === "block") { if (c === "*" && next === "/") { state = "code"; i++; } }
     else if (state === "string" || state === "char") {
       if (escaped) escaped = false;
@@ -187,7 +184,6 @@ function editingContext(source, cursor) {
     else if (c === "/" && next === "*") { state = "block"; i++; }
     else if (c === '"') state = "string";
     else if (c === "'") state = "char";
-    else if (c === "#" && !source.slice(source.lastIndexOf("\n", i - 1) + 1, i).trim()) state = "directive";
     else if (c === "{") depth++;
     else if (c === "}") depth = Math.max(0, depth - 1);
   }
@@ -263,7 +259,7 @@ $("new-file-form").onsubmit = e => {
     newFiles.add(name);
     if (name.endsWith(".c")) entryFile = name;
     refreshFiles(); switchFile(name); changed(); $("new-file-dialog").close(); editor.focus();
-    toast(`已创建 ${name}${name.endsWith(".c") ? "，点击「编译并运行」即可运行" : "，在源码中用 #include 引用"}`);
+    toast(`已创建 ${name}${name.endsWith(".c") ? "，点击「编译并运行」即可运行" : ""}`);
   } catch (err) { $("new-file-error").textContent = err.message; }
 };
 $("save-source").onclick = saveCurrentFile;

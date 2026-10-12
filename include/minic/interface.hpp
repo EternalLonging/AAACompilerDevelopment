@@ -63,7 +63,7 @@ struct SourceRange {
 };
 
 // 编译阶段。
-enum class Phase { Preprocess, Lexer, Parser, Semantic, IR, Runtime };
+enum class Phase { Lexer, Parser, Semantic, IR, Runtime };
 // 诊断级别。
 enum class Level { Note, Warning, Error, Fatal };
 
@@ -144,7 +144,7 @@ enum class TokenType {
     STAR_ASSIGN, SLASH_ASSIGN, PERCENT_ASSIGN, BIT_OR, BIT_XOR, BIT_NOT,
     SHIFT_LEFT, SHIFT_RIGHT, AND_ASSIGN, OR_ASSIGN, XOR_ASSIGN,
     SHIFT_LEFT_ASSIGN, SHIFT_RIGHT_ASSIGN, QUESTION, COLON, ARROW,
-    ELLIPSIS, HASH, HASH_HASH
+    ELLIPSIS
 };
 
 // 词法分析
@@ -173,7 +173,7 @@ enum class NodeType {
     Identifier, IntLiteral, FloatLiteral, CharLiteral, StringLiteral,
     Assign, BinaryOp, UnaryOp, Call, ImplicitCast,
     ArrayAccess, MemberAccess, Break, Continue, Switch, Case, Default,
-    DoWhile, Conditional, Cast, Sizeof, UnionDef, EnumDef, EnumMember,
+    DoWhile, Conditional, Cast, Sizeof,
     TypedefDecl, InitList, Label, Goto, Error
 };
 
@@ -189,7 +189,7 @@ struct ASTNode {
     StorageClass storage = StorageClass::None; // 声明的存储类别，如 static、extern。
     SymbolId symbol_id = invalid_id; // 对应的变量、形参或函数编号。
     ScopeId scope_id = invalid_id; // 节点所属的作用域编号。
-    RecordId record_id = invalid_id; // 节点涉及的结构体、联合体或枚举编号。
+    RecordId record_id = invalid_id; // 节点涉及的结构体编号。
     MaybeValue<std::size_t> member_index; // 成员在成员表中的下标；非成员访问时为空。
     std::vector<ASTNode*> children; // 子节点列表；排列顺序见 docs/interface.md。
 };
@@ -237,7 +237,7 @@ struct ParseResult {
 // C 数据类型的种类。
 enum class TypeKind {
     Unknown, Error, Void, Char, Short, Int, Long, Float, Double, LongDouble,
-    Address, Array, Function, Struct, Union, Enum, Named // Address 只供内部寻址，源码不能声明。
+    Address, Array, Function, Struct, Named // Address 只供内部寻址，源码不能声明。
 };
 
 // C 类型信息。
@@ -251,13 +251,13 @@ struct TypeInfo {
     bool variadic = false; // 函数是否接受可变数量的参数。
     bool has_prototype = true; // 是否有参数原型；f() 与 f(void) 用此区分。
     std::string name; // 标签名或尚未解析的类型别名。
-    RecordId record_id = invalid_id; // 对应的结构体、联合体或枚举编号。
+    RecordId record_id = invalid_id; // 对应的结构体编号。
 };
 
 // ==================== 4. 符号表：名字、作用域、记录类型与常量池 ====================
 
 // 普通符号的类别。
-enum class SymbolKind { Variable, Parameter, Array, Function, Typedef, EnumConstant };
+enum class SymbolKind { Variable, Parameter, Array, Function, Typedef };
 // 内建函数种类。
 enum class BuiltinKind { None, Printf, Scanf };
 
@@ -285,26 +285,17 @@ struct MemberEntry {
     SourceRange range; // 成员声明的位置。
 };
 
-// 记录类型种类：结构体、联合体或枚举。
-enum class RecordKind { Struct, Union, Enum };
+// 记录类型种类：结构体。
+enum class RecordKind { Struct };
 
-// 一条枚举项信息。
-struct EnumValue {
-    std::string name; // 枚举项名字。
-    long long value = 0; // 枚举项的整数值。
-    SymbolId symbol_id = invalid_id; // 枚举项在普通符号表中的编号。
-    SourceRange range; // 枚举项的声明位置。
-};
-
-// 结构体、联合体或枚举的记录信息。
+// 结构体的记录信息。
 struct StructEntry {
     RecordId id = invalid_id; // 记录类型编号，等于记录表下标。
     std::string tag; // 标签名；匿名类型时为空。
-    RecordKind kind = RecordKind::Struct; // 记录种类：结构体、联合体或枚举。
+    RecordKind kind = RecordKind::Struct; // 记录种类：结构体。
     ScopeId scope = invalid_id; // 标签声明所在的作用域编号。
     bool is_complete = false; // 是否已完成定义。
-    std::vector<MemberEntry> members; // 结构体或联合体的成员信息表。
-    std::vector<EnumValue> enumerators; // 枚举项信息表。
+    std::vector<MemberEntry> members; // 结构体的成员信息表。
     MaybeValue<std::size_t> size; // 对象总字节数，包含填充；未计算时为空。
     MaybeValue<std::size_t> alignment; // 对象的字节对齐要求；未计算时为空。
     SourceRange range; // 标签声明或定义的位置。
@@ -326,7 +317,7 @@ struct ScopeEntry {
 // 符号表管理的数据。
 struct SymbolTableData {
     std::vector<SymbolEntry> symbols; // 所有普通符号信息，包括已退出作用域的符号。
-    std::vector<StructEntry> records; // 结构体、联合体和枚举的记录信息表。
+    std::vector<StructEntry> records; // 结构体的记录信息表。
     std::vector<ScopeEntry> scopes; // 所有作用域的信息表。
     std::vector<ScopeId> active_scopes; // 当前作用域查询栈，从栈顶向外查找名字。
 };

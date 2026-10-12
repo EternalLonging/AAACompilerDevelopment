@@ -47,17 +47,12 @@ static void rejects(Node ast, const std::string& code) {
     require(!result.ok() && found, "错误 AST 应有指定诊断");
 }
 
-static void aliases_and_enums() {
+static void aliases() {
     succeeds(program(alias("Number", basic(TypeKind::Int)), alias("Row", array(named("Number"), 2)),
         function("main", TypeKind::Int, block(object("row", named("Row"), list(integer(2), integer(5))),
             block(alias("Number", basic(TypeKind::Char)), object("c", named("Number"), node(NodeType::CharLiteral, "'A'"))),
             ret(index(id("row"), integer(1)))))), 5);
-    succeeds(program(tree(NodeType::EnumDef, "Choice", node(NodeType::EnumMember, "First"),
-            tree(NodeType::EnumMember, "Second", binary("+", id("First"), integer(5))), node(NodeType::EnumMember, "Third")),
-        function("main", TypeKind::Int, block(object("choice", named("Choice", TypeKind::Enum), id("Third")),
-            tree(NodeType::Switch, "", id("choice"), block(tree(NodeType::Case, "", id("Third"), ret(id("Second"))))), ret(integer(0))))), 5);
     rejects(main_program(block(object("x", named("Missing")), ret(integer(0)))), "SEM_TYPEDEF");
-    rejects(program(tree(NodeType::EnumDef, "E", tree(NodeType::EnumMember, "A", integer(2147483647)), node(NodeType::EnumMember, "B"))), "SEM_ENUM");
 }
 
 static void integer_operators() {
@@ -98,7 +93,7 @@ int main() {
     minic::TypeArena types; // 手工类型及语法树借用的内存，保留到示例/测试结束。
     minic::TypeArenaScope type_scope(types);
     try {
-        aliases_and_enums(); labels_and_gotos(); integer_operators(); static_storage();
-        std::cout << "类型别名、枚举、标签、位运算和静态存储：4 组测试全部通过\n"; return 0;
+        aliases(); labels_and_gotos(); integer_operators(); static_storage();
+        std::cout << "类型别名、标签、位运算和静态存储：4 组测试全部通过\n"; return 0;
     } catch (const std::exception& error) { std::cerr << "测试失败：" << error.what() << '\n'; return 1; }
 }

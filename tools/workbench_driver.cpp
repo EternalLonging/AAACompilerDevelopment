@@ -34,7 +34,7 @@ minic::MaybeValue<std::string> read(const std::filesystem::path& path) {
 }
 // 诊断同时保留阶段、代码、原始文件与行号，供编辑器定位。
 void diagnostics(std::ostream& out, const std::vector<minic::Diagnostic>& entries) {
-    static const char* phases[] = {"预处理", "词法", "语法", "语义", "中间代码", "运行"};
+    static const char* phases[] = {"词法", "语法", "语义", "中间代码", "运行"};
     out << '[';
     bool first = true;
     for (const auto& d : entries) {
@@ -115,10 +115,10 @@ int driver(const std::vector<std::string>& args) {
     const auto source = read(file);
     if (!source) throw std::runtime_error("找不到编辑器源码");
     if (args[1] != "inspect" && args[1] != "run") throw std::runtime_error("未知工作台操作");
-    auto compiled = minic::compile_preprocessed(*source, file.generic_u8string(), minic::CompileTarget::Check);
+    auto compiled = minic::compile(*source, file.generic_u8string(), minic::CompileTarget::Check);
     std::cout << "{\"ok\":" << (compiled.ok() ? "true" : "false") << ",\"diagnostics\":";
     diagnostics(std::cout, compiled.diagnostics);
-    std::cout << ",\"preprocessed\":" << quoted(compiled.preprocessing ? compiled.preprocessing->source : "") << ",\"tokens\":[";
+    std::cout << ",\"tokens\":[";
     if (compiled.lexical) {
         bool first = true;
         for (const auto& t : compiled.lexical->tokens) {

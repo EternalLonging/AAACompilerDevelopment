@@ -73,9 +73,9 @@ inline Layout layout(const TypePtr& value, const SymbolTableData& symbols, std::
         if (*value->array_length > max_object_size / element.size) throw std::runtime_error("数组超出 16 MiB 对象限制");
         return {element.size * *value->array_length, element.alignment};
     }
-    if ((value->kind == TypeKind::Struct || value->kind == TypeKind::Union) && value->record_id < symbols.records.size()) {
+    if ((value->kind == TypeKind::Struct) && value->record_id < symbols.records.size()) {
         const auto& record = symbols.records[value->record_id];
-        if (record.kind != (value->kind == TypeKind::Struct ? RecordKind::Struct : RecordKind::Union) ||
+        if (record.kind != RecordKind::Struct ||
             !record.is_complete || !record.size || !record.alignment ||
             !*record.size || *record.size > max_object_size || !*record.alignment ||
             (*record.alignment & (*record.alignment - 1)) || *record.size % *record.alignment)
@@ -86,7 +86,7 @@ inline Layout layout(const TypePtr& value, const SymbolTableData& symbols, std::
 }
 
 inline bool aggregate(const TypePtr& value) {
-    return value && (value->kind == TypeKind::Array || value->kind == TypeKind::Struct || value->kind == TypeKind::Union);
+    return value && (value->kind == TypeKind::Array || value->kind == TypeKind::Struct);
 }
 
 inline bool address_compatible(const TypePtr& target, const TypePtr& source) {

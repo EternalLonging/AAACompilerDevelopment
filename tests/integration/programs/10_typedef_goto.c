@@ -1,8 +1,8 @@
 typedef int Count;
-enum Color { RED = 2, GREEN, BLUE };
+
 int main(void) {
     Count n;
-    n = BLUE;
+    n = 4;
     goto done;
     n = 0;
 done: printf("names = %d\n", n);

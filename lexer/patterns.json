@@ -336,14 +336,6 @@
       "description": "固定符号 ->；词法识别不代表当前里程碑支持其语法"
     },
     {
-      "name": "HASH_HASH",
-      "regex": "##",
-      "action": "token",
-      "token": "HASH_HASH",
-      "literal": "##",
-      "description": "固定符号 ##；词法识别不代表当前里程碑支持其语法"
-    },
-    {
       "name": "PLUS",
       "regex": "\\+",
       "action": "token",
@@ -536,14 +528,6 @@
       "description": "固定符号 :；词法识别不代表当前里程碑支持其语法"
     },
     {
-      "name": "HASH",
-      "regex": "#",
-      "action": "token",
-      "token": "HASH",
-      "literal": "#",
-      "description": "固定符号 #；词法识别不代表当前里程碑支持其语法"
-    },
-    {
       "name": "INVALID_BYTE",
       "regex": "[\\x00-\\xFF]",
       "action": "error",
@@ -551,27 +535,5 @@
       "description": "单字节兜底规则，必须最后；合法单字节规则同长时优先"
     }
   ],
-  "language_scope": "完整 C89 词法种别；保留本项目 // 单行注释扩展；预处理后的文本使用本规则",
-  "preprocessing": {
-    "required_order": [
-      "规范源字符与 C89 三字符组，并保留原文位置映射",
-      "移除反斜杠-换行续行，并保留原文位置映射",
-      "按预处理上下文识别指令、头文件名和宏；本文件规则用于普通单词识别"
-    ],
-    "note": "头文件名不是普通字符串或 < / > 的简单全局规则；宏粘贴后必须重新验证产生一个完整合法预处理单词。",
-    "header_rules": [
-      {
-        "name": "HEADER_NAME_ANGLE",
-        "regex": "<[^>\\r\\n]+>",
-        "action": "header_name",
-        "description": "#include 头文件上下文专用；保留尖括号，不进入普通 TokenType"
-      },
-      {
-        "name": "HEADER_NAME_QUOTED",
-        "regex": "\"[^\"\\r\\n]+\"",
-        "action": "header_name",
-        "description": "#include 头文件上下文专用；反斜杠不是字符串转义，保留原文"
-      }
-    ]
-  }
+  "language_scope": "完整 C89 词法种别；保留本项目 // 单行注释扩展；源码直接进入词法分析"
 }
