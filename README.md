@@ -49,3 +49,4 @@ python tools/workbench_server.py --open
 完整回归共 20 项 CTest，覆盖词法对照、真实源码、符号表、常量池、语义、IR、解释执行、宏、命令行、课堂演示和本地服务。浏览器另验证编辑与保存交互。过程文件和编译产物放在 build，不上传 GitHub。
 
 [语言范围](docs/language-scope.md) · [前端说明](docs/frontend.md) · [命令行](docs/command-line.md) · [演示准备](docs/showcase.md) · [联调用例](tests/integration/README.md)
+<img width="1188" height="89" alt="image" src="https://github.com/user-attachments/assets/43b5046a-3ec6-4bd2-881e-b5622ff722fd" />
