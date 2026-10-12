@@ -2,7 +2,6 @@
 #include "minic/constant_pool.hpp"
 
 #include <iostream>
-#include <utility>
 
 using namespace minic;
 
@@ -13,7 +12,7 @@ static TypePtr basic(TypeKind kind) {
 }
 
 static TypePtr derived(TypeKind kind, TypePtr base,
-                       std::optional<std::size_t> length = std::nullopt) {
+                       MaybeValue<std::size_t> length = emptyValue) {
     auto type = make_type_info();
     type->kind = kind;
     type->base = std::move(base);
@@ -21,9 +20,10 @@ static TypePtr derived(TypeKind kind, TypePtr base,
     return type;
 }
 
-static std::unique_ptr<ASTNode> node(NodeType kind, std::string name,
+static ASTNode* node(NodeType kind, std::string name,
                                      TypePtr type = {}) {
-    auto result = std::make_unique<ASTNode>();
+    static NodeArena arena;
+    auto result = arena.make();
     result->kind = kind;
     result->name = std::move(name);
     result->type = std::move(type);
@@ -108,32 +108,32 @@ int main() {
     auto callee = node(NodeType::Identifier, "printf", printf_type);
     callee->symbol_id = 0;
     callee->category = ValueCategory::Function;
-    call->children.push_back(std::move(callee));
+    call->children.push_back(callee);
     auto literal = node(NodeType::StringLiteral, "\"%d\"",
                         derived(TypeKind::Array, char_type, 3));
     literal->value = std::string("%d");
     literal->category = ValueCategory::LValue;
     auto decay = node(NodeType::ImplicitCast, "", char_pointer);
     decay->category = ValueCategory::RValue;
-    decay->children.push_back(std::move(literal));
-    call->children.push_back(std::move(decay));
+    decay->children.push_back(literal);
+    call->children.push_back(decay);
     auto s = node(NodeType::Identifier, "s", int_type);
     s->symbol_id = 2;
     s->category = ValueCategory::LValue;
-    call->children.push_back(std::move(s));
+    call->children.push_back(s);
     std::cout << "call arguments: " << call->children.size() - 1 << '\n';
     auto expr = node(NodeType::ExprStmt, "");
-    expr->children.push_back(std::move(call));
+    expr->children.push_back(call);
     auto body = node(NodeType::Block, "");
-    body->children.push_back(std::move(expr));
+    body->children.push_back(expr);
     auto function = node(NodeType::FunctionDef, "main", main_type);
     function->declared_type = main_type;
     function->symbol_id = 1;
-    function->children.push_back(std::move(body));
+    function->children.push_back(body);
     ParseResult parsed;
     parsed.root = node(NodeType::Program, "");
     parsed.root->scope_id = 0;
-    parsed.root->children.push_back(std::move(function));
+    parsed.root->children.push_back(function);
 
     // A multidimensional array is recursive, not a flattened length list.
     const auto matrix = derived(TypeKind::Array,
@@ -174,10 +174,10 @@ int main() {
     IRResult ir;
     // 常量按类型和值去重，数值和格式串均通过 %c<ID> 在四元式中引用。
     ConstantPool pool;
-    const auto five = pool.intern(int_type, std::int64_t{5}, "5");
+    const auto five = pool.intern(int_type, static_cast<long long>(5), "5");
     const auto format = pool.intern(derived(TypeKind::Array, char_type, 3),
                                     std::string("%d"), "\"%d\"");
-    const auto zero = pool.intern(int_type, std::int64_t{0}, "0");
+    const auto zero = pool.intern(int_type, static_cast<long long>(0), "0");
     ir.program.constants = std::move(pool).release();
     // 展示常量池编号与首次拼写，核对四元式 %c<ID> 所指向的条目。
     for (const auto& constant : ir.program.constants.entries) {

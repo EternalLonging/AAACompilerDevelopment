@@ -1,6 +1,6 @@
 # 词法与语法分析实现
 
-日期：2026-10-09。正式入口为 `lex(source, filename)` 和 `parse(tokens)`，实现位于 `src/lexer.cpp`、`src/parser.cpp`。现已接入 `compile → analyze → generate → run`，命令行可以直接读取项目语言源文件。
+日期：2026-10-09。正式入口为 `lex(source, filename)` 和 `parse(tokens)`，实现位于 `src/frontend.cpp`、`src/frontend.cpp`。现已接入 `compile → analyze → generate → run`，命令行可以直接读取项目语言源文件。
 
 当前已删除头文件包含、volatile、指针和补全，限制见 [language-scope.md](language-scope.md)。
 

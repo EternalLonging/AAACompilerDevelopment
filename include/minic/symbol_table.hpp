@@ -21,32 +21,32 @@ public:
     bool exit_scope();
 
     // 登记普通符号，返回新建或复用的编号。冲突时返回空值并报错。
-    std::optional<SymbolId> insert(SymbolEntry entry);
+    MaybeValue<SymbolId> insert(SymbolEntry entry);
     // 登记有链接关系的对象，合并兼容声明；块内 extern 指向同一个全局对象。
-    std::optional<SymbolId> declare_object(SymbolEntry entry);
+    MaybeValue<SymbolId> declare_object(SymbolEntry entry);
     // 从当前作用域向外查普通名字。找到返回符号编号，未找到返回空值。
-    std::optional<SymbolId> lookup(const std::string& name) const;
+    MaybeValue<SymbolId> lookup(const std::string& name) const;
     // 只查当前作用域的普通名字。找到返回编号，未找到返回空值。
-    std::optional<SymbolId> lookup_current(const std::string& name) const;
+    MaybeValue<SymbolId> lookup_current(const std::string& name) const;
     // 按编号读取符号信息。编号无效时返回 nullptr。
     const SymbolEntry* symbol(SymbolId id) const noexcept;
     // 设置对象的存储偏移。成功返回 true，失败返回 false 并报错。
     bool set_symbol_offset(SymbolId id, std::size_t offset);
 
     // 登记结构体、联合体或枚举标签。返回记录编号，冲突时返回空值。
-    std::optional<RecordId> declare_record(const std::string& tag,
+    MaybeValue<RecordId> declare_record(const std::string& tag,
                                           RecordKind kind,
                                           const SourceRange& range);
     // 补齐记录的成员和布局信息。成功返回 true，失败返回 false 并报错。
     bool complete_record(RecordId id, StructEntry definition);
     // 从当前作用域向外查标签。找到返回记录编号，未找到返回空值。
-    std::optional<RecordId> lookup_tag(const std::string& tag) const;
+    MaybeValue<RecordId> lookup_tag(const std::string& tag) const;
     // 只查当前作用域的标签。找到返回记录编号，未找到返回空值。
-    std::optional<RecordId> lookup_tag_current(const std::string& tag) const;
+    MaybeValue<RecordId> lookup_tag_current(const std::string& tag) const;
     // 按编号读取记录信息。编号无效时返回 nullptr。
     const StructEntry* record(RecordId id) const noexcept;
     // 查找记录中的成员。找到返回成员表下标，未找到返回空值。
-    std::optional<std::size_t> find_member(RecordId id,
+    MaybeValue<std::size_t> find_member(RecordId id,
                                           const std::string& name) const;
 
     // 查看全部符号表数据，只读。

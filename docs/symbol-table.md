@@ -6,10 +6,10 @@
 
 | 文件 | 已实现的功能 |
 |---|---|
-| `src/symbol_table.cpp` | 建立/退出作用域，登记/查询普通符号，合并兼容函数声明，设置对象偏移 |
+| `src/semantic.cpp` | 建立/退出作用域，登记/查询普通符号，合并兼容函数声明，设置对象偏移 |
 | 同上 | 登记标签，完成结构体/联合体/枚举记录，查询成员，登记 printf / scanf |
-| `src/diagnostic.cpp` | 收集说明、警告、错误和致命错误，保存行列和关联位置，限制错误数量 |
-| `src/type_rules.cpp` | 比较类型，计算扩展数值的算术结果类型，判断赋值类型是否兼容 |
+| `src/common.cpp` | 收集说明、警告、错误和致命错误，保存行列和关联位置，限制错误数量 |
+| `src/semantic.cpp` | 比较类型，计算扩展数值的算术结果类型，判断赋值类型是否兼容 |
 | `examples/symbol_table_demo.cpp` | 展示同名变量遮蔽、退出后恢复查询和重复声明报错 |
 | `tests/symbol_table_test.cpp` | 验证作用域、函数声明、标签/成员、内建函数、诊断和类型规则 |
 
@@ -60,10 +60,10 @@ if (id) {
 ```powershell
 New-Item -ItemType Directory -Force .document-work | Out-Null
 
-g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -I include tests/symbol_table_test.cpp src/symbol_table.cpp src/diagnostic.cpp src/type_rules.cpp src/type_arena.cpp -o .document-work/symbol_table_test.exe
+g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -I include tests/symbol_table_test.cpp src/semantic.cpp src/common.cpp -o .document-work/symbol_table_test.exe
 & .document-work/symbol_table_test.exe
 
-g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -I include examples/symbol_table_demo.cpp src/symbol_table.cpp src/diagnostic.cpp src/type_rules.cpp src/type_arena.cpp -o .document-work/symbol_table_demo.exe
+g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -I include examples/symbol_table_demo.cpp src/semantic.cpp src/common.cpp -o .document-work/symbol_table_demo.exe
 & .document-work/symbol_table_demo.exe
 ```
 

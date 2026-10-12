@@ -51,7 +51,7 @@ Linux/macOS 去掉驱动路径的 `.exe`；多配置生成器在路径中加 Deb
 
 ## 真实源码联调
 
-src/lexer.cpp 和 src/parser.cpp 已实现。integration_driver 链接正式前端，source_integration 已验证全部 32 个用例。
+src/frontend.cpp 和 src/frontend.cpp 已实现。integration_driver 链接正式前端，source_integration 已验证全部 32 个用例。
 
 ```powershell
 python tools/test_integration.py --compiler build/cmake/integration_driver.exe

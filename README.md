@@ -22,16 +22,16 @@
 | 阶段 | 数据与接口 | 实现 |
 |---|---|---|
 | 公共数据结构 | [interface.hpp](include/minic/interface.hpp) | [接口约定](docs/interface.md) |
-| 词法 | Token、LexResult、lex | src/lexer.cpp、src/lexer_dfa.hpp |
-| 语法 | ASTNode、ParseResult、parse | src/parser.cpp |
-| 语义 | TypeInfo、SemanticResult、analyze | src/semantic.cpp、src/type_rules.cpp |
-| 符号表 | SymbolTable、SymbolTableData | src/symbol_table.cpp；[建表说明](docs/symbol-table.md) |
-| 中间代码 | Quadruple、IRProgram、generate | src/ir.cpp；[常量池](docs/constant-pool.md) |
-| 执行 | RunResult、run | src/interpreter.cpp |
-| 预处理与总控 | preprocess、compile、compile_preprocessed | src/preprocessor.cpp、src/compiler.cpp |
+| 词法 | Token、LexResult、lex | src/frontend.cpp、src/lexer_dfa.hpp |
+| 语法 | ASTNode、ParseResult、parse | src/frontend.cpp |
+| 语义 | TypeInfo、SemanticResult、analyze | src/semantic.cpp |
+| 符号表 | SymbolTable、SymbolTableData | src/semantic.cpp；[建表说明](docs/symbol-table.md) |
+| 中间代码 | Quadruple、IRProgram、generate | src/backend.cpp；[常量池](docs/constant-pool.md) |
+| 执行 | RunResult、run | src/backend.cpp |
+| 预处理与总控 | preprocess、compile、compile_preprocessed | src/frontend.cpp、src/compiler.cpp |
 
-`ir_demo.cpp` 是原有四元式教学示例。正式模块接口见 [modules.md](docs/modules.md)，AST 孩子顺序见 [interface.md](docs/interface.md)。
 
+正式模块接口见 [modules.md](docs/modules.md)，AST 孩子顺序见 [interface.md](docs/interface.md)。
 ## 构建和运行
 
 需要 C++17 编译器、CMake 和 Python 3.10+。选择本机已安装的构建生成器：

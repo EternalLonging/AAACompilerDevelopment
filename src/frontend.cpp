@@ -1,3 +1,67 @@
+// ===== merged from frontend/lexer.cpp =====
+#include "minic/lexer.hpp"
+#include "lexer_dfa.hpp"
+
+namespace minic {
+
+LexResult lex(const std::string& source, const std::string& filename) {
+    LexResult result;
+    SourceLocation location;
+    bool previous_cr = false;
+    const auto advance = [&](std::size_t end) {
+        while (location.offset < end) {
+            const unsigned char byte = static_cast<unsigned char>(source[location.offset++]);
+            if (byte == '\r') { ++location.line; location.col = 1; }
+            else if (byte == '\n') { if (!previous_cr) ++location.line; location.col = 1; }
+            else ++location.col;
+            previous_cr = byte == '\r';
+        }
+    };
+    while (location.offset < source.size()) {
+        const auto begin = location;
+        int state = 0, rule_id = -1;
+        std::size_t cursor = begin.offset, end = cursor;
+        // 最长匹配：记住最后接受态，失败时退回其结束位置。
+        while (cursor < source.size()) {
+            const auto byte = static_cast<unsigned char>(source[cursor]);
+            const int next = lexer_detail::transitions[state][lexer_detail::byte_class[byte]];
+            if (next < 0) break;
+            state = next;
+            ++cursor;
+            if (lexer_detail::accepting[state] >= 0) {
+                rule_id = lexer_detail::accepting[state];
+                end = cursor;
+            }
+        }
+        // INVALID_BYTE 覆盖全部字节，因此总能推进至少一个字节。
+        const auto& rule = lexer_detail::rules[rule_id];
+        advance(end);
+        const SourceRange range{filename, begin, location};
+        if (rule.action == lexer_detail::Action::Token) {
+            auto type = rule.token;
+            const auto text = source.substr(begin.offset, end - begin.offset);
+            if (type == TokenType::ID) {
+                for (const auto& keyword : lexer_detail::keywords)
+                    if (text == keyword.spelling) { type = keyword.token; break; }
+            }
+            result.tokens.push_back({type, text, begin.line, begin.col, range});
+        } else if (rule.action == lexer_detail::Action::Error) {
+            result.diagnostics.push_back({Phase::Lexer, Level::Error, begin.line, begin.col,
+                                          rule.message, rule.code, range, {}});
+            if (result.diagnostics.size() == 20) {
+                result.diagnostics.back().message += "；错误过多，停止本阶段";
+                break;
+            }
+        }
+    }
+    result.tokens.push_back({TokenType::END_OF_FILE, "", location.line, location.col,
+                             {filename, location, location}});
+    return result;
+}
+
+}
+
+// ===== merged from frontend/parser.cpp =====
 #include "minic/parser.hpp"
 
 #include <algorithm>
@@ -9,7 +73,7 @@
 namespace minic {
 namespace {
 using TT = TokenType;
-using Node = std::unique_ptr<ASTNode>;
+using Node = ASTNode*;
 struct ParseFailure {};
 
 // 解析环境只用于 typedef 消歧，不写入语义阶段的持久符号表。
@@ -86,9 +150,9 @@ class Parser {
     }
     // 创建 AST 节点，填写种类、名字和开始位置。
     Node node(NodeType kind, const Token& start, const std::string& name = "") {
-        auto n = std::make_unique<ASTNode>();
+        auto n = result.arena.make();
         n->kind = kind; n->name = name; n->range = start.range;
-        heights[n.get()] = 1;
+        heights[n] = 1;
         return n;
     }
     // 补齐节点的结束位置和树高；树高超限时报告错误。
@@ -96,7 +160,7 @@ class Parser {
         if (pos) n.range.end = tokens[pos - 1].range.end;
         unsigned height = 1;
         for (const auto& child : n.children) {
-            const auto found = heights.find(child.get());
+            const auto found = heights.find(child);
             height = std::max(height, 1 + (found == heights.end() ? 1 : found->second));
         }
         if (height > 128) fail("语法树嵌套超过 128 层", "PARSE_DEPTH", Level::Fatal);
@@ -204,7 +268,7 @@ class Parser {
     // 声明符中的一层数组或函数。
     struct Layer {
         TypeKind kind = TypeKind::Array; // 这一层是数组还是函数。
-        std::optional<std::size_t> length; // 数组元素个数；省略界限时为空。
+        MaybeValue<std::size_t> length; // 数组元素个数；省略界限时为空。
         bool prototype = true; // 函数是否写了参数类型；空括号表示未写原型。
         bool variadic = false; // 函数参数表是否以省略号结束。
         std::vector<Node> params; // 本层函数的形参节点，按声明顺序保存。
@@ -234,7 +298,7 @@ class Parser {
                 if (!at(TT::RBRACKET)) {
                     const auto size = expect(TT::INT_LITERAL, "正整数数组长度（暂不支持常量表达式界限）");
                     std::size_t used = 0;
-                    std::uint64_t value = 0;
+                    unsigned long long value = 0;
                     try { value = std::stoull(size.lexeme, &used, 0); }
                     catch (const std::exception&) { fail("数组长度超出范围", "PARSE_ARRAY_BOUND"); }
                     for (std::size_t i = used; i < size.lexeme.size(); ++i)

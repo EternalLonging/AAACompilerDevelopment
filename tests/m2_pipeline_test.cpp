@@ -38,7 +38,7 @@ static void arrays() {
         statement(set(index(index(id("matrix"), integer(1)), integer(2)), integer(7))),
         ret(binary("+", index(index(id("matrix"), integer(0)), integer(1)), index(index(id("matrix"), integer(1)), integer(2)))))));
     succeeds(compiled, 9);
-    succeeds(compile_ast(main_program(block(object("a", array(basic(TypeKind::Int), std::nullopt), list(integer(2), integer(5))),
+    succeeds(compile_ast(main_program(block(object("a", array(basic(TypeKind::Int), emptyValue), list(integer(2), integer(5))),
         ret(index(id("a"), integer(1)))))), 5);
     succeeds(compile_ast(program(object("a", array(basic(TypeKind::Int), 2)),
         function("main", TypeKind::Int, block(ret(index(id("a"), integer(0))))))), 0);
@@ -73,7 +73,7 @@ static void structures() {
 
 static void initialization_and_sizeof() {
     auto size = node(NodeType::Sizeof); size->declared_type = array(basic(TypeKind::Int), 3);
-    succeeds(compile_ast(main_program(block(object("s", array(basic(TypeKind::Char), std::nullopt), text("\"ab\"")),
+    succeeds(compile_ast(main_program(block(object("s", array(basic(TypeKind::Char), emptyValue), text("\"ab\"")),
         ret(binary("+", std::move(size), index(id("s"), integer(2))))))), 12);
     succeeds(compile_ast(main_program(block(variable("x", TypeKind::Int, integer(1)),
         ret(binary("+", tree(NodeType::Sizeof, "", tree(NodeType::UnaryOp, "post++", id("x"))), id("x")))))), 5);

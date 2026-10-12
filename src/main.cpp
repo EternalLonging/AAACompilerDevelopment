@@ -16,9 +16,9 @@ void usage(std::ostream& output) {
 }
 
 // 读取源码；不存在时返回空值，读取失败时报告文件路径。
-std::optional<std::string> read_file(const std::filesystem::path& path) {
+minic::MaybeValue<std::string> read_file(const std::filesystem::path& path) {
     std::ifstream file(path, std::ios::binary);
-    if (!file) return std::nullopt;
+    if (!file) return minic::emptyValue;
     std::string source{std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
     if (file.bad()) throw std::runtime_error("读取文件失败：" + path.generic_u8string());
     return source;

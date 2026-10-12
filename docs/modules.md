@@ -4,7 +4,7 @@
 
 当前已实现常量池、符号表、统一诊断、M1/M2 后续流程、数组与记录扩展、文本展示及总控。正式词法和语法入口已实现，真实源码验证见 [frontend.md](frontend.md)。支持范围及限制见 [backend-extensions.md](backend-extensions.md)。主程序统一包含 `minic/modules.hpp`；某模块可以只包含自己需要的头文件。
 
-TypePtr 已改成普通指针。compile / compile_preprocessed 返回的 CompilationResult.types 负责保存和释放本次类型对象；不要让单独取出的 AST、符号表或 IR 活得比它更久。run 自行管理内部临时类型。
+TypePtr 已改成普通指针。compile / compile_preprocessed 返回的 CompilationResult.types 负责保存和释放本次类型对象；ParseResult.arena 负责保存 AST 节点，root 是普通指针。不要让单独取出的 AST、符号表或 IR 活得比对应结果更久。run 自行管理运行时聚合对象和字符串池。
 
 直接调用阶段接口或常量池时，先建立类型管理器和创建范围，所有阶段共用它：
 
@@ -14,7 +14,7 @@ minic::TypeArenaScope scope(types); // 后续创建的类型放进 types。
 auto lexical = minic::lex("int main(void){return 0;}");
 auto syntax = minic::parse(lexical.tokens);
 if (syntax.ok()) {
-    auto semantic = minic::analyze(*syntax.root);
+    auto semantic = minic::analyze(*syntax.root, &syntax.arena);
     if (semantic.ok()) {
         auto ir = minic::generate(*syntax.root, semantic.symbols);
         // 在 types 销毁前使用 ir 和 semantic。
@@ -28,17 +28,17 @@ if (syntax.ok()) {
 
 | 负责人对应任务 | 头文件 | 约定实现文件 | 公共接口 |
 |---|---|---|---|
-| 词法分析 | lexer.hpp | src/lexer.cpp | lex |
-| 语法分析 | parser.hpp | src/parser.cpp | parse |
-| 符号表管理 | symbol_table.hpp | src/symbol_table.cpp | SymbolTable、register_builtins（已实现） |
-| 统一出错处理 | diagnostic.hpp | src/diagnostic.cpp | DiagnosticEngine（已实现） |
-| 语义分析 | semantic.hpp | src/semantic.cpp、src/type_rules.cpp | analyze（当前教学范围）；共用类型规则 |
-| 中间代码生成 | ir.hpp | src/ir.cpp | generate（当前教学范围） |
-| 常量池（IR 公共支持） | constant_pool.hpp | src/constant_pool.cpp | ConstantPool、constant_operand（已实现） |
-| 四元式解释器 | interpreter.hpp | src/interpreter.cpp | run（当前教学范围） |
-| 主流程整合 | compiler.hpp | src/compiler.cpp、src/compilation_result.cpp | compile、CompilationResult::ok（已实现并接入正式前端） |
-| 类型内存管理 | type_arena.hpp | src/type_arena.cpp | TypeArena、TypeArenaScope、make_type_info |
-| 文本展示与导出 | display.hpp | src/display.cpp | print_tokens / ast / symbols / ir / diagnostics（已实现） |
+| 词法分析 | lexer.hpp | src/frontend.cpp | lex |
+| 语法分析 | parser.hpp | src/frontend.cpp | parse |
+| 符号表管理 | symbol_table.hpp | src/semantic.cpp | SymbolTable、register_builtins（已实现） |
+| 统一出错处理 | diagnostic.hpp | src/common.cpp | DiagnosticEngine（已实现） |
+| 语义分析 | semantic.hpp | src/semantic.cpp | analyze（当前教学范围）；共用类型规则 |
+| 中间代码生成 | ir.hpp | src/backend.cpp | generate（当前教学范围） |
+| 常量池（IR 公共支持） | constant_pool.hpp | src/backend.cpp | ConstantPool、constant_operand（已实现） |
+| 四元式解释器 | interpreter.hpp | src/backend.cpp | run（当前教学范围） |
+| 主流程整合 | compiler.hpp | src/compiler.cpp、src/common.cpp | compile、CompilationResult::ok（已实现并接入正式前端） |
+| 类型内存管理 | type_arena.hpp | src/semantic.cpp | TypeArena、TypeArenaScope、make_type_info |
+| 文本展示与导出 | display.hpp | src/common.cpp | print_tokens / ast / symbols / ir / diagnostics（已实现） |
 
 词法、语法、union、扩展数值类型、extern 和宏预处理均有实现；项目范围与完整 C 的差异见 [frontend.md](frontend.md)、[backend-completion.md](backend-completion.md)。基础支持模块见 [symbol-table.md](symbol-table.md) 和 [constant-pool.md](constant-pool.md)。四个编译阶段用普通函数返回明确结果，符号表、常量池和诊断收集器通过类封装状态。
 
@@ -137,7 +137,7 @@ diagnostics.report(Level::Error, node.range,
 
 这三个函数不打印、不登记符号、不收集诊断，也不检查左值属性；调用者结合 AST 的 category 和 const 限定符诊断。Error 子表达式向父节点传播时应抑制重复报错。比较与逻辑表达式结果类型为 int，不能把结果类型当成两个操作数的公共算术类型。M1 以外的转换按后续语言规格统一扩展。
 
-实现位于 src/type_rules.cpp。same_type 比较类型结构及记录身份；函数签名中将数组形参调整为内部地址，忽略形参顶层 const。函数体内的 const 对象仍不可修改。can_assign 和 arithmetic_result 处理数值转换及算术提升；保留 MiniC 的 char/int/float 隐式缩窄限制。
+实现位于 src/semantic.cpp。same_type 比较类型结构及记录身份；函数签名中将数组形参调整为内部地址，忽略形参顶层 const。函数体内的 const 对象仍不可修改。can_assign 和 arithmetic_result 处理数值转换及算术提升；保留 MiniC 的 char/int/float 隐式缩窄限制。
 
 analyze 另外检查结构体同型拷贝、数组实参及 scanf 输入地址，generate/run 使用一致的内部类型规则。源码不能声明内部地址类型，不能进行普通取地址或函数间接调用。
 
@@ -182,7 +182,7 @@ CompilationResult::ok() 必须同时满足：
 
 构造但未执行的结果不算成功。词法失败时 lexical 存在，其余为空；语法失败时 syntax 存在但 root 为空；语义失败时 semantic 存在而 ir 为空。诊断在各阶段结果内保留原列表，汇总列表保存副本，不允许展示层重复累加。
 
-ParseResult 拥有 AST，SemanticResult 拥有符号表，IRResult 拥有中间代码；保留 CompilationResult 到展示/执行结束。它包含 unique_ptr，移动而不复制。run 接收的 IR 和 symbols 必须来自这同一份结果。
+ParseResult 通过 NodeArena 保存 AST，SemanticResult 拥有符号表，IRResult 拥有中间代码；保留 CompilationResult 到展示/执行结束。ParseResult 可移动但不能复制，root 和 children 都是由 Arena 管理的普通指针。run 接收的 IR 和 symbols 必须来自这同一份结果。
 
 ## 8. 展示和导出
 
@@ -202,4 +202,4 @@ g++ -std=c++17 -Wall -Wextra -Wpedantic -Werror -I include -fsyntax-only example
 
 这验证头文件、函数参数、返回类型和流程调用是否兼容，不验证编译器行为。compile_and_run.cpp 现可链接运行，真实前端行为由 frontend_test 检查。M1 后续模块已有实际行为测试：运行 `tools/test_backend.ps1`，或使用根目录 CMakeLists.txt 和 CTest。compiler_flow_test.cpp 中的词法/语法替身只检查总控调用顺序，不属于正式扫描器或解析器。
 
-v1.1 将四个已有入口迁入各模块头文件；v1.2 新增常量池并在 IRProgram 中保存数据。原来只含 interface.hpp 的调用代码如需调用模块函数，改含对应头文件或 modules.hpp；interface_demo.cpp 从 v1.2 起需同时链接 src/constant_pool.cpp。
+v1.1 将四个已有入口迁入各模块头文件；v1.2 新增常量池并在 IRProgram 中保存数据。原来只含 interface.hpp 的调用代码如需调用模块函数，改含对应头文件或 modules.hpp；interface_demo.cpp 从 v1.2 起需同时链接 src/backend.cpp。

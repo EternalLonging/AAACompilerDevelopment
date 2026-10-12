@@ -5,7 +5,7 @@ namespace minic {
 
 struct PreprocessedLine {
     std::string file; // 原始文件名。
-    std::uint32_t line = 1; // 原始行号。
+    unsigned line = 1; // 原始行号。
 };
 struct PreprocessResult {
     std::string source; // 展开宏后的源码。

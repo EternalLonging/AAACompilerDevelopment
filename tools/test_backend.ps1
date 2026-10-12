@@ -5,9 +5,7 @@ $projectRoot = Split-Path -Parent $PSScriptRoot
 Push-Location $projectRoot
 try {
     New-Item -ItemType Directory -Force build | Out-Null
-    $sources = @('src/type_arena.cpp', 'src/preprocessor.cpp', 'src/constant_pool.cpp', 'src/diagnostic.cpp', 'src/symbol_table.cpp',
-        'src/type_rules.cpp', 'src/semantic.cpp', 'src/ir.cpp', 'src/interpreter.cpp',
-        'src/display.cpp', 'src/compilation_result.cpp')
+    $sources = @('src/semantic.cpp', 'src/backend.cpp', 'src/common.cpp')
     $objects = @()
     foreach ($source in $sources) {
         $object = 'build/' + [System.IO.Path]::GetFileNameWithoutExtension($source) + '.o'
@@ -31,7 +29,7 @@ try {
     }
     # 总控替身测试保持隔离，正式前端对象只链接真实源码测试和命令行。
     $frontendObjects = @()
-    foreach ($source in @('src/lexer.cpp', 'src/parser.cpp', 'src/compiler.cpp')) {
+    foreach ($source in @('src/frontend.cpp', 'src/compiler.cpp')) {
         $object = 'build/' + [System.IO.Path]::GetFileNameWithoutExtension($source) + '.o'
         & $Compiler '-std=c++17' '-Wall' '-Wextra' '-Wpedantic' '-Werror' '-I' 'include' '-c' $source '-o' $object
         if ($LASTEXITCODE -ne 0) { throw "前端编译失败：$source" }

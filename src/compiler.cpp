@@ -10,7 +10,7 @@ namespace minic {
 namespace {
 void remap(SourceRange& range, const PreprocessResult& preprocessing) {
     if (preprocessing.lines.empty()) return;
-    const auto position = [&](std::uint32_t line) {
+    const auto position = [&](unsigned line) {
         auto origin = preprocessing.lines[std::min<std::size_t>(line ? line - 1 : 0, preprocessing.lines.size() - 1)];
         if (line > preprocessing.lines.size()) ++origin.line;
         return origin;
@@ -48,7 +48,7 @@ CompilationResult compile_stages(const std::string& source, const std::string& f
     result.syntax = parse(result.lexical->tokens);
     collect(*result.syntax);
     if (!result.syntax->ok() || target == CompileTarget::Parse) return result;
-    result.semantic = analyze(*result.syntax->root);
+    result.semantic = analyze(*result.syntax->root, &result.syntax->arena);
     collect(*result.semantic);
     if (!result.semantic->ok() || target == CompileTarget::Check) return result;
     result.ir = generate(*result.syntax->root, result.semantic->symbols);

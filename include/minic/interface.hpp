@@ -4,33 +4,54 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
-#include <memory>
-#include <optional>
 #include <string>
 #include <unordered_map>
-#include <variant>
 #include <vector>
 
 namespace minic {
 
+template <typename T>
+struct MaybeValue {
+    bool present = false;
+    T data{};
+    MaybeValue() = default;
+    MaybeValue(const T& value) : present(true), data(value) {}
+    MaybeValue(T&& value) : present(true), data(std::move(value)) {}
+    bool has_value() const noexcept { return present; }
+    explicit operator bool() const noexcept { return present; }
+    T& value() { return data; }
+    const T& value() const { return data; }
+    T& operator*() { return data; }
+    const T& operator*() const { return data; }
+    T* operator->() { return &data; }
+    const T* operator->() const { return &data; }
+    template <typename U>
+    T value_or(U&& fallback) const { return present ? data : static_cast<T>(std::forward<U>(fallback)); }
+    void reset() noexcept { present = false; data = T{}; }
+    bool operator==(const MaybeValue& other) const { return present == other.present && (!present || data == other.data); }
+    bool operator!=(const MaybeValue& other) const { return !(*this == other); }
+};
+struct EmptyValue { template <typename T> operator MaybeValue<T>() const { return {}; } };
+inline constexpr EmptyValue emptyValue{};
+
 // ==================== 公共基础：各阶段共用 ====================
 
 // 符号编号。
-using SymbolId = std::uint32_t;
+using SymbolId = unsigned;
 // 作用域编号。
-using ScopeId = std::uint32_t;
+using ScopeId = unsigned;
 // 记录类型编号。
-using RecordId = std::uint32_t;
+using RecordId = unsigned;
 // 常量编号。
-using ConstantId = std::uint32_t;
+using ConstantId = unsigned;
 // 无效编号，表示尚未绑定或没有对应条目。
-inline constexpr std::uint32_t invalid_id =
-    std::numeric_limits<std::uint32_t>::max();
+inline constexpr unsigned invalid_id =
+    std::numeric_limits<unsigned>::max();
 
 // 源码中的一个位置。
 struct SourceLocation {
-    std::uint32_t line = 1; // 行号，从 1 开始。
-    std::uint32_t col = 1; // 字节列号，从 1 开始。
+    unsigned line = 1; // 行号，从 1 开始。
+    unsigned col = 1; // 字节列号，从 1 开始。
     std::size_t offset = 0; // 从文件开头算起的字节位置，从 0 开始。
 };
 
@@ -50,8 +71,8 @@ enum class Level { Note, Warning, Error, Fatal };
 struct Diagnostic {
     Phase phase = Phase::Lexer; // 产生诊断的编译阶段。
     Level level = Level::Error; // 诊断级别：说明、警告、错误或致命错误。
-    std::uint32_t line = 1; // 报错行号，与 range.begin.line 一致。
-    std::uint32_t col = 1; // 报错列号，与 range.begin.col 一致。
+    unsigned line = 1; // 报错行号，与 range.begin.line 一致。
+    unsigned col = 1; // 报错列号，与 range.begin.col 一致。
     std::string message; // 给用户看的中文提示。
     std::string code; // 错误代码，用于分类和查询。
     SourceRange range; // 主要报错位置。
@@ -70,9 +91,35 @@ struct TypeInfo;
 // 指向只读类型信息的普通指针；对象由 TypeArena 统一释放。
 using TypePtr = const TypeInfo*;
 
-// 常量值，可存整数、浮点或字符串；monostate 表示未解码。
-using ConstantValue = std::variant<std::monostate, std::int64_t,
-                                   std::uint64_t, double, std::string>;
+// 常量值，使用显式标签保存整数、浮点或字符串。
+enum class ConstantKind { Empty, Integer, Unsigned, Floating, Text };
+struct ConstantValue {
+    ConstantKind kind = ConstantKind::Empty;
+    long long integer = 0;
+    unsigned long long unsigned_integer = 0;
+    double floating = 0;
+    std::string text;
+    ConstantValue() = default;
+    ConstantValue(long long value) : kind(ConstantKind::Integer), integer(value) {}
+    ConstantValue(unsigned long long value) : kind(ConstantKind::Unsigned), unsigned_integer(value) {}
+    ConstantValue(double value) : kind(ConstantKind::Floating), floating(value) {}
+    ConstantValue(const std::string& value) : kind(ConstantKind::Text), text(value) {}
+    ConstantValue(std::string&& value) : kind(ConstantKind::Text), text(std::move(value)) {}
+};
+inline bool constant_empty(const ConstantValue& value) { return value.kind == ConstantKind::Empty; }
+template <typename T> const T* constant_get_if(const ConstantValue& value);
+template <typename T> T* constant_get_if(ConstantValue& value) {
+    return const_cast<T*>(constant_get_if<T>(static_cast<const ConstantValue&>(value)));
+}
+template <> inline const long long* constant_get_if<long long>(const ConstantValue& value) { return value.kind == ConstantKind::Integer ? &value.integer : nullptr; }
+template <> inline const unsigned long long* constant_get_if<unsigned long long>(const ConstantValue& value) { return value.kind == ConstantKind::Unsigned ? &value.unsigned_integer : nullptr; }
+template <> inline const double* constant_get_if<double>(const ConstantValue& value) { return value.kind == ConstantKind::Floating ? &value.floating : nullptr; }
+template <> inline const std::string* constant_get_if<std::string>(const ConstantValue& value) { return value.kind == ConstantKind::Text ? &value.text : nullptr; }
+template <typename T> const T& constant_get(const ConstantValue& value);
+template <> inline const long long& constant_get<long long>(const ConstantValue& value) { return value.integer; }
+template <> inline const unsigned long long& constant_get<unsigned long long>(const ConstantValue& value) { return value.unsigned_integer; }
+template <> inline const double& constant_get<double>(const ConstantValue& value) { return value.floating; }
+template <> inline const std::string& constant_get<std::string>(const ConstantValue& value) { return value.text; }
 
 // 表达式类别：非表达式、左值、右值或函数。
 enum class ValueCategory { None, LValue, RValue, Function };
@@ -104,8 +151,8 @@ enum class TokenType {
 struct Token {
     TokenType type = TokenType::END_OF_FILE; // 单词种别，如关键字、标识符、运算符。
     std::string lexeme; // 单词原文，保留引号和转义。
-    std::uint32_t line = 1; // 单词起始行号，与 range.begin.line 一致。
-    std::uint32_t col = 1; // 单词起始列号，与 range.begin.col 一致。
+    unsigned line = 1; // 单词起始行号，与 range.begin.line 一致。
+    unsigned col = 1; // 单词起始列号，与 range.begin.col 一致。
     SourceRange range; // 单词在源码中的位置范围。
 };
 
@@ -143,8 +190,31 @@ struct ASTNode {
     SymbolId symbol_id = invalid_id; // 对应的变量、形参或函数编号。
     ScopeId scope_id = invalid_id; // 节点所属的作用域编号。
     RecordId record_id = invalid_id; // 节点涉及的结构体、联合体或枚举编号。
-    std::optional<std::size_t> member_index; // 成员在成员表中的下标；非成员访问时为空。
-    std::vector<std::unique_ptr<ASTNode>> children; // 子节点列表；排列顺序见 docs/interface.md。
+    MaybeValue<std::size_t> member_index; // 成员在成员表中的下标；非成员访问时为空。
+    std::vector<ASTNode*> children; // 子节点列表；排列顺序见 docs/interface.md。
+};
+
+// AST 节点的统一内存池。节点之间只保存普通指针，由 Arena 在析构时统一释放。
+struct NodeArena {
+    std::vector<ASTNode*> nodes;
+    NodeArena() = default;
+    ~NodeArena() { clear(); }
+    ASTNode* make() {
+        ASTNode* node = new ASTNode();
+        nodes.push_back(node);
+        return node;
+    }
+    void clear() {
+        for (ASTNode* node : nodes) delete node;
+        nodes.clear();
+    }
+    NodeArena(const NodeArena&) = delete;
+    NodeArena& operator=(const NodeArena&) = delete;
+    NodeArena(NodeArena&& other) noexcept { nodes.swap(other.nodes); }
+    NodeArena& operator=(NodeArena&& other) noexcept {
+        if (this != &other) { clear(); nodes.swap(other.nodes); }
+        return *this;
+    }
 };
 
 // 程序根节点，其 kind 为 Program。
@@ -152,7 +222,8 @@ using Program = ASTNode;
 
 // 语法分析结果。
 struct ParseResult {
-    std::unique_ptr<ASTNode> root; // 语法树根节点；语法失败时为空。
+    NodeArena arena; // 语法树节点的所有权池。
+    ASTNode* root = nullptr; // 语法树根节点；语法失败时为空。
     std::vector<Diagnostic> diagnostics; // 语法分析的诊断列表。
     // 判断本阶段是否成功。成功返回 true，否则返回 false。
     bool ok() const { return root && !has_errors(diagnostics); }
@@ -175,7 +246,7 @@ struct TypeInfo {
     bool is_unsigned = false; // 是否为无符号整型。
     bool is_const = false; // 当前这一层类型是否带 const。
     TypePtr base = nullptr; // 内部地址的目标类型、数组的元素类型或函数的返回类型。
-    std::optional<std::size_t> array_length; // 本层数组长度；为空表示尚未确定。
+    MaybeValue<std::size_t> array_length; // 本层数组长度；为空表示尚未确定。
     std::vector<TypePtr> params; // 函数的形参类型表，按声明顺序保存。
     bool variadic = false; // 函数是否接受可变数量的参数。
     bool has_prototype = true; // 是否有参数原型；f() 与 f(void) 用此区分。
@@ -197,20 +268,20 @@ struct SymbolEntry {
     SymbolKind kind = SymbolKind::Variable; // 符号类别，如变量、形参、函数。
     TypePtr type = nullptr; // 符号类型；函数类型包含返回类型和形参。
     ScopeId scope = invalid_id; // 声明所在的作用域编号。
-    std::uint32_t line = 1; // 声明行号，与 range.begin.line 一致。
-    std::uint32_t col = 1; // 声明列号，与 range.begin.col 一致。
+    unsigned line = 1; // 声明行号，与 range.begin.line 一致。
+    unsigned col = 1; // 声明列号，与 range.begin.col 一致。
     SourceRange range; // 声明在源码中的位置范围。
     StorageClass storage = StorageClass::None; // 声明的存储类别，如 static、extern。
     bool is_defined = false; // 是否已有定义，而不只是声明。
     BuiltinKind builtin = BuiltinKind::None; // 内建函数标记，如 printf、scanf。
-    std::optional<std::size_t> offset; // 对象的存储字节偏移；未分配时为空。
+    MaybeValue<std::size_t> offset; // 对象的存储字节偏移；未分配时为空。
 };
 
 // 一条成员信息。
 struct MemberEntry {
     std::string name; // 成员名字。
     TypePtr type = nullptr; // 成员的数据类型。
-    std::optional<std::size_t> offset; // 成员相对对象起点的字节偏移；未计算时为空。
+    MaybeValue<std::size_t> offset; // 成员相对对象起点的字节偏移；未计算时为空。
     SourceRange range; // 成员声明的位置。
 };
 
@@ -220,7 +291,7 @@ enum class RecordKind { Struct, Union, Enum };
 // 一条枚举项信息。
 struct EnumValue {
     std::string name; // 枚举项名字。
-    std::int64_t value = 0; // 枚举项的整数值。
+    long long value = 0; // 枚举项的整数值。
     SymbolId symbol_id = invalid_id; // 枚举项在普通符号表中的编号。
     SourceRange range; // 枚举项的声明位置。
 };
@@ -234,8 +305,8 @@ struct StructEntry {
     bool is_complete = false; // 是否已完成定义。
     std::vector<MemberEntry> members; // 结构体或联合体的成员信息表。
     std::vector<EnumValue> enumerators; // 枚举项信息表。
-    std::optional<std::size_t> size; // 对象总字节数，包含填充；未计算时为空。
-    std::optional<std::size_t> alignment; // 对象的字节对齐要求；未计算时为空。
+    MaybeValue<std::size_t> size; // 对象总字节数，包含填充；未计算时为空。
+    MaybeValue<std::size_t> alignment; // 对象的字节对齐要求；未计算时为空。
     SourceRange range; // 标签声明或定义的位置。
 };
 

@@ -9,17 +9,9 @@ if(MSVC)
 endif()
 
 add_library(minic_backend STATIC
-    src/type_arena.cpp
-    src/preprocessor.cpp
-    src/constant_pool.cpp
-    src/diagnostic.cpp
-    src/symbol_table.cpp
-    src/type_rules.cpp
     src/semantic.cpp
-    src/ir.cpp
-    src/interpreter.cpp
-    src/display.cpp
-    src/compilation_result.cpp
+    src/backend.cpp
+    src/common.cpp
 )
 target_include_directories(minic_backend PUBLIC include)
 if(MSVC)
@@ -29,9 +21,8 @@ else()
 endif()
 
 # 词法、语法与后端组成真实源码编译入口。
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/lexer.cpp" AND
-   EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/parser.cpp")
-    add_library(minic_compiler STATIC src/compiler.cpp src/lexer.cpp src/parser.cpp)
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/frontend.cpp")
+    add_library(minic_compiler STATIC src/compiler.cpp src/frontend.cpp)
     target_link_libraries(minic_compiler PUBLIC minic_backend)
     if(MSVC)
         target_compile_options(minic_compiler PRIVATE /W4 /utf-8)
@@ -59,6 +50,9 @@ endforeach()
 
 include(CTest)
 if(BUILD_TESTING)
+    add_executable(arena_lifetime_test tests/arena_lifetime_test.cpp)
+    target_link_libraries(arena_lifetime_test PRIVATE minic_backend)
+    add_test(NAME arena_lifetime COMMAND arena_lifetime_test)
     add_executable(type_arena_test tests/type_arena_test.cpp)
     target_link_libraries(type_arena_test PRIVATE minic_compiler)
     add_test(NAME type_arena COMMAND type_arena_test)
@@ -72,17 +66,17 @@ if(BUILD_TESTING)
     target_link_libraries(lexer_probe PRIVATE minic_compiler)
     add_executable(integration_preprocess_driver tests/integration_driver.cpp)
     target_compile_definitions(integration_preprocess_driver PRIVATE MINIC_FIXTURE_PREPROCESS_ONLY)
-    target_link_libraries(integration_preprocess_driver PRIVATE minic_backend)
+    target_link_libraries(integration_preprocess_driver PRIVATE minic_compiler)
     if(MINGW)
         target_link_options(integration_preprocess_driver PRIVATE -municode)
     endif()
     foreach(test constant_pool symbol_table m1_pipeline m2_pipeline m3_pipeline m4_pipeline preprocessor)
         add_executable(${test}_test tests/${test}_test.cpp)
-        target_link_libraries(${test}_test PRIVATE minic_backend)
+        target_link_libraries(${test}_test PRIVATE minic_compiler)
         add_test(NAME ${test} COMMAND ${test}_test)
     endforeach()
-    add_executable(compiler_flow_test tests/compiler_flow_test.cpp src/compiler.cpp)
-    target_link_libraries(compiler_flow_test PRIVATE minic_backend)
+    add_executable(compiler_flow_test tests/compiler_flow_test.cpp)
+    target_link_libraries(compiler_flow_test PRIVATE minic_compiler)
     add_test(NAME compiler_flow COMMAND compiler_flow_test)
     find_package(Python3 COMPONENTS Interpreter QUIET)
     if(Python3_FOUND)
