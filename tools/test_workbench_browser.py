@@ -145,6 +145,12 @@ def main():
             ('#define N 2\nint main(void){return N;}', 'LEX_INVALID_CHAR'),
             ('union U{int x;};int main(void){return 0;}', 'PARSE_RECORD_REMOVED'),
             ('enum E{A};int main(void){return 0;}', 'PARSE_RECORD_REMOVED'),
+            ('static int x;int main(void){return 0;}', 'PARSE_DECLARATION_REMOVED'),
+            ('typedef int T;int main(void){return 0;}', 'PARSE_DECLARATION_REMOVED'),
+            ('int main(void){do{}while(0);return 0;}', 'PARSE_CONTROL_REMOVED'),
+            ('int main(void){switch(1){}return 0;}', 'PARSE_CONTROL_REMOVED'),
+            ('int main(void){goto done;return 0;}', 'PARSE_CONTROL_REMOVED'),
+            ('int main(void){done:return 0;}', 'PARSE_LABEL_REMOVED'),
         ):
             editor.fill(source)
             page.locator("#run").click()

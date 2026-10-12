@@ -22,7 +22,7 @@ public:
 
     // 登记普通符号，返回新建或复用的编号。冲突时返回空值并报错。
     MaybeValue<SymbolId> insert(SymbolEntry entry);
-    // 登记有链接关系的对象，合并兼容声明；块内 extern 指向同一个全局对象。
+    // 登记变量或数组；合并兼容的全局声明，返回符号编号。
     MaybeValue<SymbolId> declare_object(SymbolEntry entry);
     // 从当前作用域向外查普通名字。找到返回符号编号，未找到返回空值。
     MaybeValue<SymbolId> lookup(const std::string& name) const;

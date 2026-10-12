@@ -75,7 +75,7 @@ int main() {
         rejects("int main(void){int x=1;return *x;}", "PARSE_POINTER_REMOVED");
         rejects("volatile int x;");
         rejects("int **p;", "PARSE_POINTER_REMOVED");
-        rejects("typedef int *P;", "PARSE_POINTER_REMOVED");
+        rejects("typedef int *P;", "PARSE_DECLARATION_REMOVED");
         rejects("struct S{int x;};int main(void){struct S s;return s->x;}", "PARSE_POINTER_REMOVED");
         rejects("int main(void){return (int*)0;}", "PARSE_POINTER_REMOVED");
         rejects("int main(void){const volatile int x=0;return x;}");
@@ -90,14 +90,13 @@ int main() {
         rejects("struct S{int x:2;};", "PARSE_MEMBER");
         rejects("int main(int){ return 0; }", "PARSE_PARAMETER");
         rejects("int x, f(void){return 0;}", "PARSE_FUNCTION");
-        rejects("typedef struct S{int x;};", "PARSE_DECLARATOR");
+        rejects("typedef struct S{int x;};", "PARSE_DECLARATION_REMOVED");
         rejects("struct S{struct T{int x;} t;};", "PARSE_MEMBER");
         rejects("int f(a) int a; {return a;}");
         for (const auto* source : {
             "union U{int x;};", "enum E{A,B};",
             "int main(void){union U{int x;} u;return 0;}",
             "int main(void){enum E{A} e;return 0;}",
-            "typedef union U{int x;} U;", "typedef enum E{A} E;",
             "struct S{union U u;};", "struct S{enum E e;};",
             "int main(void){return sizeof(union U);}",
             "int main(void){return (enum E)1;}"
@@ -111,6 +110,25 @@ int main() {
                     "宏和头文件在词法阶段拒绝，停止后续编译");
         }
         execute("int main(void){const int n=2;printf(\"#%d\",n);/* #define X 3 */return 0;}", 0, "#2");
+        for (const auto* word : {"static", "extern", "auto", "register", "typedef"}) {
+            const std::string prefix = std::string(word) + " int x;";
+            rejects(prefix, "PARSE_DECLARATION_REMOVED");
+            rejects("int main(void){" + prefix + "return 0;}", "PARSE_DECLARATION_REMOVED");
+            auto rejected = compile(prefix + "int main(void){printf(\"SHOULD_NOT_RUN\");return 0;}");
+            require(!rejected.ok() && !rejected.semantic && !rejected.ir, "删除的声明不能进入后端");
+        }
+        rejects("int f(register int x){return x;}", "PARSE_DECLARATION_REMOVED");
+        for (const auto* body : {
+            "do{}while(0);", "switch(1){case 1:break;default:break;}",
+            "case 1:;", "default:;", "goto done;", "while(1){switch(1){}}"
+        }) rejects(std::string("int main(void){") + body + "return 0;}", "PARSE_CONTROL_REMOVED");
+        rejects("int main(void){done:return 0;}", "PARSE_LABEL_REMOVED");
+        rejects("int main(void){while(1){again:break;}return 0;}", "PARSE_LABEL_REMOVED");
+        execute("int next(void){int count=0;return ++count;}int main(void){return next()+next();}", 2);
+        execute("int x=3;int get(void){return x;}int main(void){int x=7;return x+get();}", 10);
+        auto invalid_break = compile("int main(void){break;return 0;}");
+        auto invalid_continue = compile("int main(void){continue;return 0;}");
+        require(!invalid_break.ok() && !invalid_continue.ok(), "break 和 continue 不能脱离循环");
         std::string many_errors = "int main(void){";
         for (int i = 0; i < 30; ++i) many_errors += "x=;";
         auto error_limit = syntax(many_errors + "}");
@@ -131,18 +149,11 @@ int main() {
         execute("int sum(int a[],int n){int i=0,s=0;for(i=0;i<n;i++){s+=a[i];}return s;} int main(void){int a[]={1,2,3}; return sum(a,3);}", 6);
         execute("struct S{char c;int x;}; int main(void){struct S s={'a',9}; s.x+=1; return s.x+sizeof(struct S);}", 18);
         execute("int main(void){struct {int x;} s={4};return s.x;}", 4);
-        execute("typedef int T; int main(void){T x=2;T y=3;{int T=5; x+=T;}return (T)(x+y);}", 10);
-        execute("typedef int T; int f(int T){return T+1;} int main(void){return f(4);}", 5);
-        execute("typedef int T; int main(void){int x=0; T: x=3;return x;}", 3);
         execute("struct S; struct S{int x;}; int main(void){struct S s={7};return s.x;}", 7);
         execute("int f(int x);int f(int x){return x+2;}int main(void){return f(3);}", 5);
         execute("int inc(int x){return x+1;} int main(void){return inc(5);}", 6);
         execute("int fact(int n){if(n<=1){return 1;}else{return n*fact(n-1);}}int main(void){return fact(5);}", 120);
-        execute("int main(void){int x=0; do{x++;}while(x<3); switch(x){case 2:x=9;break;case 3:x+=2;default:x+=1;} return x;}", 6);
         execute("int main(void){int i=0,s=0;while(i<5){i++;if(i==2){continue;}s+=i;if(i==4){break;}}return s;}", 8);
-        execute("int main(void){int x=0; goto done;x=5;done:return x;}", 0);
-        execute("int f(void){static int x=0;return ++x;}int main(void){return f()+f();}", 3);
-        execute("extern int x; int x=3;int main(void){return x;}", 3);
         execute("int main(void){int x=0; if(0 && (x=3)){x=4;}return x;}", 0);
         execute("int main(void){double d=(double)3; unsigned int u=0xffffffffU; return (int)d+(int)(u>>31);}", 4);
         execute("int main(void){int n=0,s=0,i=0;scanf(\"%d\",&n);for(i=1;i<=n;i++){s+=i;}printf(\"sum = %d\\n\",s);return 0;}", 0, "sum = 15\n", "5");

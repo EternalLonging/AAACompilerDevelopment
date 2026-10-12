@@ -8,8 +8,9 @@
 
 ## 当前语言范围（2026-10-12）
 
-- 保留数组、struct、typedef、const、函数及原有控制语句。
+- 保留数组、struct、const、函数、if/else、while、for、return，以及循环中的 break/continue。
 - 删除源语言宏预处理（`#define`、`#if` 等）、头文件包含、union 和 enum；常量可以写成 `const int N=5;`。
+- static、extern、auto、register、typedef、do-while、switch/case/default、goto 和语句标签已删除。
 - volatile 和编辑器自动补全已删除；括号配对和自动缩进保留。
 
 - `for` 的变量在循环前声明，例如 `int i; for(i=0;i<3;i++){...}`；`for(int i=...)` 会报错。

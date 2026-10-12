@@ -158,7 +158,6 @@ class Generator {
     std::vector<std::pair<std::string, std::string>> loops_; // 循环结束和继续标号。
     std::size_t next_label_ = 0;
     std::size_t depth_ = 0;
-    std::vector<std::unordered_map<const ASTNode*, std::string>> switches_; // case 节点对应的标号。
     SourceRange current_range_; // 生成失败时的源码位置。
 
     const ASTNode& child(const ASTNode& node, std::size_t index) const {
@@ -414,46 +413,6 @@ class Generator {
         if (++depth_ > 512) throw std::runtime_error("语法树嵌套过深");
         if (node.scope_id >= symbols_.scopes.size()) throw std::runtime_error("语句缺少作用域标注");
         switch (node.kind) {
-        case NodeType::DoWhile: {
-            count(node, 2, 2);
-            const auto start = label(), condition = label(), end = label();
-            mark(start, node.range);
-            loops_.push_back({end, condition}); statement(child(node, 0)); loops_.pop_back();
-            mark(condition, node.range);
-            emit("jnz", expression(child(node, 1)), "-", start, node.range);
-            mark(end, node.range);
-            break;
-        }
-        case NodeType::Switch: {
-            count(node, 2, 2);
-            const auto value = snapshot(expression(child(node, 0)), child(node, 0).type, node.range);
-            const auto end = label();
-            std::unordered_map<const ASTNode*, std::string> labels;
-            collect_cases(child(node, 1), labels);
-            std::string default_label = end;
-            for (const auto& item : labels) {
-                if (item.first->kind == NodeType::Default) default_label = item.second;
-                else {
-                    const auto constant = constant_get_if<long long>(item.first->value);
-                    if (!constant) throw std::runtime_error("case 缺少整型常量标注");
-                    const auto match = temporary(detail::type(TypeKind::Int));
-                    emit("==", value, integer(*constant), match, item.first->range);
-                    emit("jnz", match, "-", item.second, item.first->range);
-                }
-            }
-            emit("jmp", "-", "-", default_label, node.range);
-            switches_.push_back(std::move(labels)); loops_.push_back({end, ""});
-            statement(child(node, 1));
-            switches_.pop_back(); loops_.pop_back();
-            mark(end, node.range);
-            break;
-        }
-        case NodeType::Case: case NodeType::Default:
-            count(node, node.kind == NodeType::Case ? 2 : 1, node.kind == NodeType::Case ? 2 : 1);
-            if (switches_.empty() || !switches_.back().count(&node)) throw std::runtime_error("case/default 缺少 switch 绑定");
-            mark(switches_.back().at(&node), node.range);
-            statement(*node.children.back());
-            break;
         case NodeType::Block:
             count(node, 0, invalid_id);
             for (const auto& value : node.children) statement(*value);
@@ -461,14 +420,8 @@ class Generator {
         case NodeType::VarDecl: {
             count(node, 0, 1);
             const auto& entry = binding(node);
-            if (node.storage == StorageClass::Extern && node.children.empty()) break;
             const auto destination = detail::symbol_name(entry.id);
-            auto* saved_quads = quads_; auto* saved_locations = locations_; auto* saved_temporaries = temporaries_;
-            const bool local_static = entry.scope != 0 && entry.storage == StorageClass::Static;
-            if (local_static) {
-                program_.globals.push_back(entry.id);
-                quads_ = &program_.global_initializers; locations_ = &program_.global_locations; temporaries_ = &program_.global_temporaries;
-            } else if (entry.scope != 0) emit("local", "-", "-", destination, node.range);
+            if (entry.scope != 0) emit("local", "-", "-", destination, node.range);
             if (!node.children.empty()) {
                 const auto selected = temporary(detail::address_type(node.type));
                 emit("addr", destination, "-", selected, node.range);
@@ -476,15 +429,9 @@ class Generator {
                     emit("zero", "-", "-", destination, node.range);
                 initialize(selected, node.type, child(node, 0));
             }
-            quads_ = saved_quads; locations_ = saved_locations; temporaries_ = saved_temporaries;
             break;
         }
-        case NodeType::StructDef: case NodeType::TypedefDecl: break;
-        case NodeType::Label:
-            count(node, 1, 1);
-            mark("user_" + node.name, node.range); statement(child(node, 0)); break;
-        case NodeType::Goto:
-            count(node, 0, 0); emit("jmp", "-", "-", "user_" + node.name, node.range); break;
+        case NodeType::StructDef: break;
         case NodeType::ExprStmt:
             count(node, 1, 1); expression(child(node, 0)); break;
         case NodeType::Return:
@@ -526,12 +473,7 @@ class Generator {
             count(node, 0, 0);
             if (loops_.empty()) throw std::runtime_error("循环跳转缺少循环上下文");
             if (node.kind == NodeType::Break) emit("jmp", "-", "-", loops_.back().first, node.range);
-            else {
-                auto found = loops_.rbegin();
-                while (found != loops_.rend() && found->second.empty()) ++found;
-                if (found == loops_.rend()) throw std::runtime_error("continue 缺少循环上下文");
-                emit("jmp", "-", "-", found->second, node.range);
-            }
+            else emit("jmp", "-", "-", loops_.back().second, node.range);
             break;
         case NodeType::Empty: count(node, 0, 0); break;
         default: throw std::runtime_error("此语句不能生成 M1 四元式");
@@ -543,16 +485,6 @@ class Generator {
         if (node.kind == NodeType::Empty || node.kind == NodeType::ExprStmt || node.kind == NodeType::VarDecl)
             statement(node);
         else expression(node);
-    }
-
-    void collect_cases(const ASTNode& node, std::unordered_map<const ASTNode*, std::string>& labels, std::size_t depth = 0) {
-        if (depth > 512) throw std::runtime_error("switch 嵌套过深");
-        if (node.kind == NodeType::Switch) return;
-        if (node.kind == NodeType::Case || node.kind == NodeType::Default) labels.emplace(&node, label());
-        for (const auto& child : node.children) {
-            if (!child) throw std::runtime_error("switch 孩子为空");
-            collect_cases(*child, labels, depth + 1);
-        }
     }
 
 public:
@@ -569,12 +501,8 @@ public:
                 current_range_ = node.range;
                 if (node.kind == NodeType::VarDecl) {
                     if (binding(node).scope != 0) throw std::runtime_error("顶层变量不属于全局作用域");
-                    const auto& entry = binding(node);
-                    if (entry.storage == StorageClass::Extern && !entry.is_defined) continue;
                     if (std::find(program_.globals.begin(), program_.globals.end(), node.symbol_id) == program_.globals.end()) program_.globals.push_back(node.symbol_id);
                     statement(node);
-                } else if (node.kind == NodeType::TypedefDecl) {
-                    if (node.symbol_id >= symbols_.symbols.size()) throw std::runtime_error("类型别名缺少符号绑定");
                 } else if (node.kind == NodeType::StructDef) {
                     if (node.record_id >= symbols_.records.size()) throw std::runtime_error("结构体缺少记录绑定");
                 } else if (node.kind == NodeType::FunctionDecl) {
@@ -861,7 +789,7 @@ class Machine {
         if (entry.kind != SymbolKind::Variable && entry.kind != SymbolKind::Parameter && entry.kind != SymbolKind::Array)
             throw std::runtime_error("操作数必须是数值对象或临时量");
         detail::layout(entry.type, symbols_);
-        if (entry.scope == 0 || entry.storage == StorageClass::Static) {
+        if (entry.scope == 0) {
             if (globals_.find(entry.id) == globals_.end()) throw std::runtime_error("全局对象没有分配存储");
         } else {
             if (code.function == invalid_id) throw std::runtime_error("全局初始化不能引用局部对象");
@@ -1055,7 +983,7 @@ class Machine {
         for (const auto id : program_.globals) {
             const auto& entry = symbol(id);
             if ((entry.kind != SymbolKind::Variable && entry.kind != SymbolKind::Array) ||
-                (entry.scope != 0 && entry.storage != StorageClass::Static) || !globals_.insert(id).second)
+                entry.scope != 0 || !globals_.insert(id).second)
                 throw std::runtime_error("全局变量清单无效");
             detail::layout(entry.type, symbols_);
         }

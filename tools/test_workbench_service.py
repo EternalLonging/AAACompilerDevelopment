@@ -40,6 +40,17 @@ def main():
         ('#define N 2\nint main(void){return N;}', '词法', 'LEX_INVALID_CHAR'),
         ('union U{int x;};int main(void){return 0;}', '语法', 'PARSE_RECORD_REMOVED'),
         ('enum E{A};int main(void){return 0;}', '语法', 'PARSE_RECORD_REMOVED'),
+        ('static int x;int main(void){return 0;}', '语法', 'PARSE_DECLARATION_REMOVED'),
+        ('extern int x;int main(void){return 0;}', '语法', 'PARSE_DECLARATION_REMOVED'),
+        ('typedef int T;int main(void){return 0;}', '语法', 'PARSE_DECLARATION_REMOVED'),
+        ('int main(void){auto int x;return 0;}', '语法', 'PARSE_DECLARATION_REMOVED'),
+        ('int main(void){register int x;return 0;}', '语法', 'PARSE_DECLARATION_REMOVED'),
+        ('int main(void){do{}while(0);return 0;}', '语法', 'PARSE_CONTROL_REMOVED'),
+        ('int main(void){switch(1){}return 0;}', '语法', 'PARSE_CONTROL_REMOVED'),
+        ('int main(void){case 1:;return 0;}', '语法', 'PARSE_CONTROL_REMOVED'),
+        ('int main(void){default:;return 0;}', '语法', 'PARSE_CONTROL_REMOVED'),
+        ('int main(void){goto done;return 0;}', '语法', 'PARSE_CONTROL_REMOVED'),
+        ('int main(void){done:return 0;}', '语法', 'PARSE_LABEL_REMOVED'),
     ]:
         result = server_module.invoke(driver, {"source": removed_source}, "run")
         check(not result["ok"] and "baseline" not in result and "preprocessing" not in result,

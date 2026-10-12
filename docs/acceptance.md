@@ -1,6 +1,12 @@
 # 整体验收记录
 
-## 当前复验（2026-10-12）
+## 本轮精简（2026-10-12）
+
+继续移除 static、extern、auto、register、typedef、do-while、switch/case/default、goto 和语句标签。保留 if/else、while、for、循环中的 break/continue、数组、struct、const 和函数。StorageClass、AST/SymbolEntry.storage、Typedef/Named 及已删除控制流节点已清理，解析器不再维护 typedef 环境，后端不再保存静态局部对象或用户标签。
+
+严格构建和 18 项 CTest 通过；源码夹具现为 42 份，逐一核对运行结果或最早拒绝阶段。工作台继续检查真实诊断和原有编辑流程。下列旧版本记录仅供回溯。
+
+## 上轮宏、union、enum 精简（2026-10-12）
 
 按用户要求删除源语言宏预处理、union 和 enum；保留 struct、数组、typedef 和原有控制流。对应 AST 节点、类型、枚举项信息及联合体布局代码已清理，宏预处理模块和界面入口已删除。
 

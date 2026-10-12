@@ -14,7 +14,6 @@ static TypePtr record(const std::string& name, TypeKind kind = TypeKind::Struct)
 static TypePtr signature(TypePtr result, std::vector<TypePtr> params = {}) { auto value = make_type_info(); value->kind = TypeKind::Function; value->base = std::move(result); value->params = std::move(params); return value; }
 static Node unary(const std::string& op, Node value) { return tree(NodeType::UnaryOp, op, std::move(value)); }
 static Node cast(TypePtr target, Node value) { auto result = tree(NodeType::Cast, "", std::move(value)); result->declared_type = std::move(target); return result; }
-static Node external(Node value) { value->storage = StorageClass::Extern; return value; }
 static Node invoke(Node target, Node arg) { return tree(NodeType::Call, "", std::move(target), std::move(arg)); }
 static Node main_program(Node body) { return program(function("main", TypeKind::Int, std::move(body))); }
 static void check(Node ast, int expected, const std::string& output = "", const std::string& input = "", const std::string& failure = "") {
@@ -55,13 +54,12 @@ static void numeric_types() {
     rejects(main_program(block(ret(node(NodeType::IntLiteral, "4294967296U")))), "SEM_LITERAL");
 }
 
-static void external_objects() {
-    auto ast = program(external(variable("x", TypeKind::Int)), function("get", TypeKind::Int, block(ret(id("x")))));
+static void global_objects() {
+    auto ast = program(variable("x", TypeKind::Int), function("get", TypeKind::Int, block(ret(id("x")))));
     ast->children.push_back(variable("x", TypeKind::Int, integer(7)));
     ast->children.push_back(variable("x", TypeKind::Int));
-    auto body = block(external(variable("x", TypeKind::Int)), statement(assign("x", integer(8))), ret(call("get")));
-    ast->children.push_back(function("main", TypeKind::Int, std::move(body))); check(std::move(ast), 8);
-    rejects(program(external(variable("missing", TypeKind::Int)), function("main", TypeKind::Int, block(ret(id("missing"))))), "SEM_UNDEFINED_OBJECT");
+    auto body = block(variable("x", TypeKind::Int, integer(99)), ret(binary("+", id("x"), call("get"))));
+    ast->children.push_back(function("main", TypeKind::Int, std::move(body))); check(std::move(ast), 106);
     rejects(program(variable("x", TypeKind::Int, integer(1)), variable("x", TypeKind::Int, integer(2))), "SYM_DECL_CONFLICT");
 }
 
@@ -127,6 +125,6 @@ static void strings() {
 int main() {
     minic::TypeArena types; // 手工类型及语法树借用的内存，保留到示例/测试结束。
     minic::TypeArenaScope type_scope(types);
-    try { numeric_types(); external_objects(); strings(); aggregate_calls(); errors_and_boundaries(); std::cout << "扩展数值、外部声明、聚合调用与字符串：5 组测试全部通过\n"; return 0; }
+    try { numeric_types(); global_objects(); strings(); aggregate_calls(); errors_and_boundaries(); std::cout << "扩展数值、全局对象、聚合调用与字符串：5 组测试全部通过\n"; return 0; }
     catch (const std::exception& error) { std::cerr << "测试失败：" << error.what() << '\n'; return 1; }
 }

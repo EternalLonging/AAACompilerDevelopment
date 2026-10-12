@@ -76,13 +76,12 @@ using TT = TokenType;
 using Node = ASTNode*;
 struct ParseFailure {};
 
-// 解析环境只用于 typedef 消歧，不写入语义阶段的持久符号表。
+// 根据单词表建立语法树；名字绑定由语义阶段处理。
 class Parser {
     const std::vector<Token>& tokens; // 词法阶段生成的单词表，最后一个单词是 EOF。
     std::size_t pos = 0; // 下一个要读取的单词下标。
     unsigned depth = 0; // 当前解析函数的嵌套层数，用来限制递归深度。
     ParseResult result; // 最终的语法树和本阶段诊断。
-    std::vector<std::unordered_map<std::string, bool>> names{{}}; // 每层作用域的名字；true 表示 typedef 别名。
     unsigned anonymous = 0; // 已生成的匿名类型编号，避免内部名字重复。
     std::unordered_map<const ASTNode*, unsigned> heights; // 各节点的树高，用来限制语法树深度。
 
@@ -128,15 +127,7 @@ class Parser {
         // 离开这一层，恢复嵌套计数。
         ~Nest() { --parser.depth; }
     };
-    // 从内层向外查询，判断当前可见名字是否为 typedef 别名。
-    bool alias(const std::string& name) const {
-        for (auto scope = names.rbegin(); scope != names.rend(); ++scope) {
-            const auto found = scope->find(name);
-            if (found != scope->end()) return found->second;
-        }
-        return false;
-    }
-    // 判断当前单词是否可以作为声明的类型、限定符或存储类别。
+    // 判断当前单词是否可以作为声明的类型或限定符。
     bool specifier() const {
         switch (peek().type) {
         case TT::KW_VOID: case TT::KW_CHAR: case TT::KW_SHORT: case TT::KW_INT:
@@ -145,7 +136,7 @@ class Parser {
         case TT::KW_STATIC: case TT::KW_EXTERN: case TT::KW_AUTO: case TT::KW_REGISTER:
         case TT::KW_TYPEDEF: case TT::KW_STRUCT: case TT::KW_UNION: case TT::KW_ENUM:
             return true;
-        default: return at(TT::ID) && alias(peek().lexeme);
+        default: return false;
         }
     }
     // 创建 AST 节点，填写种类、名字和开始位置。
@@ -166,15 +157,14 @@ class Parser {
         if (height > 128) fail("语法树嵌套超过 128 层", "PARSE_DEPTH", Level::Fatal);
         heights[&n] = height;
     }
-    // 声明开头的类型、限定符和存储类别信息。
+    // 声明开头的类型和 const 限定符信息。
     struct Specs {
         TypePtr type = nullptr; // 声明中的基础类型，例如 int 或 struct S。
-        StorageClass storage = StorageClass::None; // 声明写出的存储类别，例如 static、extern、typedef。
         std::vector<Node> definitions; // 声明中同时定义的结构体节点。
     };
 
-    // 读取类型说明、限定符和允许的存储类别，返回声明的基础信息。
-    Specs specs(bool allow_storage = true) {
+    // 读取类型说明和 const 限定符，返回声明的基础信息。
+    Specs specs() {
         Nest nest(*this);
         Specs s;
         auto type = make_type_info();
@@ -182,19 +172,12 @@ class Parser {
         bool explicit_type = false, saw = false;
         while (specifier()) {
             const auto token = peek();
-            if (token.type == TT::ID && explicit_type) break;
             saw = true;
             switch (token.type) {
             case TT::KW_CONST: take(); type->is_const = true; continue;
             case TT::KW_STATIC: case TT::KW_EXTERN: case TT::KW_AUTO: case TT::KW_REGISTER:
             case TT::KW_TYPEDEF:
-                if (!allow_storage || s.storage != StorageClass::None)
-                    fail("此处不允许存储类别或重复的存储类别", "PARSE_SPECIFIERS");
-                s.storage = token.type == TT::KW_STATIC ? StorageClass::Static :
-                    token.type == TT::KW_EXTERN ? StorageClass::Extern :
-                    token.type == TT::KW_AUTO ? StorageClass::Auto :
-                    token.type == TT::KW_REGISTER ? StorageClass::Register : StorageClass::Typedef;
-                take(); continue;
+                fail("本项目不支持 static、extern、auto、register 和 typedef", "PARSE_DECLARATION_REMOVED");
             case TT::KW_SIGNED: case TT::KW_UNSIGNED:
                 if (sign || unsign) fail("重复或冲突的 signed/unsigned", "PARSE_SPECIFIERS");
                 sign = token.type == TT::KW_SIGNED; unsign = !sign; take(); explicit_type = true; continue;
@@ -218,7 +201,6 @@ class Parser {
             case TT::KW_CHAR: type->kind = TypeKind::Char; break;
             case TT::KW_FLOAT: type->kind = TypeKind::Float; break;
             case TT::KW_DOUBLE: type->kind = TypeKind::Double; break;
-            case TT::ID: type->kind = TypeKind::Named; type->name = token.lexeme; break;
             case TT::KW_UNION: case TT::KW_ENUM:
                 fail("本项目不支持 union 和 enum，请使用 struct 或普通变量", "PARSE_RECORD_REMOVED");
             case TT::KW_STRUCT: {
@@ -274,7 +256,7 @@ class Parser {
         if (at(TT::STAR)) fail("本项目不支持 C 语言指针声明", "PARSE_POINTER_REMOVED");
         if (at(TT::ID)) d.name = take().lexeme;
         else if (at(TT::LPAREN) && (peek(1).type == TT::STAR || peek(1).type == TT::LPAREN ||
-                 (peek(1).type == TT::ID && !alias(peek(1).lexeme)))) {
+                 peek(1).type == TT::ID)) {
             take(); auto inner = declarator(abstract); expect(TT::RPAREN, "')'");
             d.name = inner.name; d.layers = std::move(inner.layers);
         } else if (!abstract) fail("声明符需要名字", "PARSE_DECLARATOR");
@@ -299,8 +281,7 @@ class Parser {
                 expect(TT::RBRACKET, "']'");
             } else {
                 take(); layer.kind = TypeKind::Function;
-                names.emplace_back();
-                try {
+                {
                     if (at(TT::RPAREN)) layer.prototype = false;
                     else if (at(TT::KW_VOID) && peek(1).type == TT::RPAREN) take();
                     else {
@@ -311,22 +292,18 @@ class Parser {
                             }
                             const auto start = peek();
                             auto ps = specs();
-                            if (ps.storage != StorageClass::None && ps.storage != StorageClass::Register)
-                                fail("形参只允许 register 存储类别", "PARSE_PARAMETER");
                             if (!ps.definitions.empty()) fail("请先单独声明形参使用的记录类型", "PARSE_PARAMETER");
                             auto pd = declarator(true);
                             auto param = node(NodeType::ParamDecl, start, pd.name);
-                            param->declared_type = build_type(ps.type, pd); param->storage = ps.storage;
+                            param->declared_type = build_type(ps.type, pd);
                             if (param->declared_type->kind == TypeKind::Void)
                                 fail("void 只能单独表示空形参列表", "PARSE_PARAMETER");
                             finish(*param);
-                            if (!pd.name.empty()) names.back()[pd.name] = false;
                             layer.params.push_back(std::move(param));
                         } while (accept(TT::COMMA));
                     }
                     expect(TT::RPAREN, "')'");
-                } catch (...) { names.pop_back(); throw; }
-                names.pop_back();
+                }
             }
             d.layers.push_back(std::move(layer));
         }
@@ -352,7 +329,7 @@ class Parser {
     }
     // 读取转换或 sizeof 中的无名类型，返回完整类型。
     TypePtr type_name() {
-        auto s = specs(false);
+        auto s = specs();
         if (!s.definitions.empty()) fail("类型名中的内联记录定义暂不支持", "PARSE_TYPE_NAME");
         auto d = declarator(true);
         if (!d.name.empty()) fail("类型名不能带声明名字", "PARSE_TYPE_NAME");
@@ -362,12 +339,12 @@ class Parser {
     std::vector<Node> declaration(bool external, bool member = false) {
         Nest nest(*this);
         const auto start = peek();
-        auto s = specs(!member);
+        auto s = specs();
         if (member && !s.definitions.empty())
             fail("成员类型的内联定义暂不支持，请先单独定义记录类型", "PARSE_MEMBER");
         std::vector<Node> nodes = std::move(s.definitions);
         if (accept(TT::SEMI)) {
-            if (member || s.storage != StorageClass::None)
+            if (member)
                 fail("此声明需要声明符", "PARSE_DECLARATOR");
             if (nodes.empty() && s.type->kind == TypeKind::Struct)
                 nodes.push_back(node(NodeType::StructDef,
@@ -380,13 +357,11 @@ class Parser {
         do {
             auto d = declarator();
             const auto type = build_type(s.type, d);
-            const bool function = type->kind == TypeKind::Function && s.storage != StorageClass::Typedef;
+            const bool function = type->kind == TypeKind::Function;
             if (member && (function || at(TT::COLON)))
                 fail("成员不支持函数声明或位域", "PARSE_MEMBER");
-            auto n = node(member ? NodeType::MemberDecl : s.storage == StorageClass::Typedef ?
-                NodeType::TypedefDecl : function ? NodeType::FunctionDecl : NodeType::VarDecl, start, d.name);
-            n->declared_type = type; n->storage = s.storage;
-            if (!member) names.back()[d.name] = s.storage == StorageClass::Typedef;
+            auto n = node(member ? NodeType::MemberDecl : function ? NodeType::FunctionDecl : NodeType::VarDecl, start, d.name);
+            n->declared_type = type;
             if (function) {
                 n->children = std::move(d.layers.front().params);
                 if (at(TT::LBRACE)) {
@@ -395,16 +370,13 @@ class Parser {
                     for (const auto& param : n->children)
                         if (param->name.empty()) fail("函数定义中的形参需要名字", "PARSE_PARAMETER");
                     n->kind = NodeType::FunctionDef;
-                    names.emplace_back();
-                    for (const auto& param : n->children) names.back()[param->name] = false;
-                    try { n->children.push_back(block(false)); }
-                    catch (...) { names.pop_back(); throw; }
-                    names.pop_back(); finish(*n); nodes.push_back(std::move(n));
+                    n->children.push_back(block());
+                    finish(*n); nodes.push_back(std::move(n));
                     return nodes;
                 }
             }
             if (accept(TT::ASSIGN)) {
-                if (member || function || s.storage == StorageClass::Typedef)
+                if (member || function)
                     fail("此声明不允许初始化", "PARSE_INITIALIZER");
                 n->children.push_back(initializer());
             }
@@ -439,36 +411,30 @@ class Parser {
             if (external && pos > before && braces == 0 && specifier()) return;
         }
     }
-    // 读取花括号块；默认建立一层 typedef 名字作用域。
-    Node block(bool scope = true) {
+    // 读取花括号块，要求本块声明写在语句之前。
+    Node block() {
         Nest nest(*this);
         const auto start = expect(TT::LBRACE, "'{'（控制体必须使用花括号）");
         auto n = node(NodeType::Block, start);
         bool saw_statement = false;
-        if (scope) names.emplace_back();
-        try {
-            while (!at(TT::RBRACE) && !at(TT::END_OF_FILE) && !stopped()) {
-                const auto before = pos;
-                const auto saved_names = names;
-                try {
-                    if (specifier() && !(at(TT::ID) && peek(1).type == TT::COLON)) {
-                        if (saw_statement)
-                            fail("同一块中的声明必须放在语句之前", "PARSE_DECLARATION_ORDER");
-                        auto ds = declaration(false);
-                        for (auto& d : ds) n->children.push_back(std::move(d));
-                    } else {
-                        saw_statement = true;
-                        n->children.push_back(statement());
-                    }
-                } catch (const ParseFailure&) {
-                    names = saved_names;
-                    if (stopped()) throw;
-                    recover(before, false);
+        while (!at(TT::RBRACE) && !at(TT::END_OF_FILE) && !stopped()) {
+            const auto before = pos;
+            try {
+                if (specifier()) {
+                    if (saw_statement)
+                        fail("同一块中的声明必须放在语句之前", "PARSE_DECLARATION_ORDER");
+                    auto ds = declaration(false);
+                    for (auto& d : ds) n->children.push_back(std::move(d));
+                } else {
+                    saw_statement = true;
+                    n->children.push_back(statement());
                 }
+            } catch (const ParseFailure&) {
+                if (stopped()) throw;
+                recover(before, false);
             }
-            expect(TT::RBRACE, "'}'");
-        } catch (...) { if (scope) names.pop_back(); throw; }
-        if (scope) names.pop_back();
+        }
+        expect(TT::RBRACE, "'}'");
         finish(*n); return n;
     }
     // 读取括号中的条件表达式。
@@ -482,23 +448,20 @@ class Parser {
         if (at(TT::LBRACE)) return block();
         if (accept(TT::SEMI)) return node(NodeType::Empty, start);
         if (at(TT::ID) && peek(1).type == TT::COLON) {
-            take(); take(); auto n = node(NodeType::Label, start, start.lexeme);
-            n->children.push_back(statement()); finish(*n); return n;
+            fail("本项目不支持语句标签", "PARSE_LABEL_REMOVED");
         }
+        if (at(TT::KW_DO) || at(TT::KW_SWITCH) || at(TT::KW_CASE) ||
+            at(TT::KW_DEFAULT) || at(TT::KW_GOTO))
+            fail("本项目不支持 do-while、switch/case/default 和 goto", "PARSE_CONTROL_REMOVED");
         if (accept(TT::KW_IF)) {
             auto n = node(NodeType::If, start); n->children.push_back(condition());
             n->children.push_back(block());
             if (accept(TT::KW_ELSE)) n->children.push_back(block());
             finish(*n); return n;
         }
-        if (accept(TT::KW_WHILE) || accept(TT::KW_SWITCH)) {
-            auto n = node(start.type == TT::KW_WHILE ? NodeType::While : NodeType::Switch, start);
+        if (accept(TT::KW_WHILE)) {
+            auto n = node(NodeType::While, start);
             n->children.push_back(condition()); n->children.push_back(block()); finish(*n); return n;
-        }
-        if (accept(TT::KW_DO)) {
-            auto n = node(NodeType::DoWhile, start); n->children.push_back(block());
-            expect(TT::KW_WHILE, "while"); n->children.push_back(condition());
-            expect(TT::SEMI, "';'"); finish(*n); return n;
         }
         if (accept(TT::KW_FOR)) {
             auto n = node(NodeType::For, start); expect(TT::LPAREN, "'('");
@@ -510,20 +473,14 @@ class Parser {
             n->children.push_back(at(TT::RPAREN) ? node(NodeType::Empty, peek()) : expression());
             expect(TT::RPAREN, "')'"); n->children.push_back(block()); finish(*n); return n;
         }
-        if (accept(TT::KW_CASE) || accept(TT::KW_DEFAULT)) {
-            auto n = node(start.type == TT::KW_CASE ? NodeType::Case : NodeType::Default, start);
-            if (start.type == TT::KW_CASE) n->children.push_back(expression(3));
-            expect(TT::COLON, "':'"); n->children.push_back(statement()); finish(*n); return n;
-        }
         if (accept(TT::KW_RETURN)) {
             auto n = node(NodeType::Return, start);
             if (!at(TT::SEMI)) n->children.push_back(expression());
             expect(TT::SEMI, "';'"); finish(*n); return n;
         }
-        if (accept(TT::KW_BREAK) || accept(TT::KW_CONTINUE) || accept(TT::KW_GOTO)) {
+        if (accept(TT::KW_BREAK) || accept(TT::KW_CONTINUE)) {
             auto n = node(start.type == TT::KW_BREAK ? NodeType::Break :
-                start.type == TT::KW_CONTINUE ? NodeType::Continue : NodeType::Goto, start);
-            if (start.type == TT::KW_GOTO) n->name = expect(TT::ID, "标签名字").lexeme;
+                NodeType::Continue, start);
             expect(TT::SEMI, "';'"); finish(*n); return n;
         }
         auto n = node(NodeType::ExprStmt, start); n->children.push_back(expression());
@@ -622,7 +579,6 @@ class Parser {
         Node n;
         switch (start.type) {
         case TT::ID:
-            if (alias(start.lexeme)) fail("类型别名不能作为表达式", "PARSE_TYPE_NAME");
             n = node(NodeType::Identifier, take(), start.lexeme); break;
         case TT::INT_LITERAL: n = node(NodeType::IntLiteral, take(), start.lexeme); break;
         case TT::FLOAT_LITERAL: n = node(NodeType::FloatLiteral, take(), start.lexeme); break;
@@ -674,12 +630,11 @@ public:
     ParseResult run() {
         auto root = node(NodeType::Program, peek());
         while (!at(TT::END_OF_FILE) && !stopped()) {
-            const auto before = pos; const auto saved_names = names;
+            const auto before = pos;
             try {
                 auto declarations = declaration(true);
                 for (auto& d : declarations) root->children.push_back(std::move(d));
             } catch (const ParseFailure&) {
-                names = saved_names;
                 if (!stopped()) recover(before, true);
             }
         }

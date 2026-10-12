@@ -61,7 +61,7 @@ bool compare(const TypePtr& left, const TypePtr& right, std::vector<TypePair>& p
     path.emplace_back(left, right);
     bool equal = false;
     switch (left->kind) {
-    case TypeKind::Unknown: case TypeKind::Error: case TypeKind::Named:
+    case TypeKind::Unknown: case TypeKind::Error:
         break;
     case TypeKind::Address:
         equal = compare(left->base, right->base, path);
@@ -231,11 +231,8 @@ MaybeValue<SymbolId> SymbolTable::insert(SymbolEntry entry) {
     const auto found = names.find(entry.name);
     if (found != names.end()) {
         auto& previous = data_.symbols[found->second];
-        const bool linkage_conflict =
-            (entry.storage == StorageClass::Static && previous.storage != StorageClass::Static) ||
-            (entry.storage == StorageClass::Extern && previous.storage == StorageClass::Static);
         if (previous.kind == SymbolKind::Function && entry.kind == SymbolKind::Function &&
-            same_type(previous.type, entry.type) && !linkage_conflict &&
+            same_type(previous.type, entry.type) &&
             !(previous.is_defined && entry.is_defined) &&
             !(previous.builtin != BuiltinKind::None && entry.is_defined) &&
             (entry.builtin == BuiltinKind::None || entry.builtin == previous.builtin)) {
@@ -268,38 +265,18 @@ MaybeValue<SymbolId> SymbolTable::lookup(const std::string& name) const {
 }
 
 MaybeValue<SymbolId> SymbolTable::declare_object(SymbolEntry entry) {
-    const auto scope = current_scope();
-    if (scope != 0 && entry.storage != StorageClass::Extern) return insert(std::move(entry));
-    auto& global = data_.scopes[0].symbols;
-    const auto found = global.find(entry.name);
-    SymbolId id;
-    if (found != global.end()) {
-        auto& previous = data_.symbols[found->second];
-        if (!object_kind(previous.kind) || !same_type(previous.type, entry.type) ||
-            (previous.is_defined && entry.is_defined) ||
-            (entry.storage == StorageClass::Static && previous.storage != StorageClass::Static) ||
-            (previous.storage == StorageClass::Static && entry.storage == StorageClass::None)) {
-            diagnostics_.report(Level::Error, entry.range, "对象声明类型、链接或定义冲突：" + entry.name, "SYM_DECL_CONFLICT", {previous.range}); return emptyValue;
-        }
-        previous.is_defined = previous.is_defined || entry.is_defined;
-        if (entry.storage != StorageClass::Extern) previous.storage = entry.storage;
-        id = previous.id;
-    } else {
-        // 暂时切到全局登记，之后恢复调用者的活动作用域。
-        data_.active_scopes.push_back(0);
-        const auto created = insert(std::move(entry));
-        data_.active_scopes.pop_back();
-        if (!created) return emptyValue;
-        id = *created;
+    if (current_scope() != 0) return insert(std::move(entry));
+    const auto found = lookup_current(entry.name);
+    if (!found) return insert(std::move(entry));
+    auto& previous = data_.symbols[*found];
+    if (!object_kind(previous.kind) || !object_kind(entry.kind) ||
+        !same_type(previous.type, entry.type) || (previous.is_defined && entry.is_defined)) {
+        diagnostics_.report(Level::Error, entry.range, "全局对象声明类型或定义冲突：" + entry.name,
+                            "SYM_DECL_CONFLICT", {previous.range});
+        return emptyValue;
     }
-    if (scope != 0) {
-        const auto local = data_.scopes[scope].symbols.find(data_.symbols[id].name);
-        if (local != data_.scopes[scope].symbols.end() && local->second != id) {
-            diagnostics_.report(Level::Error, data_.symbols[id].range, "extern 与本层名字冲突", "SYM_DECL_CONFLICT"); return emptyValue;
-        }
-        data_.scopes[scope].symbols[data_.symbols[id].name] = id;
-    }
-    return id;
+    previous.is_defined = previous.is_defined || entry.is_defined;
+    return previous.id;
 }
 
 MaybeValue<SymbolId> SymbolTable::lookup_current(const std::string& name) const {
@@ -439,7 +416,7 @@ bool register_builtins(SymbolTable& table) {
             const auto* entry = table.symbol(*id);
             if (entry->kind != SymbolKind::Function ||
                 (entry->builtin != BuiltinKind::None && entry->builtin != builtin.second) ||
-                entry->storage == StorageClass::Static || entry->is_defined ||
+                entry->is_defined ||
                 !same_type(entry->type, function)) {
                 table.diagnostics_.report(Level::Error, entry->range,
                                           "内建函数名字已被占用：" + entry->name,
@@ -489,15 +466,7 @@ private:
     TypePtr return_type_ = nullptr; // 当前函数的返回类型。
     std::size_t loop_depth_ = 0; // 当前所在的循环层数。
     std::size_t depth_ = 0; // 防止过深的语法树耗尽调用栈。
-    struct SwitchContext {
-        std::unordered_set<long long> values; // 已使用的 case 常量。
-        bool has_default = false; // 是否已有 default。
-    };
-    std::vector<SwitchContext> switches_; // 当前嵌套的 switch。
-    std::unordered_map<std::string, SourceRange> labels_; // 当前函数的标签名。
-    std::vector<std::pair<std::string, SourceRange>> gotos_; // 当前函数待检查的 goto。
     std::vector<std::pair<SymbolId, SourceRange>> calls_; // 调用过的普通函数。
-    std::vector<std::pair<SymbolId, SourceRange>> object_uses_; // 使用过的外部对象，结束时检查是否有本文件定义。
 
     void error(ASTNode& node, const std::string& message, const std::string& code = "SEM_INVALID") {
         diagnostics_.report(Level::Error, node.range, message, code);
@@ -535,15 +504,7 @@ private:
         if (!source || depth > 128) { error(node, "声明类型为空或嵌套过深", "SEM_DECL_TYPE"); return detail::type(TypeKind::Error); }
         if (source->kind == TypeKind::Address) { error(node, "源码不能声明内部地址类型", "SEM_POINTER_REMOVED"); return detail::type(TypeKind::Error); }
         auto result = make_type_info(*source);
-        if (source->kind == TypeKind::Named) {
-            const auto id = table_.lookup(source->name);
-            const auto* alias = id ? table_.symbol(*id) : nullptr;
-            if (!alias || alias->kind != SymbolKind::Typedef) {
-                error(node, "类型别名尚未声明：" + source->name, "SEM_TYPEDEF"); return detail::type(TypeKind::Error);
-            }
-            result = make_type_info(*alias->type);
-            result->is_const = result->is_const || source->is_const;
-        } else if ((source->kind == TypeKind::Struct)) {
+        if (source->kind == TypeKind::Struct) {
             const auto id = table_.lookup_tag(source->name);
             const auto record_id = source->record_id == invalid_id && id ? *id : source->record_id;
             const auto* record = table_.record(record_id);
@@ -577,22 +538,9 @@ private:
     // 数组传参和字符串输入输出使用首元素地址；源码不提供指针类型。
     void decay(ASTNode*& node) {
         if (!node->type || node->type->kind != TypeKind::Array) return;
-        if (node->kind == NodeType::Identifier && table_.symbol(node->symbol_id)->storage == StorageClass::Register) {
-            error(*node, "register 数组不能转成地址", "SEM_ADDRESS"); return;
-        }
         auto element = make_type_info(*node->type->base);
         element->is_const = element->is_const || node->type->is_const;
         convert(node, detail::address_type(element));
-    }
-
-    void typedef_declaration(ASTNode& node) {
-        if (!shape(node, 0, 0)) return;
-        node.type = resolve(node.declared_type, node);
-        if (!valid_expression(node)) return;
-        SymbolEntry entry; entry.name = node.name; entry.kind = SymbolKind::Typedef;
-        entry.type = node.type; entry.range = node.range; entry.storage = StorageClass::Typedef;
-        const auto id = table_.insert(std::move(entry));
-        if (id) node.symbol_id = *id;
     }
 
     void record_definition(ASTNode& node) {
@@ -672,10 +620,10 @@ private:
             return true;
         if (node.kind == NodeType::Identifier && node.category == ValueCategory::Function) return true;
         if (node.kind == NodeType::UnaryOp && node.name == "&" && node.children.size() == 1)
-            return static_address(*node.children[0]);
+            return global_address(*node.children[0]);
         if (node.kind == NodeType::ImplicitCast && node.type && node.type->kind == TypeKind::Address &&
             node.children.size() == 1 && node.children[0]->type->kind == TypeKind::Array)
-            return static_address(*node.children[0]);
+            return global_address(*node.children[0]);
         if (node.kind != NodeType::BinaryOp && node.kind != NodeType::Cast && node.kind != NodeType::ImplicitCast &&
             !(node.kind == NodeType::UnaryOp && (node.name == "+" || node.name == "-" || node.name == "!" || node.name == "~"))) return false;
         for (const auto& child : node.children) if (!child || !constant_initializer(*child)) return false;
@@ -683,16 +631,16 @@ private:
     }
 
     // 全局初始化只接受全局对象及其固定下标、固定成员的地址。
-    bool static_address(const ASTNode& node) const {
+    bool global_address(const ASTNode& node) const {
         if (node.kind == NodeType::StringLiteral) return true;
         if (node.kind == NodeType::Identifier) {
             const auto* entry = table_.symbol(node.symbol_id);
-            return entry && (entry->scope == 0 || entry->storage == StorageClass::Static);
+            return entry && entry->scope == 0;
         }
         if (node.kind == NodeType::MemberAccess && node.children.size() == 1)
-            return static_address(*node.children[0]);
+            return global_address(*node.children[0]);
         if (node.kind == NodeType::ArrayAccess && node.children.size() == 2)
-            return static_address(*node.children[0]) && detail::integer_constant(*node.children[1]).has_value();
+            return global_address(*node.children[0]) && detail::integer_constant(*node.children[1]).has_value();
         return false;
     }
 
@@ -770,10 +718,8 @@ private:
         const auto id = table_.lookup(node.name);
         if (!id) { error(node, "名字尚未声明：" + node.name, "SEM_UNDECLARED"); return; }
         const auto* entry = table_.symbol(*id);
-        if (entry->kind == SymbolKind::Typedef) { error(node, "类型别名不能作为表达式使用", "SEM_TYPEDEF"); return; }
         node.symbol_id = *id;
         if (entry->kind == SymbolKind::Function && entry->builtin == BuiltinKind::None) calls_.push_back({*id, node.range});
-        if (entry->storage == StorageClass::Extern && entry->kind != SymbolKind::Function) object_uses_.push_back({*id, node.range});
         node.type = entry->type;
         node.category = entry->kind == SymbolKind::Function ? ValueCategory::Function : ValueCategory::LValue;
     }
@@ -834,9 +780,6 @@ private:
         if (!valid_expression(*child)) { node.type = detail::type(TypeKind::Error); return; }
         if (node.name == "&") {
             if (!address_allowed) { error(node, "& 只允许用在 scanf 的输入参数中", "SEM_ADDRESS"); return; }
-            if (child->kind == NodeType::Identifier && table_.symbol(child->symbol_id)->storage == StorageClass::Register) {
-                error(node, "register 对象不能取地址", "SEM_ADDRESS"); return;
-            }
             if ((child->category != ValueCategory::LValue && child->category != ValueCategory::Function) || child->type->kind == TypeKind::Void ||
                 (address_allowed && (!detail::numeric(child->type) || child->type->is_const))) {
                 error(node, "取地址需要对象左值；scanf 还需要可修改的数值对象", "SEM_ADDRESS"); return;
@@ -1034,25 +977,19 @@ private:
         }
         try { detail::layout(resolved, table_.data()); }
         catch (const std::runtime_error& exception) { error(node, exception.what(), "SEM_DECL_TYPE"); return; }
-        if (node.storage == StorageClass::Extern && !global && !node.children.empty()) { error(node, "块内 extern 不能初始化", "SEM_DECL_TYPE"); return; }
-        if (node.storage != StorageClass::None && node.storage != StorageClass::Static && node.storage != StorageClass::Extern && !( !global &&
-             (node.storage == StorageClass::Auto || node.storage == StorageClass::Register))) {
-            error(node, "变量存储类别尚未支持", "SEM_DECL_TYPE"); return;
-        }
         SymbolEntry entry;
         entry.name = node.name;
         entry.type = resolved;
         entry.kind = resolved->kind == TypeKind::Array ? SymbolKind::Array : SymbolKind::Variable;
         entry.range = node.range;
-        entry.storage = node.storage;
         entry.is_defined = !node.children.empty();
         const auto id = table_.declare_object(std::move(entry));
         if (!id) { node.type = detail::type(TypeKind::Error); return; }
         node.symbol_id = *id;
         node.type = table_.symbol(*id)->type;
         if (!node.children.empty()) {
-            initialize(node.children[0], node.type, global || node.storage == StorageClass::Static);
-        } else if (node.type->is_const && node.storage != StorageClass::Extern) error(node, "const 变量必须初始化", "SEM_CONST_INIT");
+            initialize(node.children[0], node.type, global);
+        } else if (node.type->is_const) error(node, "const 变量必须初始化", "SEM_CONST_INIT");
     }
 
     // 返回 true 表示所有路径都已经返回。
@@ -1077,17 +1014,6 @@ private:
             break;
         case NodeType::VarDecl: variable(node, false); break;
         case NodeType::StructDef: record_definition(node); break;
-        case NodeType::TypedefDecl: typedef_declaration(node); break;
-        case NodeType::Label:
-            if (shape(node, 1, 1)) {
-                if (node.name.empty() || !labels_.emplace(node.name, node.range).second)
-                    error(node, "函数内标签为空或重复", "SEM_LABEL");
-                returned = statement(*node.children[0]);
-            }
-            break;
-        case NodeType::Goto:
-            if (shape(node, 0, 0)) gotos_.push_back({node.name, node.range});
-            break;
         case NodeType::ExprStmt:
             if (shape(node, 1, 1)) expression(*node.children[0]);
             break;
@@ -1133,41 +1059,9 @@ private:
                 if (node.kind == NodeType::For) table_.exit_scope();
             }
             break;
-        case NodeType::DoWhile:
-            if (shape(node, 2, 2)) {
-                ++loop_depth_; statement(*node.children[0]); --loop_depth_;
-                require_condition(*node.children[1]);
-            }
-            break;
-        case NodeType::Switch:
-            if (shape(node, 2, 2)) {
-                expression(*node.children[0]);
-                if (valid_expression(*node.children[0]) && (!detail::numeric(node.children[0]->type) ||
-                    detail::floating(node.children[0]->type))) error(node, "switch 需要整型控制表达式", "SEM_SWITCH");
-                if (node.children[1]->kind != NodeType::Block) error(node, "switch 的第二个孩子必须是 Block", "SEM_SWITCH");
-                switches_.push_back({}); statement(*node.children[1]); switches_.pop_back();
-            }
-            break;
-        case NodeType::Case: case NodeType::Default:
-            if (shape(node, node.kind == NodeType::Case ? 2 : 1, node.kind == NodeType::Case ? 2 : 1)) {
-                if (switches_.empty()) { error(node, "case/default 只能位于 switch 中", "SEM_SWITCH"); break; }
-                if (node.kind == NodeType::Default) {
-                    if (switches_.back().has_default) error(node, "switch 中出现重复 default", "SEM_SWITCH_DUPLICATE");
-                    switches_.back().has_default = true;
-                } else {
-                    expression(*node.children[0]);
-                    const auto value = detail::integer_constant(*node.children[0]);
-                    if (!value) error(node, "case 必须是有效的整型常量表达式", "SEM_CASE");
-                    else if (!switches_.back().values.insert(*value).second) error(node, "switch 中出现重复 case 值", "SEM_SWITCH_DUPLICATE");
-                    else node.value = *value;
-                }
-                statement(*node.children.back());
-            }
-            break;
         case NodeType::Break: case NodeType::Continue:
-            if (shape(node, 0, 0) && loop_depth_ == 0 &&
-                (node.kind == NodeType::Continue || switches_.empty()))
-                error(node, "break 需要循环或 switch，continue 需要循环", "SEM_LOOP");
+            if (shape(node, 0, 0) && loop_depth_ == 0)
+                error(node, "break 和 continue 只能用在循环中", "SEM_LOOP");
             break;
         case NodeType::Empty: shape(node, 0, 0); break;
         default: error(node, "此语句节点尚未支持", "SEM_UNSUPPORTED"); break;
@@ -1193,7 +1087,7 @@ private:
         if (!declared || declared->kind != TypeKind::Function ||
             !(detail::numeric(declared->base) || (declared->base && (declared->base->kind == TypeKind::Void ||
               declared->base->kind == TypeKind::Struct))) ||
-            declared->variadic || (node.storage != StorageClass::None && node.storage != StorageClass::Static && node.storage != StorageClass::Extern) ||
+            declared->variadic ||
             (!declared->has_prototype && !declared->params.empty()) ||
             node.children.size() != declared->params.size() + (definition ? 1 : 0)) {
             error(node, "M1 函数类型或形参列表无效", "SEM_FUNCTION"); return;
@@ -1206,7 +1100,7 @@ private:
                 !(detail::numeric(declared->params[i]) || declared->params[i]->kind == TypeKind::Address ||
                   declared->params[i]->kind == TypeKind::Struct) ||
                 !same_type(detail::unqualified(parameter_type), declared->params[i]) ||
-                parameter.storage != StorageClass::None || (definition && parameter.name.empty())) {
+                (definition && parameter.name.empty())) {
                 error(node, "函数形参节点与签名不一致", "SEM_PARAMETER"); return;
             }
             parameter.type = parameter_type;
@@ -1220,7 +1114,6 @@ private:
         entry.kind = SymbolKind::Function;
         entry.type = normalized;
         entry.range = node.range;
-        entry.storage = node.storage;
         entry.is_defined = definition;
         const auto id = table_.insert(std::move(entry));
         if (!id) { node.type = detail::type(TypeKind::Error); return; }
@@ -1229,7 +1122,6 @@ private:
         if (!definition) return;
         node.scope_id = table_.enter_scope(ScopeKind::Function, node.range);
         return_type_ = normalized->base;
-        labels_.clear(); gotos_.clear();
         for (std::size_t i = 0; i < declared->params.size(); ++i) {
             auto& parameter = *node.children[i];
             parameter.scope_id = node.scope_id;
@@ -1245,8 +1137,6 @@ private:
             else parameter.type = detail::type(TypeKind::Error);
         }
         const bool returned = statement(*node.children.back(), true);
-        for (const auto& jump : gotos_) if (!labels_.count(jump.first))
-            diagnostics_.report(Level::Error, jump.second, "goto 的目标标签不存在：" + jump.first, "SEM_GOTO");
         if (!returned && return_type_->kind != TypeKind::Void)
             error(node, "非 void 函数必须保证所有路径返回；请在末尾添加 return", "SEM_MISSING_RETURN");
         table_.exit_scope();
@@ -1267,7 +1157,6 @@ public:
                 child->scope_id = 0;
                 if (child->kind == NodeType::VarDecl) variable(*child, true);
                 else if (child->kind == NodeType::StructDef) record_definition(*child);
-                else if (child->kind == NodeType::TypedefDecl) typedef_declaration(*child);
                 else if (child->kind == NodeType::FunctionDecl || child->kind == NodeType::FunctionDef) function(*child);
                 else error(*child, "M1 顶层仅支持变量和函数声明", "SEM_UNSUPPORTED");
             }
@@ -1275,11 +1164,7 @@ public:
                 if (!table_.symbol(call.first)->is_defined)
                     diagnostics_.report(Level::Error, call.second, "被调用函数没有定义：" + table_.symbol(call.first)->name, "SEM_UNDEFINED_FUNCTION");
             }
-            for (const auto& use : object_uses_) {
-                const auto* entry = table_.symbol(use.first);
-                if (entry->storage == StorageClass::Extern && !entry->is_defined)
-                    diagnostics_.report(Level::Error, use.second, "外部对象没有本文件定义：" + entry->name, "SEM_UNDEFINED_OBJECT");
-            }
+
         }
         SemanticResult result;
         result.symbols = std::move(table_).release();

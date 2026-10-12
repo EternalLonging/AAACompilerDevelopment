@@ -6,7 +6,7 @@
 
 普通规则的 NFA/DFA 生成器和 C++ 扫描器已经实现，见 [frontend.md](frontend.md)。词法接受某种拼写，不代表语法、语义和解释器已经实现对应功能。
 
-这里的“正则宏”只是规则文件中的模式引用（如 `{DIGIT}`），不是源程序的 `#define`。源语言宏预处理、union、enum 已移除；union、enum 仅作为保留字识别并由语法阶段拒绝。实验设计目录中的旧图和文法是历史草案，当前 DFA 以 `src/lexer_dfa.hpp` 和规则文件为准。
+这里的“正则宏”只是规则文件中的模式引用（如 `{DIGIT}`），不是源程序的 `#define`。源语言宏预处理、union、enum 已移除；union、enum 及本轮移除的存储类别、typedef、do-while、switch/case/default、goto 仅作为保留字识别并由语法阶段拒绝。实验设计目录中的旧图和文法是历史草案，当前 DFA 以 `src/lexer_dfa.hpp` 和规则文件为准。
 
 ## 1. 规则文件与正则语法
 

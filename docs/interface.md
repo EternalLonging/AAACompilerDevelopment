@@ -8,11 +8,11 @@ v1.1 补齐模块函数合同，见 [modules.md](modules.md)。数据头文件�
 
 v1.2 增加程序共享的常量池：数据定义位于 interface.hpp，登记接口位于 constant_pool.hpp，登记/去重实现位于 src/backend.cpp。详细规则见 [constant-pool.md](constant-pool.md)。IRProgram 现在拥有 constants，正式 IR 的值常量统一使用 `%c<ID>` 引用。
 
-历史 v1.3 补充聚合寻址、数组传参和静态存储合同；本次 v1.5 删除源码指针功能并保留 AST 孩子顺序。IRProgram.globals 扩展为静态存储对象清单，包含 static 局部对象；符号的词法作用域保持不变。
+当前精简版删除源语言指针、存储类别、typedef、union、enum 和扩展控制语句，保留现有节点的孩子顺序。IRProgram.globals 只包含全局对象；ASTNode 和 SymbolEntry 不再保存 storage。内部跳转标号继续用于 if 和循环。
 
 v1.4 将 TypePtr 改为普通指针 `const TypeInfo*`，类型对象由 TypeArena 统一创建和释放。CompilationResult 新增 types 成员保存本次编译的类型；AST 孩子顺序不变。当前版本增加 NodeArena，AST 子节点使用普通指针并由 ParseResult.arena 统一释放；ConstantValue 和运行时 Value 均使用显式枚举标签。
 
-需求文档中曾提到“已冻结”的 interface.md，但项目此前没有该文件。本版首次落地这些定义，并明确解决旧资料中的歧义。新增枚举代表预留表达能力，不代表已支持该语法；M1/M2/M3/M4 的功能范围仍以 README 为准。C89/C99 的最终验收口径另行统一。
+需求文档中曾提到“已冻结”的 interface.md，但项目此前没有该文件。本版首次落地这些定义，并明确解决旧资料中的歧义。新增枚举代表预留表达能力，不代表已支持该语法；M1/M2/M3/M4 的功能范围仍以 README 为准。当前教学语言范围以 [language-scope.md](language-scope.md) 为准。
 
 ## 1. 各模块使用哪些结构体
 
@@ -79,15 +79,14 @@ Token / Diagnostic 保留需求资料中的 `line`、`col` 简便字段，它们
 | Address | base=内部地址对应的数据类型 | 数组传参、输入输出；源码不能声明 |
 | Array | base=元素类型，array_length=当前维长度 | int[3][4]：外层 3，base 是长度 4 的数组 |
 | Function | base=返回类型，params、variadic、has_prototype | int(int, float)、printf 可变参数签名 |
-| Struct / Union / Enum | name=标签拼写，record_id=解析后的身份 | struct Node |
-| Named | name=待解析的 typedef 名字 | Size |
+| Struct | name=标签拼写，record_id=解析后的身份 | struct Node |
 | Unknown / Error | 无 | 尚未确定 / 已判定非法 |
 
 每层类型独立保存 const；数组递归保存各维元素类型和长度。array_length 为空表示尚未确定，不表示 0。volatile 字段已删除。
 
 Function.params 保存形参类型，Call.children 保存函数名字和实参。只允许直接函数调用。printf/scanf 内建签名使用内部 Address 表示字符数据，builtin 标记负责专用格式检查。f() 与 f(void) 用 has_prototype 区分。
 
-解析阶段创建声明中写出的类型：`struct T` 可先只有 name，record_id 为 invalid_id；typedef 名可先为 Named。语义按该声明的作用域解析，递归生成新的、已解析的 TypeInfo，写入 AST.type / SymbolEntry.type。禁止修改已有共享类型，更不能仅按标签字符串全局合并类型。后续重声明处理必须复用同一个记录身份。
+解析阶段创建声明中写出的类型：`struct T` 可先只有 name，record_id 为 invalid_id。语义按该声明的作用域解析，递归生成新的、已解析的 TypeInfo，写入 AST.type / SymbolEntry.type。禁止修改已有共享类型，更不能仅按标签字符串全局合并类型。后续重声明处理必须复用同一个记录身份。
 
 M1/M2 的数组长度可直接存确定的整型长度。尚未实现的常量表达式数组界限、位域、复杂初始化等需要在相应里程碑增加语法信息；本数据基线不等于已经定义了完整 C 的全部语法。
 
@@ -102,7 +101,6 @@ M1/M2 的数组长度可直接存确定的整型长度。尚未实现的常量�
 | declared_type | 声明/显式转换中写出的类型，可含未解析标签 | 语法 |
 | type | 语义确定的类型；分析前为空，失败为 Error | 语义 |
 | category | None / LValue / RValue / Function | 语义 |
-| storage | static / extern 等存储类别，未指定为 None | 语法 |
 | symbol_id | 绑定的变量、形参或函数编号 | 语义 |
 | scope_id | 此节点所属作用域编号 | 语义 |
 | record_id / member_index | 记录身份 / 成员访问的成员下标 | 语义 |
@@ -135,19 +133,14 @@ M1/M2 的数组长度可直接存确定的整型长度。尚未实现的常量�
 | ImplicitCast / Cast | 目标类型；ImplicitCast.type 为目标类型 | `[被转换表达式]` |
 | ArrayAccess | — | `[数组表达式, 下标表达式]`；多维用嵌套节点 |
 | MemberAccess | 成员名 | `[对象表达式]`；只支持 `s.m`，拒绝 `p->m` |
-| DoWhile | — | `[循环体, 条件]` |
-| Switch | — | `[控制表达式, 循环体 Block]` |
-| Case / Default | — | Case 为 `[常量表达式, 所属语句]`，Default 为 `[所属语句]` |
 | Conditional | — | `[条件, 真值表达式, 假值表达式]` |
 | Sizeof | 对类型求值时 declared_type 非空 | 对表达式为 `[表达式]`；对类型无孩子 |
-| TypedefDecl | 别名；被命名的 declared_type | 无 |
 | InitList | — | 初始化项列表，顺序保存；指定初始化为后续扩展 |
-| Label / Goto | 标签名 | Label 为 `[所属语句]`；Goto 无孩子 |
 | Identifier | 名字 | 无 |
 | IntLiteral / FloatLiteral / CharLiteral / StringLiteral | 含引号、转义的原文 | 无 |
 | Empty / Break / Continue / Error | — | 无 |
 
-Case/Default 的链可表示连续标签，Block 表示其后的顺序语句。Break/Continue 的目标由 IR 控制上下文维护。C 的 goto 标签属于每函数独立命名空间，后续实现不能放进普通符号表或 struct 标签表。
+Break/Continue 的目标由 IR 的循环上下文维护，只允许位于循环中。内部跳转标号仍用于 if 和循环，不是源程序可写的语句标签。
 
 Function 节点的 ParamDecl 类型和 declared_type.params 必须一致。无名原型形参不进符号表；定义中每个具名形参都登记。函数体最外层 Block 与形参共享 Function 作用域，因此 `int f(int x){int x;}` 应报重复声明；只有更内层的 Block 才可遮蔽 x。
 
@@ -171,7 +164,7 @@ ExprStmt
 
 SymbolId / ScopeId / RecordId 是各自 vector 的下标，从 0 分配；invalid_id 表示未绑定。编号不可重用；容器只追加，不删除或排序。vector 扩容可能使元素地址失效，因此 AST 存编号，不存条目指针。
 
-`SymbolEntry` 保存 id、name、kind、type、scope、行列、范围、storage、is_defined、builtin 和可选 offset。函数 type 是完整 Function 类型，返回类型在 type->base，形参在 type->params，不再额外存一份容易不同步的 params。函数原型和定义指向同一 SymbolId；同一作用域的对象重声明是否合法，按里程碑的语言规则检查，不能只看到同名就覆盖条目。
+`SymbolEntry` 保存 id、name、kind、type、scope、行列、范围、is_defined、builtin 和可选 offset。函数 type 是完整 Function 类型，返回类型在 type->base，形参在 type->params，不再额外存一份容易不同步的 params。函数原型和定义指向同一 SymbolId；同一作用域的对象重声明是否合法，按里程碑的语言规则检查，不能只看到同名就覆盖条目。
 
 `MemberEntry{name, type, offset, range}` 保存成员声明顺序与字节偏移。`StructEntry` 保存 id、tag、kind、scope、is_complete、members、size、alignment 和源码范围。
 
@@ -181,7 +174,7 @@ SymbolId / ScopeId / RecordId 是各自 vector 的下标，从 0 分配；invali
 
 `ScopeEntry` 内两张映射：
 
-- symbols：普通名字 → SymbolId（变量、函数、typedef共享普通命名空间）。
+- symbols：普通名字 → SymbolId（变量、形参、数组和函数共享普通命名空间）。
 - tags：标签名字 → RecordId（struct 使用独立的标签命名空间）。
 
 成员名字只在各记录的 members 中查询。`struct node {...}; int node;` 合法，同一层不能重复定义同名结构体。标签也必须按作用域查询，不能只有一张全局 tag 表；这能处理局部标签遮蔽。
@@ -194,7 +187,7 @@ SymbolId / ScopeId / RecordId 是各自 vector 的下标，从 0 分配；invali
 4. 退出时仅弹 active_scopes，不删除作用域、符号、标签或成员。
 5. AST 上保留 scope_id 和 symbol_id；IR 通过编号读取已绑定条目，不按名字重新查找。
 
-作用域进入/退出由 **语义遍历**统一驱动，解析器负责构造语法结构。M3 typedef 消歧若需解析期环境，应使用独立的解析环境，不破坏语义阶段的持久数据。
+作用域进入/退出由 **语义遍历**统一驱动，解析器负责构造语法结构。typedef 已删除，解析器不再维护类型别名环境。
 
 ## 7. 四元式与解释器交接
 
@@ -240,7 +233,7 @@ M1 指令合同：
 
 已实现 zero、load、store、indexaddr、memberaddr、tempaddr、decay 和 offsetaddr，服务数组、成员及输入输出。旧指针运算和间接调用指令已删除，详见 [backend-extensions.md](backend-extensions.md)。
 
-`IRFunction` 按函数保存 symbol_id、形参 SymbolId、临时量类型、四元式和逐指令源码范围。locations.size() 必须等于 quads.size()。`IRProgram` 保存共享常量池、静态存储对象、进入 main 前的初始化序列及其位置/临时量、函数集合、入口 main 的 SymbolId。入口未找到时可以查看 IR，执行时必须诊断。
+`IRFunction` 按函数保存 symbol_id、形参 SymbolId、临时量类型、四元式和逐指令源码范围。locations.size() 必须等于 quads.size()。`IRProgram` 保存共享常量池、全局对象、进入 main 前的初始化序列及其位置/临时量、函数集合、入口 main 的 SymbolId。入口未找到时可以查看 IR，执行时必须诊断。
 
 展示层可把 `%sID` 渲染成人名，同时附编号/作用域；导出可执行 IR 时必须保留唯一名字、常量池、符号/类型表、函数分组及参数信息，单独一张人类可读四元式表不等于完整执行数据。
 
