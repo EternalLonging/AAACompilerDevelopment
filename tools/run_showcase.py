@@ -25,8 +25,8 @@ def main():
     summary.write_text("本轮演示尚未完成，不能使用上次的成功摘要作为本次结果。\n", encoding="utf-8")
     completed = []
 
-    def execute(name, source, mode, *, data="", expected=None, contains=(), errors=(), raw=False, code=0):
-        command = [str(compiler), mode] + (["--raw"] if raw else []) + [str(DEMO / source)]
+    def execute(name, source, mode, *, data="", expected=None, contains=(), errors=(), code=0):
+        command = [str(compiler), mode] + ([]) + [str(DEMO / source)]
         result = subprocess.run(command, input=data.encode("utf-8"), capture_output=True, timeout=20)
         out = result.stdout.decode("utf-8").replace("\r\n", "\n")
         err = result.stderr.decode("utf-8").replace("\r\n", "\n")
@@ -53,16 +53,16 @@ def main():
             ("check", ("语义检查通过",)),
             ("ir", ("常量池", "call", "ret")),
         ]:
-            execute("01_" + mode, "01_pipeline.c", mode, contains=texts, raw=mode == "tokens")
+            execute("01_" + mode, "01_pipeline.c", mode, contains=texts)
         execute("01_run", "01_pipeline.c", "run", data="5\n", expected="sum = 15\n")
-        execute("02_run", "02_records_macros.c", "run",
+        execute("02_run", "02_records.c", "run",
                 expected="Alice: 90\nBob: 55\nChen: 80\npassed = 2\naverage = 75.000000\n")
-        execute("02_symbols", "02_records_macros.c", "symbols", contains=("Student", "name", "score"))
+        execute("02_symbols", "02_records.c", "symbols", contains=("Student", "name", "score"))
         execute("03_run", "03_callback_static.c", "run", expected="counter = 1 2\ntwice = 12\n")
         execute("04_semantic_error", "04_semantic_error.c", "run", expected="", code=1,
-                errors=("[语义/错误]", "SEM_UNDECLARED", "04_semantic_error.c:3:1"))
+                errors=("[语义/错误]", "SEM_UNDECLARED", "04_semantic_error.c:3:5"))
         execute("05_runtime_error", "05_runtime_error.c", "run", expected="", code=1,
-                errors=("[运行/错误]", "越界", "05_runtime_error.c:5:1"))
+                errors=("[运行/错误]", "越界", "05_runtime_error.c:5:20"))
     except (AssertionError, OSError, UnicodeError, subprocess.TimeoutExpired) as error:
         summary.write_text("本轮演示失败：" + str(error) + "\n", encoding="utf-8")
         print("演示检查失败：" + str(error))
@@ -71,7 +71,7 @@ def main():
     summary.write_text(
         f"演示检查 {len(completed)}/{len(completed)} 通过。\n"
         "01 输入：5；正常输出：sum = 15。\n"
-        "02 展示数组、记录和宏。\n"
+        "02 展示数组和记录。\n"
         "03 展示直接函数调用与静态存储。\n"
         "04、05 是预期失败的错误演示，脚本已核对错误阶段。\n"
         "文件 .txt 保存阶段结果，.diagnostics.txt 保存诊断。\n", encoding="utf-8")

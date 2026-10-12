@@ -33,7 +33,7 @@ public:
     // 设置对象的存储偏移。成功返回 true，失败返回 false 并报错。
     bool set_symbol_offset(SymbolId id, std::size_t offset);
 
-    // 登记结构体、联合体或枚举标签。返回记录编号，冲突时返回空值。
+    // 登记结构体标签。返回记录编号，冲突时返回空值。
     MaybeValue<RecordId> declare_record(const std::string& tag,
                                           RecordKind kind,
                                           const SourceRange& range);

@@ -10,7 +10,7 @@ static void require(bool value, const char* message) { if (!value) throw std::ru
 static TypePtr type(TypeKind kind, bool unsigned_type = false) {
     auto result = make_type_info(); result->kind = kind; result->is_unsigned = unsigned_type; return result;
 }
-static TypePtr record(const std::string& name, TypeKind kind = TypeKind::Union) { auto result = make_type_info(); result->kind = kind; result->name = name; return result; }
+static TypePtr record(const std::string& name, TypeKind kind = TypeKind::Struct) { auto result = make_type_info(); result->kind = kind; result->name = name; return result; }
 static TypePtr signature(TypePtr result, std::vector<TypePtr> params = {}) { auto value = make_type_info(); value->kind = TypeKind::Function; value->base = std::move(result); value->params = std::move(params); return value; }
 static Node unary(const std::string& op, Node value) { return tree(NodeType::UnaryOp, op, std::move(value)); }
 static Node cast(TypePtr target, Node value) { auto result = tree(NodeType::Cast, "", std::move(value)); result->declared_type = std::move(target); return result; }
@@ -53,21 +53,6 @@ static void numeric_types() {
     auto size = node(NodeType::Sizeof); size->declared_type = type(TypeKind::Double);
     check(main_program(block(ret(std::move(size)))), 8);
     rejects(main_program(block(ret(node(NodeType::IntLiteral, "4294967296U")))), "SEM_LITERAL");
-}
-
-static void unions() {
-    auto ast = program(tree(NodeType::UnionDef, "Data", member("n", type(TypeKind::Int)), member("bytes", array(type(TypeKind::Char, true), 4))));
-    auto body = block();
-    body->children.push_back(object("data", record("Data"), list(node(NodeType::IntLiteral, "0x12345678"))));
-    body->children.push_back(object("copy", record("Data")));
-    body->children.push_back(statement(set(id("copy"), id("data"))));
-    body->children.push_back(statement(set(index(field(id("data"), "bytes"), integer(0)), integer(0))));
-    body->children.push_back(ret(cast(type(TypeKind::Int), index(field(id("copy"), "bytes"), integer(0)))));
-    ast->children.push_back(function("main", TypeKind::Int, std::move(body)));
-    check(std::move(ast), 120);
-    auto float_union = program(tree(NodeType::UnionDef, "U", member("f", type(TypeKind::Float)), member("n", type(TypeKind::Int))));
-    auto use = block(object("u", record("U"), list(floating("1.0"))), ret(binary("==", field(id("u"), "n"), node(NodeType::IntLiteral, "1065353216"))));
-    float_union->children.push_back(function("main", TypeKind::Int, std::move(use))); check(std::move(float_union), 1);
 }
 
 static void external_objects() {
@@ -142,6 +127,6 @@ static void strings() {
 int main() {
     minic::TypeArena types; // 手工类型及语法树借用的内存，保留到示例/测试结束。
     minic::TypeArenaScope type_scope(types);
-    try { numeric_types(); unions(); external_objects(); strings(); aggregate_calls(); errors_and_boundaries(); std::cout << "扩展数值、联合体、外部声明、聚合调用与字符串：6 组测试全部通过\n"; return 0; }
+    try { numeric_types(); external_objects(); strings(); aggregate_calls(); errors_and_boundaries(); std::cout << "扩展数值、外部声明、聚合调用与字符串：5 组测试全部通过\n"; return 0; }
     catch (const std::exception& error) { std::cerr << "测试失败：" << error.what() << '\n'; return 1; }
 }

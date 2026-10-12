@@ -14,8 +14,8 @@ static ParseResult syntax(const std::string& source) {
     return parse(lexical.tokens);
 }
 static void execute(const std::string& source, int expected, const std::string& output = "",
-                    const std::string& input = "", bool preprocessing = false) {
-    auto compiled = preprocessing ? compile_preprocessed(source, "test.c") : compile(source, "test.c");
+                    const std::string& input = "") {
+    auto compiled = compile(source, "test.c");
     if (!compiled.ok()) { print_diagnostics(compiled.diagnostics, std::cerr); throw std::runtime_error("真实源码编译失败：" + source); }
     std::istringstream in(input); std::ostringstream out;
     auto execution = run(compiled.ir->program, compiled.semantic->symbols, in, out);
@@ -52,7 +52,7 @@ int main() {
                 locations.tokens[2].line == 3 && locations.tokens[2].range.begin.offset == 13, "CRLF 和注释位置");
         auto utf8 = lex("\"中文\" x");
         require(utf8.tokens[1].col == 10 && utf8.tokens[1].range.begin.offset == 9, "UTF-8 字节列");
-        for (const auto& source : {"08", "0x", "1UU", "1e+", "0x1.fp3", "\"\\q\"", "''", "'\\x'", "/* unfinished", "\"unfinished\nint x;", "@"}) {
+        for (const auto& source : {"08", "0x", "1UU", "1e+", "0x1.fp3", "\"\\q\"", "''", "'\\x'", "/* unfinished", "\"unfinished\nint x;", "@", "#"}) {
             auto bad = lex(source);
             require(!bad.ok() && bad.tokens.back().type == TokenType::END_OF_FILE, "词法错误恢复");
         }
@@ -93,6 +93,24 @@ int main() {
         rejects("typedef struct S{int x;};", "PARSE_DECLARATOR");
         rejects("struct S{struct T{int x;} t;};", "PARSE_MEMBER");
         rejects("int f(a) int a; {return a;}");
+        for (const auto* source : {
+            "union U{int x;};", "enum E{A,B};",
+            "int main(void){union U{int x;} u;return 0;}",
+            "int main(void){enum E{A} e;return 0;}",
+            "typedef union U{int x;} U;", "typedef enum E{A} E;",
+            "struct S{union U u;};", "struct S{enum E e;};",
+            "int main(void){return sizeof(union U);}",
+            "int main(void){return (enum E)1;}"
+        }) rejects(source, "PARSE_RECORD_REMOVED");
+        for (const auto* source : {
+            "#define N 2\nint main(void){printf(\"SHOULD_NOT_RUN\");return N;}",
+            "#if 1\nint main(void){return 0;}\n#endif", "#include <stdio.h>"
+        }) {
+            auto rejected = compile(source);
+            require(!rejected.ok() && !rejected.syntax && !rejected.semantic && !rejected.ir,
+                    "宏和头文件在词法阶段拒绝，停止后续编译");
+        }
+        execute("int main(void){const int n=2;printf(\"#%d\",n);/* #define X 3 */return 0;}", 0, "#2");
         std::string many_errors = "int main(void){";
         for (int i = 0; i < 30; ++i) many_errors += "x=;";
         auto error_limit = syntax(many_errors + "}");
@@ -113,8 +131,6 @@ int main() {
         execute("int sum(int a[],int n){int i=0,s=0;for(i=0;i<n;i++){s+=a[i];}return s;} int main(void){int a[]={1,2,3}; return sum(a,3);}", 6);
         execute("struct S{char c;int x;}; int main(void){struct S s={'a',9}; s.x+=1; return s.x+sizeof(struct S);}", 18);
         execute("int main(void){struct {int x;} s={4};return s.x;}", 4);
-        execute("union U{int x;char c;}; int main(void){union U u={65};return u.c;}", 65);
-        execute("enum E{A=3,B,C=8};int main(void){enum E e=B;return e+C;}", 12);
         execute("typedef int T; int main(void){T x=2;T y=3;{int T=5; x+=T;}return (T)(x+y);}", 10);
         execute("typedef int T; int f(int T){return T+1;} int main(void){return f(4);}", 5);
         execute("typedef int T; int main(void){int x=0; T: x=3;return x;}", 3);
@@ -133,12 +149,9 @@ int main() {
         execute("int main(void){printf(\"a\" \"b\\n\");return 0;}", 0, "ab\n");
         execute("int main(void){char s[]=\"\\x4\" \"1\";return sizeof(s);}", 3);
         execute("int main(void){printf(\"a\\\"\" \"b\");return 0;}", 0, "a\"b");
-        execute("#define TWICE(x) ((x)+(x))\nint main(void){return TWICE(4);}\n", 8, "", "", true);
         execute("struct S{int x;};int main(void){int a[2]={0,0};struct S s={0};char text[8];scanf(\"%d%d%7s\",&a[1],&s.x,text);printf(\"%d %d %s\",a[1],s.x,text);return 0;}", 0, "3 4 abc", "3 4 abc");
         execute("int sum(int a[][2]){return a[0][1]+a[1][0];}int main(void){int a[2][2]={{1,2},{3,4}};return sum(a);}", 5);
         execute("int main(void){int x=1;x++;{int y=3;x+=y;}return x;}", 5);
-        auto headers = compile_preprocessed("#include \"defs.h\"\nint main(void){return 0;}", "main.c");
-        require(!headers.ok() && !headers.lexical, "头文件包含应在预处理阶段拒绝");
         auto address_error = compile("int main(void){int x=0;return &x;}");
         require(!address_error.ok() && address_error.semantic && !address_error.ir, "普通表达式不能取地址");
         auto function_value = compile("int f(void){return 1;}int main(void){f;return 0;}");

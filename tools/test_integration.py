@@ -11,7 +11,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = ROOT / "tests/integration"
-PHASES = {"Preprocess", "Lexer", "Parser", "Semantic", "IR", "Runtime"}
+PHASES = {"Lexer", "Parser", "Semantic", "IR", "Runtime"}
 sys.dont_write_bytecode = True
 
 def run(command, input=b"", timeout=20):
@@ -46,25 +46,6 @@ def load_cases():
     if listed != actual:
         raise ValueError("源码文件与清单不一致")
     return manifest["cases"]
-
-def prepare(cases, preprocessor):
-    spec = importlib.util.spec_from_file_location("fixture_lexer_rules", ROOT / "tools/check_lexer_patterns.py")
-    scanner = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(scanner)
-    for case in cases:
-        result = run([str(preprocessor), str(FIXTURES / case["source"])])
-        expected_pp_failure = case["expect"] == "reject" and case["phase"] == "Preprocess"
-        if expected_pp_failure:
-            if result.returncode != 1 or b"[fixture_phase=Preprocess]" not in result.stderr:
-                raise AssertionError(case["id"] + "：应在预处理阶段失败")
-            continue
-        if result.returncode:
-            raise AssertionError(case["id"] + "：预处理失败\n" + result.stderr.decode("utf-8", errors="replace"))
-        _, errors, _ = scanner.scan(result.stdout.decode("utf-8"))
-        expected_lex_failure = case["expect"] == "reject" and case["phase"] == "Lexer"
-        if bool(errors) != expected_lex_failure:
-            raise AssertionError(f"{case['id']}：词法规则检查不符 {errors}")
-    print(f"夹具准备检查通过：{len(cases)} 个用例的清单、预处理及词法规则符合预期；尚未验证正式语法/语义链路。")
 
 def reference(cases, gcc):
     count = 0
@@ -102,15 +83,12 @@ def integration(cases, compiler):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--preprocessor", type=Path, help="仅预处理的 integration_preprocess_driver")
     parser.add_argument("--reference-gcc", help="可选：GCC 驱动路径，仅执行正常样例")
     parser.add_argument("--compiler", type=Path, help="正式前端链接后的 integration_driver")
     args = parser.parse_args()
     cases = load_cases()
-    if not any((args.preprocessor, args.reference_gcc, args.compiler)):
+    if not any((args.reference_gcc, args.compiler)):
         print(f"清单结构检查通过：{len(cases)} 个用例；未执行编译器。")
-    if args.preprocessor:
-        prepare(cases, args.preprocessor.resolve())
     if args.reference_gcc:
         reference(cases, args.reference_gcc)
     if args.compiler:

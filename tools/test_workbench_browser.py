@@ -86,7 +86,7 @@ def main():
         editor.evaluate('e => e.setSelectionRange(e.value.length-1,e.value.length-1)')
         editor.press('Enter')
         expect(editor).to_have_value('int main(void) {\n    return 0;\n}')
-        for ignored in ('printf("{");', "char c='{';", '/* { */', '// {\n', '#define OPEN {\n'):
+        for ignored in ('printf("{");', "char c='{';", '/* { */', '// {\n'):
             source = ignored + '\nint main(void) {\n\tint a;'
             editor.fill(source)
             editor.press('Enter')
@@ -129,7 +129,7 @@ def main():
         page.locator("#run").click()
         expect(page.locator("#status")).to_have_text("运行完成", timeout=20000)
         expect(page.locator("#output")).to_contain_text("average = 75.000000")
-        editor.fill(editor.input_value().replace('#define PASS_SCORE 60', '#define PASS_SCORE 85'))
+        editor.fill(editor.input_value().replace('p[i].score >= 60', 'p[i].score >= 85'))
         page.locator("#run").click()
         expect(page.locator("#status")).to_have_text("运行完成", timeout=20000)
         expect(page.locator("#output")).to_contain_text("passed = 1")
@@ -139,6 +139,18 @@ def main():
         expect(page.locator("#diagnostics")).to_contain_text("SEM_UNDECLARED")
         page.locator(".diagnostic").click()
         expect(page.locator("#position")).to_contain_text("行 3")
+
+        assert page.locator('[data-view="preprocessed"]').count() == 0
+        for source, code in (
+            ('#define N 2\nint main(void){return N;}', 'LEX_INVALID_CHAR'),
+            ('union U{int x;};int main(void){return 0;}', 'PARSE_RECORD_REMOVED'),
+            ('enum E{A};int main(void){return 0;}', 'PARSE_RECORD_REMOVED'),
+        ):
+            editor.fill(source)
+            page.locator("#run").click()
+            expect(page.locator("#status")).to_have_text("编译失败 · 查看诊断", timeout=20000)
+            expect(page.locator("#diagnostics")).to_contain_text(code)
+            assert 'SHOULD_NOT_RUN' not in page.locator("#output").inner_text()
 
         # 从界面新建多份源文件，验证实际编译、保存和重新导入。
         editor.press("Control+n")
@@ -155,7 +167,7 @@ def main():
         expect(page.locator("#file")).to_have_value("src/demo.c")
         expect(page.locator("#entry")).to_have_value("src/demo.c")
         expect(editor).to_have_value("int main(void) {\n    return 0;\n}\n")
-        editor.fill('#define N 42\nint main(void){printf("%d\\n",N);return 0;}\n')
+        editor.fill('int main(void){const int N=42;printf("%d\\n",N);return 0;}\n')
         # 未保存的新源文件不能直接切换到新建另一源文件。
         page.locator("#add-file").click()
         expect(page.locator("#unsaved-file-dialog")).to_be_visible()

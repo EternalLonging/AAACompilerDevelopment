@@ -118,6 +118,9 @@ def main():
         for name, source, phase, message in [
             ("dangling_pointer", 'int *bad(void){int x=7;return &x;} int main(void){int *p=bad();return *p;}', "语法", "PARSE_POINTER_REMOVED"),
             ("one_past_pointer", 'int main(void){int a[2]={1,2};int *p=a+2;return *p;}', "语法", "PARSE_POINTER_REMOVED"),
+            ("macro_removed", '#define N 2\nint main(void){printf("SHOULD_NOT_RUN");return N;}', "词法", "LEX_INVALID_CHAR"),
+            ("union_removed", 'union U{int x;};int main(void){return 0;}', "语法", "PARSE_RECORD_REMOVED"),
+            ("enum_removed", 'enum E{A};int main(void){return 0;}', "语法", "PARSE_RECORD_REMOVED"),
             ("volatile_removed", 'volatile int x;int main(void){return 0;}', "语法", "PARSE_"),
             ("for_declaration", 'int main(void){for(int i=0;i<3;i++){}return 0;}', "语法", "PARSE_FOR_DECLARATION"),
             ("late_declaration", 'int main(void){int x=0;x++;int y=2;return y;}', "语法", "PARSE_DECLARATION_ORDER"),

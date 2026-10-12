@@ -4,7 +4,7 @@
 
 当前已实现常量池、符号表、统一诊断、M1/M2 后续流程、数组与记录扩展、文本展示及总控。正式词法和语法入口已实现，真实源码验证见 [frontend.md](frontend.md)。支持范围及限制见 [backend-extensions.md](backend-extensions.md)。主程序统一包含 `minic/modules.hpp`；某模块可以只包含自己需要的头文件。
 
-TypePtr 已改成普通指针。compile / compile_preprocessed 返回的 CompilationResult.types 负责保存和释放本次类型对象；ParseResult.arena 负责保存 AST 节点，root 是普通指针。不要让单独取出的 AST、符号表或 IR 活得比对应结果更久。run 自行管理运行时聚合对象和字符串池。
+TypePtr 已改成普通指针。compile / compile 返回的 CompilationResult.types 负责保存和释放本次类型对象；ParseResult.arena 负责保存 AST 节点，root 是普通指针。不要让单独取出的 AST、符号表或 IR 活得比对应结果更久。run 自行管理运行时聚合对象和字符串池。
 
 直接调用阶段接口或常量池时，先建立类型管理器和创建范围，所有阶段共用它：
 
@@ -40,7 +40,6 @@ if (syntax.ok()) {
 | 类型内存管理 | type_arena.hpp | src/semantic.cpp | TypeArena、TypeArenaScope、make_type_info |
 | 文本展示与导出 | display.hpp | src/common.cpp | print_tokens / ast / symbols / ir / diagnostics（已实现） |
 
-词法、语法、union、扩展数值类型、extern 和宏预处理均有实现；项目范围与完整 C 的差异见 [frontend.md](frontend.md)、[backend-completion.md](backend-completion.md)。基础支持模块见 [symbol-table.md](symbol-table.md) 和 [constant-pool.md](constant-pool.md)。四个编译阶段用普通函数返回明确结果，符号表、常量池和诊断收集器通过类封装状态。
 
 ## 2. 五个模块怎样交接
 
@@ -87,7 +86,7 @@ SymbolTable 构造时借用一个语义 DiagnosticEngine，创建全局作用域
 | symbol(id) | 符号编号 | 条目的只读指针 | 非法编号返回 nullptr |
 | set_symbol_offset(id, offset) | 对象编号、字节偏移 | 设置布局字段，返回 bool | 非对象或编号非法则报错，返回 false |
 | declare_record(tag, kind, range) | 标签、记录种类、声明位置 | 登记/复用当前层 RecordId | 同层种类冲突则报错，返回空值 |
-| complete_record(id, definition) | 编号、完整记录定义 | 校验并填入成员、枚举项、大小和对齐 | 不合法/重复定义返回 false，不覆盖旧数据 |
+| complete_record(id, definition) | 编号、完整记录定义 | 校验并填入成员、大小和对齐 | 不合法/重复定义返回 false，不覆盖旧数据 |
 | lookup_tag(tag) | 标签名 | 从内向外查 RecordId | 未找到返回 nullopt |
 | lookup_tag_current(tag) | 标签名 | 只查当前层标签 | 同上 |
 | record(id) | 记录编号 | 条目的只读指针 | 非法编号返回 nullptr |
@@ -100,13 +99,12 @@ insert 的 id/scope 由表分配，line/col 从 entry.range.begin 同步，调�
 
 declare_record 查当前层，外层同名标签不会阻止新标签遮蔽；空标签表示匿名类型，仅分配编号、不加入 tags。定义前先取得编号再处理成员，保证记录类型使用统一身份。
 
-complete_record 的 definition.id/tag/kind/scope 必须与旧条目一致。语义模块先检查成员类型并计算布局，填写 size/alignment 和所有成员 offset；符号表校验身份、重复成员及布局完整性后提交定义。失败不能把条目标为完整；枚举项的普通符号登记仍通过 insert，不能只填 enumerators 后假定其名字已经可见。
+complete_record 的 definition.id/tag/kind/scope 必须与旧条目一致。语义模块先检查成员类型并计算布局，填写 size/alignment 和所有成员 offset；符号表校验身份、重复成员及布局完整性后提交定义。失败不能把条目标为完整。
 
-当前实现检查非零大小、2 的幂对齐、总大小满足对齐、成员类型可存储、偏移未越过对象大小，联合体成员偏移为 0；不计算目标机器的 sizeof、填充或成员区间。枚举完成时还检查每项已绑定本层对应的 EnumConstant。正确布局及成员类型的完整 C 约束由语义遍历负责。
+当前实现检查非零大小、2 的幂对齐、总大小满足对齐、成员类型可存储、偏移未越过对象大小；不计算目标机器的 sizeof、填充或成员区间。正确布局及成员类型的完整 C 约束由语义遍历负责。
 
 symbol()/record() 返回的元素指针可能因后续插入引起的 vector 扩容而失效；跨修改保存 **编号**，需要时重新取得指针。IR 使用释放后的固定数据时仍不得重新排序容器。
 
-光标补全需要传入源码字节位置，排除该位置之后才首次声明的名字，再执行遮蔽去重。例如内层 x 尚未到声明位置时，外层 x 仍应出现在结果中。内建函数一直可见；原型/定义复用条目保留首次声明位置。M1/M2 为单源文件；M3 多文件预处理需要额外定义光标到展开源码的位置映射，不能直接比较不同文件的 offset。
 
 函数形参和最外层函数体共用一个 Function 作用域；更内层 Block 才进入新的作用域。进入与退出由同一个语义遍历驱动方配对，解析器不操作这份持久表。
 
@@ -163,7 +161,6 @@ RunResult 保存 executed_steps、diagnostics 和可选 exit_code。正常完成
 
 compile(source, filename, target) 保存所有已执行阶段的产物并汇总诊断，不读取文件、不打印、不运行代码。CompilationResult 的阶段字段采用 optional，以区分“未运行”和“已运行但失败”。
 
-compile_preprocessed(source, filename, target) 先展开同文件宏，再进入后续阶段。preprocessing 保存源码、行映射和诊断；失败不调用词法。compile 保持直接编译，命令行默认展开宏，--raw 使用 compile。#include 已拒绝，详见 [preprocessor.md](preprocessor.md)。
 
 | 用户命令 | CompileTarget | 使用的结果 |
 |---|---|---|

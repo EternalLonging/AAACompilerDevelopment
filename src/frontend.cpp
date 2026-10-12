@@ -170,7 +170,7 @@ class Parser {
     struct Specs {
         TypePtr type = nullptr; // 声明中的基础类型，例如 int 或 struct S。
         StorageClass storage = StorageClass::None; // 声明写出的存储类别，例如 static、extern、typedef。
-        std::vector<Node> definitions; // 声明中同时定义的结构体、联合体或枚举节点。
+        std::vector<Node> definitions; // 声明中同时定义的结构体节点。
     };
 
     // 读取类型说明、限定符和允许的存储类别，返回声明的基础信息。
@@ -219,32 +219,20 @@ class Parser {
             case TT::KW_FLOAT: type->kind = TypeKind::Float; break;
             case TT::KW_DOUBLE: type->kind = TypeKind::Double; break;
             case TT::ID: type->kind = TypeKind::Named; type->name = token.lexeme; break;
-            case TT::KW_STRUCT: case TT::KW_UNION: case TT::KW_ENUM: {
-                const bool is_enum = token.type == TT::KW_ENUM;
-                type->kind = is_enum ? TypeKind::Enum :
-                    token.type == TT::KW_STRUCT ? TypeKind::Struct : TypeKind::Union;
+            case TT::KW_UNION: case TT::KW_ENUM:
+                fail("本项目不支持 union 和 enum，请使用 struct 或普通变量", "PARSE_RECORD_REMOVED");
+            case TT::KW_STRUCT: {
+                type->kind = TypeKind::Struct;
                 if (at(TT::ID)) type->name = take().lexeme;
                 if (accept(TT::LBRACE)) {
                     // 匿名记录使用解析器内部标签，让定义和声明引用同一类型。
                     if (type->name.empty()) type->name = "<anonymous:" + std::to_string(++anonymous) + ">";
-                    auto def = node(is_enum ? NodeType::EnumDef :
-                        type->kind == TypeKind::Struct ? NodeType::StructDef : NodeType::UnionDef, token, type->name);
-                    if (is_enum) {
-                        if (at(TT::RBRACE)) fail("枚举定义不能为空", "PARSE_ENUM");
-                        do {
-                            const auto id = expect(TT::ID, "枚举项名字");
-                            auto item = node(NodeType::EnumMember, id, id.lexeme);
-                            if (accept(TT::ASSIGN)) item->children.push_back(expression(2));
-                            finish(*item); def->children.push_back(std::move(item));
-                            names.back()[id.lexeme] = false;
-                        } while (accept(TT::COMMA) && !at(TT::RBRACE));
-                    } else {
-                        while (!at(TT::RBRACE) && !at(TT::END_OF_FILE)) {
-                            auto members = declaration(false, true);
-                            for (auto& member : members) def->children.push_back(std::move(member));
-                        }
-                        if (def->children.empty()) fail("记录定义不能为空", "PARSE_RECORD");
+                    auto def = node(NodeType::StructDef, token, type->name);
+                    while (!at(TT::RBRACE) && !at(TT::END_OF_FILE)) {
+                        auto members = declaration(false, true);
+                        for (auto& member : members) def->children.push_back(std::move(member));
                     }
+                    if (def->children.empty()) fail("结构体定义不能为空", "PARSE_RECORD");
                     expect(TT::RBRACE, "'}'"); finish(*def);
                     s.definitions.push_back(std::move(def));
                 } else if (type->name.empty()) fail("记录类型需要标签名或定义", "PARSE_RECORD");
@@ -381,8 +369,8 @@ class Parser {
         if (accept(TT::SEMI)) {
             if (member || s.storage != StorageClass::None)
                 fail("此声明需要声明符", "PARSE_DECLARATOR");
-            if (nodes.empty() && (s.type->kind == TypeKind::Struct || s.type->kind == TypeKind::Union))
-                nodes.push_back(node(s.type->kind == TypeKind::Struct ? NodeType::StructDef : NodeType::UnionDef,
+            if (nodes.empty() && s.type->kind == TypeKind::Struct)
+                nodes.push_back(node(NodeType::StructDef,
                                      start, s.type->name));
             if (nodes.empty()) fail("声明缺少声明符", "PARSE_DECLARATOR");
             for (auto& n : nodes) finish(*n);

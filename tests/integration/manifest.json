@@ -85,9 +85,9 @@
       "exit_code": 0
     },
     {
-      "id": "10_typedef_enum",
-      "description": "typedef、枚举自动编号和 goto 标签",
-      "source": "programs/10_typedef_enum.c",
+      "id": "10_typedef_goto",
+      "description": "typedef 和 goto 标签",
+      "source": "programs/10_typedef_goto.c",
       "stdin": "",
       "stdout": "names = 4\n",
       "expect": "run",
@@ -112,15 +112,6 @@
       "exit_code": 0
     },
     {
-      "id": "13_macros",
-      "description": "头文件守卫、条件宏、字符串化和拼接",
-      "source": "programs/13_macros.c",
-      "stdin": "",
-      "stdout": "macro = 7 3\n",
-      "expect": "run",
-      "exit_code": 0
-    },
-    {
       "id": "14_short_circuit",
       "description": "逻辑短路与三目表达式只执行选中分支",
       "source": "programs/14_short_circuit.c",
@@ -131,12 +122,13 @@
     },
     {
       "id": "15_union_sizeof",
-      "description": "联合体首成员初始化、拷贝及固定目标大小",
+      "description": "拒绝已移除的 union",
       "source": "programs/15_union_sizeof.c",
       "stdin": "",
-      "stdout": "union = 7 4\n",
-      "expect": "run",
-      "exit_code": 0
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Parser",
+      "code": "PARSE_RECORD_REMOVED"
     },
     {
       "id": "16_temporary_array",
@@ -283,16 +275,6 @@
       "message": "初始化"
     },
     {
-      "id": "e15_preprocess",
-      "description": "预处理失败阻止后续编译",
-      "source": "errors/e15_preprocess.c",
-      "stdin": "",
-      "stdout": "",
-      "expect": "reject",
-      "phase": "Preprocess",
-      "code": "PP_FAILURE"
-    },
-    {
       "id": "e16_step_limit",
       "description": "无限循环受执行步数保护",
       "source": "errors/e16_step_limit.c",
@@ -301,6 +283,26 @@
       "expect": "reject",
       "phase": "Runtime",
       "message": "上限"
+    },
+    {
+      "id": "e17_enum_removed",
+      "description": "拒绝已删除的语言功能",
+      "source": "errors/e17_enum_removed.c",
+      "stdin": "",
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Parser",
+      "code": "PARSE_RECORD_REMOVED"
+    },
+    {
+      "id": "e18_macro_removed",
+      "description": "拒绝已删除的语言功能",
+      "source": "errors/e18_macro_removed.c",
+      "stdin": "",
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Lexer",
+      "code": "LEX_INVALID_CHAR"
     }
   ]
 }

@@ -91,7 +91,7 @@ bool compare(const TypePtr& left, const TypePtr& right, std::vector<TypePair>& p
             equal = compare(&left_parameter, &right_parameter, path);
         }
         break;
-    case TypeKind::Struct: case TypeKind::Union: case TypeKind::Enum:
+    case TypeKind::Struct:
         equal = left->record_id != invalid_id && left->record_id == right->record_id;
         break;
     default:
@@ -173,12 +173,10 @@ bool member_type(const TypePtr& type, const SymbolTableData& data) {
     case TypeKind::Array:
         return type->array_length && *type->array_length > 0 &&
                member_type(type->base, data);
-    case TypeKind::Struct: case TypeKind::Union: case TypeKind::Enum:
+    case TypeKind::Struct:
         return type->record_id < data.records.size() &&
                data.records[type->record_id].is_complete &&
-               ((type->kind == TypeKind::Struct && data.records[type->record_id].kind == RecordKind::Struct) ||
-                (type->kind == TypeKind::Union && data.records[type->record_id].kind == RecordKind::Union) ||
-                (type->kind == TypeKind::Enum && data.records[type->record_id].kind == RecordKind::Enum));
+               data.records[type->record_id].kind == RecordKind::Struct;
     default:
         return true;
     }
@@ -370,27 +368,12 @@ bool SymbolTable::complete_record(RecordId id, StructEntry definition) {
         *definition.size % *definition.alignment != 0)
         return fail("记录缺少有效的大小或对齐信息");
     std::unordered_set<std::string> names;
-    if (definition.kind == RecordKind::Enum) {
-        if (!definition.members.empty() || definition.enumerators.empty())
-            return fail("枚举定义必须包含枚举项，不能包含成员");
-        for (const auto& value : definition.enumerators) {
-            const auto* entry = symbol(value.symbol_id);
-            if (value.name.empty() || !names.insert(value.name).second || !entry ||
-                entry->kind != SymbolKind::EnumConstant || entry->name != value.name ||
-                entry->scope != definition.scope)
-                return fail("枚举项重复或尚未登记到普通符号表");
-        }
-    } else {
-        if (!definition.enumerators.empty() || definition.members.empty())
-            return fail("结构体和联合体必须包含成员，不能包含枚举项");
-        for (const auto& member : definition.members) {
-            if (member.name.empty() || !names.insert(member.name).second)
-                return fail("成员名字为空或重复：" + member.name);
-            if (!member_type(member.type, data_) || !member.offset ||
-                *member.offset >= *definition.size ||
-                (definition.kind == RecordKind::Union && *member.offset != 0))
-                return fail("成员类型或偏移无效：" + member.name);
-        }
+    if (definition.members.empty()) return fail("结构体必须包含成员");
+    for (const auto& member : definition.members) {
+        if (member.name.empty() || !names.insert(member.name).second)
+            return fail("成员名字为空或重复：" + member.name);
+        if (!member_type(member.type, data_) || !member.offset || *member.offset >= *definition.size)
+            return fail("成员类型或偏移无效：" + member.name);
     }
     definition.is_complete = true;
     data_.records[id] = std::move(definition);
@@ -418,7 +401,7 @@ const StructEntry* SymbolTable::record(RecordId id) const noexcept {
 
 MaybeValue<std::size_t> SymbolTable::find_member(RecordId id, const std::string& name) const {
     const auto* entry = record(id);
-    if (!entry || !entry->is_complete || entry->kind == RecordKind::Enum) return emptyValue;
+    if (!entry || !entry->is_complete) return emptyValue;
     for (std::size_t i = 0; i < entry->members.size(); ++i)
         if (entry->members[i].name == name) return i;
     return emptyValue;
@@ -540,7 +523,7 @@ private:
     bool modifiable(const TypePtr& type, std::size_t depth = 0) const {
         if (!type || type->is_const || depth > 128) return false;
         if (type->kind == TypeKind::Array) return modifiable(type->base, depth + 1);
-        if ((type->kind == TypeKind::Struct || type->kind == TypeKind::Union)) {
+        if ((type->kind == TypeKind::Struct)) {
             const auto* record = table_.record(type->record_id);
             if (!record || !record->is_complete) return false;
             for (const auto& member : record->members) if (!modifiable(member.type, depth + 1)) return false;
@@ -560,18 +543,11 @@ private:
             }
             result = make_type_info(*alias->type);
             result->is_const = result->is_const || source->is_const;
-        } else if (source->kind == TypeKind::Enum) {
-            const auto id = table_.lookup_tag(source->name);
-            const auto* record = id ? table_.record(*id) : nullptr;
-            if (!record || record->kind != RecordKind::Enum || !record->is_complete) {
-                error(node, "枚举类型尚未定义", "SEM_TAG"); return detail::type(TypeKind::Error);
-            }
-            result->kind = TypeKind::Int; result->record_id = invalid_id; result->name.clear();
-        } else if ((source->kind == TypeKind::Struct || source->kind == TypeKind::Union)) {
+        } else if ((source->kind == TypeKind::Struct)) {
             const auto id = table_.lookup_tag(source->name);
             const auto record_id = source->record_id == invalid_id && id ? *id : source->record_id;
             const auto* record = table_.record(record_id);
-            if (!record || record->kind != (source->kind == TypeKind::Struct ? RecordKind::Struct : RecordKind::Union)) {
+            if (!record || record->kind != RecordKind::Struct) {
                 error(node, "结构体标签尚未声明：" + source->name, "SEM_TAG"); return detail::type(TypeKind::Error);
             }
             result->record_id = record_id;
@@ -594,7 +570,7 @@ private:
     bool assignable(const TypePtr& target, const ASTNode& source) const {
         if (can_assign(target, source.type) || detail::address_compatible(target, source.type)) return true;
         if (target && target->kind == TypeKind::Address && target->base && target->base->kind == TypeKind::Char && source.kind == NodeType::StringLiteral) return true;
-        return target && source.type && (target->kind == TypeKind::Struct || target->kind == TypeKind::Union) &&
+        return target && source.type && (target->kind == TypeKind::Struct) &&
             same_type(detail::unqualified(target), detail::unqualified(source.type));
     }
 
@@ -619,50 +595,13 @@ private:
         if (id) node.symbol_id = *id;
     }
 
-    void enum_definition(ASTNode& node) {
-        if (!shape(node, 1, invalid_id)) return;
-        const auto id = table_.declare_record(node.name, RecordKind::Enum, node.range);
-        if (!id) return;
-        if (table_.record(*id)->is_complete) { error(node, "枚举已经定义", "SEM_ENUM"); return; }
-        node.record_id = *id;
-        auto definition = *table_.record(*id);
-        definition.size = 4; definition.alignment = 4;
-        long long next = 0;
-        bool valid = true;
-        for (auto& child : node.children) {
-            child->scope_id = table_.current_scope();
-            if (child->kind != NodeType::EnumMember || !shape(*child, 0, 1)) { error(*child, "枚举定义需要 EnumMember", "SEM_ENUM"); valid = false; continue; }
-            if (!child->children.empty()) {
-                expression(*child->children[0]);
-                const auto value = detail::integer_constant(*child->children[0]);
-                if (!value) { error(*child, "枚举值必须是整型常量表达式", "SEM_ENUM"); valid = false; continue; }
-                next = *value;
-            }
-            if (next < std::numeric_limits<int>::min() || next > std::numeric_limits<int>::max()) { error(*child, "枚举自动编号溢出", "SEM_ENUM"); valid = false; continue; }
-            child->type = detail::type(TypeKind::Int); child->value = next;
-            SymbolEntry entry; entry.name = child->name; entry.kind = SymbolKind::EnumConstant;
-            entry.type = child->type; entry.range = child->range; entry.is_defined = true;
-            const auto symbol = table_.insert(std::move(entry));
-            if (!symbol) { valid = false; continue; }
-            child->symbol_id = *symbol;
-            definition.enumerators.push_back({child->name, next, *symbol, child->range});
-            ++next;
-            // 提前保存已登记枚举常量，后续枚举表达式可引用前面的项。
-            enum_values_[*symbol] = constant_get<long long>(child->value);
-        }
-        if (valid) table_.complete_record(*id, std::move(definition));
-    }
-
-    std::unordered_map<SymbolId, long long> enum_values_; // 枚举常量的数值。
-
     void record_definition(ASTNode& node) {
         if (!shape(node, 0, invalid_id)) return;
-        const bool union_type = node.kind == NodeType::UnionDef;
-        const auto id = table_.declare_record(node.name, union_type ? RecordKind::Union : RecordKind::Struct, node.range);
+        const auto id = table_.declare_record(node.name, RecordKind::Struct, node.range);
         if (!id) return;
         node.record_id = *id;
         auto type = make_type_info();
-        type->kind = union_type ? TypeKind::Union : TypeKind::Struct;
+        type->kind = TypeKind::Struct;
         type->name = node.name;
         type->record_id = *id;
         node.type = type;
@@ -678,10 +617,10 @@ private:
             member->type = resolve(member->declared_type, *member);
             try {
                 const auto layout = detail::layout(member->type, table_.data());
-                if (!union_type) size = detail::align_up(size, layout.alignment);
-                if (!union_type && layout.size > detail::max_object_size - size) throw std::runtime_error("结构体过大");
-                definition.members.push_back({member->name, member->type, union_type ? 0 : size, member->range});
-                size = union_type ? std::max(size, layout.size) : size + layout.size;
+                size = detail::align_up(size, layout.alignment);
+                if (layout.size > detail::max_object_size - size) throw std::runtime_error("结构体过大");
+                definition.members.push_back({member->name, member->type, size, member->range});
+                size = size + layout.size;
                 alignment = std::max(alignment, layout.alignment);
             } catch (const std::runtime_error& exception) { error(*member, exception.what(), "SEM_LAYOUT"); valid = false; }
         }
@@ -703,9 +642,9 @@ private:
             if (target->kind == TypeKind::Array) {
                 if (init->children.size() > *target->array_length) { error(*init, "数组初始化项过多", "SEM_INIT_COUNT"); return; }
                 for (std::size_t i = 0; i < init->children.size(); ++i) elements.push_back(target->base);
-            } else if ((target->kind == TypeKind::Struct || target->kind == TypeKind::Union)) {
+            } else if ((target->kind == TypeKind::Struct)) {
                 const auto* record = table_.record(target->record_id);
-                if (init->children.size() > (target->kind == TypeKind::Union ? 1 : record->members.size())) { error(*init, "结构体初始化项过多", "SEM_INIT_COUNT"); return; }
+                if (init->children.size() > record->members.size()) { error(*init, "结构体初始化项过多", "SEM_INIT_COUNT"); return; }
                 for (std::size_t i = 0; i < init->children.size(); ++i) elements.push_back(record->members[i].type);
             } else {
                 if (init->children.size() != 1) { error(*init, "数值初始化列表必须恰好一项", "SEM_INIT_COUNT"); return; }
@@ -723,7 +662,7 @@ private:
             return;
         }
         if (global && !constant_initializer(*init)) { error(*init, "全局初始化必须是常量表达式", "SEM_GLOBAL_INIT"); return; }
-        if ((target->kind == TypeKind::Struct || target->kind == TypeKind::Union) && assignable(target, *init)) return;
+        if ((target->kind == TypeKind::Struct) && assignable(target, *init)) return;
         if (!assignable(target, *init)) { error(*init, "初始化类型不兼容", "SEM_INIT_TYPE"); return; }
         convert(init, detail::unqualified(target));
     }
@@ -832,11 +771,6 @@ private:
         if (!id) { error(node, "名字尚未声明：" + node.name, "SEM_UNDECLARED"); return; }
         const auto* entry = table_.symbol(*id);
         if (entry->kind == SymbolKind::Typedef) { error(node, "类型别名不能作为表达式使用", "SEM_TYPEDEF"); return; }
-        if (entry->kind == SymbolKind::EnumConstant) {
-            node.kind = NodeType::IntLiteral; node.name = std::to_string(enum_values_.at(*id));
-            node.value = enum_values_.at(*id); node.type = detail::type(TypeKind::Int);
-            node.category = ValueCategory::RValue; return;
-        }
         node.symbol_id = *id;
         if (entry->kind == SymbolKind::Function && entry->builtin == BuiltinKind::None) calls_.push_back({*id, node.range});
         if (entry->storage == StorageClass::Extern && entry->kind != SymbolKind::Function) object_uses_.push_back({*id, node.range});
@@ -875,7 +809,7 @@ private:
         auto& left = node.children[0];
         auto& right = node.children[1];
         if (!valid_expression(*left) || !valid_expression(*right)) { node.type = detail::type(TypeKind::Error); return; }
-        if (left->category == ValueCategory::LValue && (left->type->kind == TypeKind::Struct || left->type->kind == TypeKind::Union) &&
+        if (left->category == ValueCategory::LValue && left->type->kind == TypeKind::Struct &&
             modifiable(left->type) && node.name == "=" && assignable(left->type, *right)) {
             node.type = left->type; node.category = ValueCategory::RValue; return;
         }
@@ -1033,7 +967,7 @@ private:
                 expression(*node.children[0]);
                 const auto& object = *node.children[0];
                 if (!valid_expression(object)) { node.type = detail::type(TypeKind::Error); break; }
-                if ((object.type->kind != TypeKind::Struct && object.type->kind != TypeKind::Union)) { error(node, "成员访问需要结构体对象", "SEM_MEMBER"); break; }
+                if (object.type->kind != TypeKind::Struct) { error(node, "成员访问需要结构体对象", "SEM_MEMBER"); break; }
                 const auto index = table_.find_member(object.type->record_id, node.name);
                 if (!index) { error(node, "结构体中没有该成员：" + node.name, "SEM_MEMBER"); break; }
                 node.record_id = object.type->record_id;
@@ -1142,9 +1076,8 @@ private:
             }
             break;
         case NodeType::VarDecl: variable(node, false); break;
-        case NodeType::StructDef: case NodeType::UnionDef: record_definition(node); break;
+        case NodeType::StructDef: record_definition(node); break;
         case NodeType::TypedefDecl: typedef_declaration(node); break;
-        case NodeType::EnumDef: enum_definition(node); break;
         case NodeType::Label:
             if (shape(node, 1, 1)) {
                 if (node.name.empty() || !labels_.emplace(node.name, node.range).second)
@@ -1259,7 +1192,7 @@ private:
         }
         if (!declared || declared->kind != TypeKind::Function ||
             !(detail::numeric(declared->base) || (declared->base && (declared->base->kind == TypeKind::Void ||
-              declared->base->kind == TypeKind::Struct || declared->base->kind == TypeKind::Union))) ||
+              declared->base->kind == TypeKind::Struct))) ||
             declared->variadic || (node.storage != StorageClass::None && node.storage != StorageClass::Static && node.storage != StorageClass::Extern) ||
             (!declared->has_prototype && !declared->params.empty()) ||
             node.children.size() != declared->params.size() + (definition ? 1 : 0)) {
@@ -1271,7 +1204,7 @@ private:
             if (parameter_type->kind == TypeKind::Array) parameter_type = detail::address_type(parameter_type->base);
             if (parameter.kind != NodeType::ParamDecl || !parameter.children.empty() ||
                 !(detail::numeric(declared->params[i]) || declared->params[i]->kind == TypeKind::Address ||
-                  declared->params[i]->kind == TypeKind::Struct || declared->params[i]->kind == TypeKind::Union) ||
+                  declared->params[i]->kind == TypeKind::Struct) ||
                 !same_type(detail::unqualified(parameter_type), declared->params[i]) ||
                 parameter.storage != StorageClass::None || (definition && parameter.name.empty())) {
                 error(node, "函数形参节点与签名不一致", "SEM_PARAMETER"); return;
@@ -1333,9 +1266,8 @@ public:
                 if (diagnostics_.should_stop()) break;
                 child->scope_id = 0;
                 if (child->kind == NodeType::VarDecl) variable(*child, true);
-                else if (child->kind == NodeType::StructDef || child->kind == NodeType::UnionDef) record_definition(*child);
+                else if (child->kind == NodeType::StructDef) record_definition(*child);
                 else if (child->kind == NodeType::TypedefDecl) typedef_declaration(*child);
-                else if (child->kind == NodeType::EnumDef) enum_definition(*child);
                 else if (child->kind == NodeType::FunctionDecl || child->kind == NodeType::FunctionDef) function(*child);
                 else error(*child, "M1 顶层仅支持变量和函数声明", "SEM_UNSUPPORTED");
             }
