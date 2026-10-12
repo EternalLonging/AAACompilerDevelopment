@@ -1,130 +1,74 @@
-#include "../examples/ast_examples.hpp"
 #include "minic/modules.hpp"
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
 
 using namespace minic;
-using namespace minic::examples;
-static void require(bool value, const char* message) { if (!value) throw std::runtime_error(message); }
-static TypePtr type(TypeKind kind, bool unsigned_type = false) {
-    auto result = make_type_info(); result->kind = kind; result->is_unsigned = unsigned_type; return result;
+static void require(bool value, const std::string& message) {
+    if (!value) throw std::runtime_error(message);
 }
-static TypePtr record(const std::string& name, TypeKind kind = TypeKind::Struct) { auto result = make_type_info(); result->kind = kind; result->name = name; return result; }
-static TypePtr signature(TypePtr result, std::vector<TypePtr> params = {}) { auto value = make_type_info(); value->kind = TypeKind::Function; value->base = std::move(result); value->params = std::move(params); return value; }
-static Node unary(const std::string& op, Node value) { return tree(NodeType::UnaryOp, op, std::move(value)); }
-static Node cast(TypePtr target, Node value) { auto result = tree(NodeType::Cast, "", std::move(value)); result->declared_type = std::move(target); return result; }
-static Node invoke(Node target, Node arg) { return tree(NodeType::Call, "", std::move(target), std::move(arg)); }
-static Node main_program(Node body) { return program(function("main", TypeKind::Int, std::move(body))); }
-static void check(Node ast, int expected, const std::string& output = "", const std::string& input = "", const std::string& failure = "") {
-    auto semantic = analyze(*ast);
-    if (!semantic.ok()) { print_diagnostics(semantic.diagnostics, std::cerr); throw std::runtime_error("正确 AST 应通过语义检查"); }
-    const auto ir = generate(*ast, semantic.symbols);
-    if (!ir.ok()) { print_diagnostics(ir.diagnostics, std::cerr); throw std::runtime_error("正确 AST 应生成 IR"); }
-    std::istringstream source(input); std::ostringstream target;
-    const auto result = run(ir.program, semantic.symbols, source, target);
-    if (failure.empty()) {
+// 编译并执行完整源码，核对返回值、输出或运行错误。
+static void execute(const std::string& source, int exit = 0,
+                    const std::string& output = "", const std::string& input = "",
+                    const std::string& error = "") {
+    auto compiled = compile(source, "minic-test.c");
+    if (!compiled.ok()) print_diagnostics(compiled.diagnostics, std::cerr);
+    require(compiled.ok(), "保留的 MiniC 功能应能编译");
+    std::istringstream in(input); std::ostringstream out;
+    const auto result = run(compiled.ir->program, compiled.semantic->symbols, in, out);
+    if (error.empty()) {
         if (!result.ok()) print_diagnostics(result.diagnostics, std::cerr);
-        require(result.ok() && result.exit_code == expected && target.str() == output, "执行或输出错误");
-    } else require(!result.ok() && result.diagnostics[0].message.find(failure) != std::string::npos, "应明确报告运行错误");
+        require(result.ok() && result.exit_code == exit && out.str() == output, "执行结果不符");
+    } else {
+        require(!result.ok() && result.diagnostics[0].message.find(error) != std::string::npos,
+                "应报告运行错误：" + error);
+    }
 }
-static void rejects(Node ast, const std::string& code) {
-    const auto result = analyze(*ast); bool found = false;
+// 编译范围外的源码，核对错误代码并确认后续阶段没有执行。
+static void rejects(const std::string& source, const std::string& code) {
+    auto result = compile(source, "minic-test.c");
+    bool found = false;
     for (const auto& diagnostic : result.diagnostics) if (diagnostic.code == code) found = true;
     if (!found) print_diagnostics(result.diagnostics, std::cerr);
-    require(!result.ok() && found, "应报告语义错误");
+    require(!result.ok() && found && !result.ir, "缺少范围拒绝诊断：" + code);
 }
-
-static void numeric_types() {
-    auto body = block();
-    body->children.push_back(object("s", type(TypeKind::Short), integer(1234)));
-    body->children.push_back(object("l", type(TypeKind::Long), node(NodeType::IntLiteral, "2147483647L")));
-    body->children.push_back(object("u", type(TypeKind::Int, true), node(NodeType::IntLiteral, "4294967295U")));
-    body->children.push_back(statement(assign("u", integer(1), "+=")));
-    body->children.push_back(object("d", type(TypeKind::Double), cast(type(TypeKind::Double), integer(1))));
-    body->children.push_back(statement(assign("d", cast(type(TypeKind::Double), floating("0.5")), "+=")));
-    body->children.push_back(statement(call("printf", text("\"%hd %ld %u %lf\""), id("s"), id("l"), id("u"), id("d"))));
-    body->children.push_back(ret(integer(0)));
-    check(main_program(std::move(body)), 0, "1234 2147483647 0 1.500000");
-    check(main_program(block(object("u", type(TypeKind::Int, true), node(NodeType::IntLiteral, "4294967295U")),
-        ret(binary("==", binary("*", id("u"), id("u")), integer(1))))), 1);
-    check(main_program(block(object("s", type(TypeKind::Short), integer(32768)), ret(integer(0)))), 0, "", "", "范围");
-    auto size = node(NodeType::Sizeof); size->declared_type = type(TypeKind::Double);
-    check(main_program(block(ret(std::move(size)))), 8);
-    rejects(main_program(block(ret(node(NodeType::IntLiteral, "4294967296U")))), "SEM_LITERAL");
-}
-
-static void global_objects() {
-    auto ast = program(variable("x", TypeKind::Int), function("get", TypeKind::Int, block(ret(id("x")))));
-    ast->children.push_back(variable("x", TypeKind::Int, integer(7)));
-    ast->children.push_back(variable("x", TypeKind::Int));
-    auto body = block(variable("x", TypeKind::Int, integer(99)), ret(binary("+", id("x"), call("get"))));
-    ast->children.push_back(function("main", TypeKind::Int, std::move(body))); check(std::move(ast), 106);
-    rejects(program(variable("x", TypeKind::Int, integer(1)), variable("x", TypeKind::Int, integer(2))), "SYM_DECL_CONFLICT");
-}
-
-static void aggregate_calls() {
-    auto ast = program(tree(NodeType::StructDef, "Pair", member("x", type(TypeKind::Int)), member("y", type(TypeKind::Int))));
-    auto arg = node(NodeType::ParamDecl, "p"); arg->declared_type = record("Pair", TypeKind::Struct);
-    auto fn = function("change", TypeKind::Int, block(statement(set(field(id("p"), "x"), integer(9))), ret(id("p"))), std::move(arg));
-    fn->declared_type = signature(record("Pair", TypeKind::Struct), {record("Pair", TypeKind::Struct)});
-    ast->children.push_back(std::move(fn));
-    auto body = block(object("p", record("Pair", TypeKind::Struct), list(integer(1), integer(2))),
-        object("copy", record("Pair", TypeKind::Struct), call("change", id("p"))),
-        ret(binary("+", field(id("p"), "x"), field(call("change", id("copy")), "x"))));
-    ast->children.push_back(function("main", TypeKind::Int, std::move(body))); check(std::move(ast), 10);
-    auto arrays = program(tree(NodeType::StructDef, "Box", member("values", array(type(TypeKind::Int), 2))));
-    auto create = function("make", TypeKind::Int, block(object("box", record("Box", TypeKind::Struct), list(list(integer(4), integer(8)))), ret(id("box"))));
-    create->declared_type = signature(record("Box", TypeKind::Struct)); arrays->children.push_back(std::move(create));
-    arrays->children.push_back(function("main", TypeKind::Int, block(ret(index(field(call("make"), "values"), integer(1))))));
-    check(std::move(arrays), 8);
-    auto qualified = make_type_info(); qualified->kind = TypeKind::Int; qualified->is_const = true;
-    auto prototype = node(NodeType::FunctionDecl, "f"); prototype->declared_type = signature(type(TypeKind::Int), {type(TypeKind::Int)});
-    prototype->children.push_back(parameter("", TypeKind::Int));
-    auto arg_const = node(NodeType::ParamDecl, "x"); arg_const->declared_type = qualified;
-    auto declarations = program(std::move(prototype), function("f", TypeKind::Int, block(ret(id("x"))), std::move(arg_const)),
-        function("main", TypeKind::Int, block(ret(call("f", integer(9))))));
-    check(std::move(declarations), 9);
-    auto bad_parameter = node(NodeType::ParamDecl, "x"); bad_parameter->declared_type = qualified;
-    rejects(program(function("f", TypeKind::Int, block(statement(assign("x", integer(1))), ret(id("x"))), std::move(bad_parameter))), "SEM_LVALUE");
-    auto array_error = program(tree(NodeType::StructDef, "Box", member("values", array(type(TypeKind::Int), 2))));
-    auto get = function("make", TypeKind::Int, block(object("box", record("Box", TypeKind::Struct), list(list(integer(4), integer(8)))), ret(id("box"))));
-    get->declared_type = signature(record("Box", TypeKind::Struct)); array_error->children.push_back(std::move(get));
-    array_error->children.push_back(function("main", TypeKind::Int, block(ret(index(field(call("make"), "values"), integer(2))))));
-    check(std::move(array_error), 0, "", "", "越界");
-}
-
-static void errors_and_boundaries() {
-    auto io = block(object("short", type(TypeKind::Short)), object("long", type(TypeKind::Long)), object("d", type(TypeKind::Double)),
-        object("u", type(TypeKind::Int, true)),
-        statement(call("scanf", text("\"%hd %ld %lf %x\""), unary("&", id("short")), unary("&", id("long")), unary("&", id("d")), unary("&", id("u")))),
-        statement(call("printf", text("\"%hd %ld %lf %x\""), id("short"), id("long"), id("d"), id("u"))), ret(integer(0)));
-    check(main_program(std::move(io)), 0, "123 200000 1.250000 ff", "123 200000 1.25 ff");
-    auto text_error = block(object("buffer", array(type(TypeKind::Char), 2), text("\"ab\"")), statement(call("printf", text("\"%s\""), id("buffer"))), ret(integer(0)));
-    check(main_program(std::move(text_error)), 0, "", "", "终止零");
-
-}
-
-static void strings() {
-    auto body = block();
-    body->children.push_back(object("text", array(type(TypeKind::Char), 6), text("\"hello\"")));
-    body->children.push_back(statement(set(index(id("text"), integer(0)), node(NodeType::CharLiteral, "'H'"))));
-    body->children.push_back(statement(call("printf", text("\"%s %s\""), id("text"), text("\"world\""))));
-    body->children.push_back(ret(integer(0)));
-    check(main_program(std::move(body)), 0, "Hello world");
-    auto input = block(object("buffer", array(type(TypeKind::Char), 5)),
-        statement(call("scanf", text("\"%4s\""), id("buffer"))), statement(call("printf", text("\"%s\""), id("buffer"))), ret(integer(0)));
-    check(main_program(std::move(input)), 0, "abcd", "abcdef");
-    auto overflow = block(object("buffer", array(type(TypeKind::Char), 3)), statement(call("scanf", text("\"%s\""), id("buffer"))), ret(integer(0)));
-    check(main_program(std::move(overflow)), 0, "", "abcd", "容量");
-    rejects(main_program(block(object("buffer", array(type(TypeKind::Char), 3)),
-        statement(call("scanf", text("\"%0s\""), id("buffer"))), ret(integer(0)))), "SEM_FORMAT");
-
-}
-
 int main() {
-    minic::TypeArena types; // 手工类型及语法树借用的内存，保留到示例/测试结束。
-    minic::TypeArenaScope type_scope(types);
-    try { numeric_types(); global_objects(); strings(); aggregate_calls(); errors_and_boundaries(); std::cout << "扩展数值、全局对象、聚合调用与字符串：5 组测试全部通过\n"; return 0; }
-    catch (const std::exception& error) { std::cerr << "测试失败：" << error.what() << '\n'; return 1; }
+    try {
+        execute("int total=7;int get(){return total;}int main(){int total=99;return total+get();}", 106);
+        execute("void print(char c){printf(\"%c\",c);return;}int main(){print('A');return 0;}", 0, "A");
+        execute("int main(){int n;float f;char c;char s[6];scanf(\"%d %f %c %s\",&n,&f,&c,s);printf(\"%d %f %c %s %%\",n,f,c,s);return 0;}",
+                0, "12 1.250000 A hello %", "12 1.25 A hello");
+        execute("struct S{int x;char c;};int main(){struct S s={7,'a'};struct S t;t=s;t.x=9;return s.x+t.x;}",16);
+        execute("int sum(int a[],int n){int i=0,s=0;for(i=0;i<n;i=i+1){s=s+a[i];}return s;}int main(){int a[]={1,2,3};return sum(a,3);}",6);
+        execute("struct S{int x;};int main(){int a[2]={0,0};struct S s={0};scanf(\"%d %d\",&a[1],&s.x);return a[1]+s.x;}",7,"","3 4");
+        execute("int main(){char s[3];scanf(\"%s\",s);return 0;}",0,"","abcd","容量");
+        execute("int main(){char s[2]=\"ab\";printf(\"%s\",s);return 0;}",0,"","","终止零");
+        execute("int main(){int x=2147483647;return x+1;}",0,"","","范围");
+        execute("int main(){int a[2]={1,2};return a[2];}",0,"","","越界");
+        execute("int main(){int x;return x;}",0,"","","初始化");
+        execute("int main(){int x=0;return 1/x;}",0,"","","除零");
+        for (const auto* type : {"short", "long", "double", "signed", "unsigned", "volatile"})
+            rejects(std::string(type)+" x;int main(){return 0;}","PARSE_TYPE_REMOVED");
+        for (const auto* value : {"1U", "1L", "1.0L"})
+            rejects(std::string("int main(){return ")+value+";}","PARSE_TYPE_REMOVED");
+        for (const auto* expression : {"x++", "--x", "~x", "x<<1", "x>>1", "x&1", "x|1", "x^1", "x?1:2", "sizeof(x)", "(float)x"})
+            rejects(std::string("int main(){int x=1;return ")+expression+";}","PARSE_OPERATOR_REMOVED");
+        for (const auto* op : {"+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "<<=", ">>="})
+            rejects(std::string("int main(){int x=1;x")+op+"1;return x;}","PARSE_COMPOUND_ASSIGNMENT");
+        rejects("int main(){int x=1;return (x=2,x);}","PARSE_EXPECTED");
+        rejects("int a[2][2];", "PARSE_ARRAY_DIMENSION");
+        rejects("int f(int a[][2]){return 0;}", "PARSE_ARRAY_DIMENSION");
+        rejects("int f(int x);", "PARSE_FUNCTION_DECL_REMOVED");
+        rejects("struct S;", "PARSE_RECORD_FORWARD");
+        rejects("struct {int x;} s;", "PARSE_RECORD_ANONYMOUS");
+        rejects("struct S{int x;};int f(struct S s){return s.x;}", "PARSE_FUNCTION_REMOVED");
+        rejects("struct S{int x;};struct S f(){struct S s;return s;}", "PARSE_FUNCTION_REMOVED");
+        rejects("int f(int x,...){return x;}", "PARSE_FUNCTION_REMOVED");
+        for (const auto* format : {"%u", "%x", "%o", "%ld", "%lf", "%4s", "%.2f"})
+            rejects(std::string("int main(){printf(\"")+format+"\",1);return 0;}","SEM_FORMAT");
+        std::cout << "MiniC 类型、数组、结构体、函数、输入输出和报错检查通过\n";
+        return 0;
+    } catch (const std::exception& error) {
+        std::cerr << error.what() << '\n'; return 1;
+    }
 }
