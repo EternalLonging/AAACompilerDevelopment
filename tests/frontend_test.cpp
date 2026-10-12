@@ -14,8 +14,8 @@ static ParseResult syntax(const std::string& source) {
     return parse(lexical.tokens);
 }
 static void execute(const std::string& source, int expected, const std::string& output = "",
-                    const std::string& input = "", bool preprocessing = false) {
-    auto compiled = preprocessing ? compile_preprocessed(source, "test.c") : compile(source, "test.c");
+                    const std::string& input = "") {
+    auto compiled = compile(source, "test.c");
     if (!compiled.ok()) { print_diagnostics(compiled.diagnostics, std::cerr); throw std::runtime_error("真实源码编译失败：" + source); }
     std::istringstream in(input); std::ostringstream out;
     auto execution = run(compiled.ir->program, compiled.semantic->symbols, in, out);
@@ -52,7 +52,7 @@ int main() {
                 locations.tokens[2].line == 3 && locations.tokens[2].range.begin.offset == 13, "CRLF 和注释位置");
         auto utf8 = lex("\"中文\" x");
         require(utf8.tokens[1].col == 10 && utf8.tokens[1].range.begin.offset == 9, "UTF-8 字节列");
-        for (const auto& source : {"08", "0x", "1UU", "1e+", "0x1.fp3", "\"\\q\"", "''", "'\\x'", "/* unfinished", "\"unfinished\nint x;", "@"}) {
+        for (const auto& source : {"08", "0x", "1UU", "1e+", "0x1.fp3", "\"\\q\"", "''", "'\\x'", "/* unfinished", "\"unfinished\nint x;", "@", "#"}) {
             auto bad = lex(source);
             require(!bad.ok() && bad.tokens.back().type == TokenType::END_OF_FILE, "词法错误恢复");
         }
@@ -133,12 +133,9 @@ int main() {
         execute("int main(void){printf(\"a\" \"b\\n\");return 0;}", 0, "ab\n");
         execute("int main(void){char s[]=\"\\x4\" \"1\";return sizeof(s);}", 3);
         execute("int main(void){printf(\"a\\\"\" \"b\");return 0;}", 0, "a\"b");
-        execute("#define TWICE(x) ((x)+(x))\nint main(void){return TWICE(4);}\n", 8, "", "", true);
         execute("struct S{int x;};int main(void){int a[2]={0,0};struct S s={0};char text[8];scanf(\"%d%d%7s\",&a[1],&s.x,text);printf(\"%d %d %s\",a[1],s.x,text);return 0;}", 0, "3 4 abc", "3 4 abc");
         execute("int sum(int a[][2]){return a[0][1]+a[1][0];}int main(void){int a[2][2]={{1,2},{3,4}};return sum(a);}", 5);
         execute("int main(void){int x=1;x++;{int y=3;x+=y;}return x;}", 5);
-        auto headers = compile_preprocessed("#include \"defs.h\"\nint main(void){return 0;}", "main.c");
-        require(!headers.ok() && !headers.lexical, "头文件包含应在预处理阶段拒绝");
         auto address_error = compile("int main(void){int x=0;return &x;}");
         require(!address_error.ok() && address_error.semantic && !address_error.ir, "普通表达式不能取地址");
         auto function_value = compile("int f(void){return 1;}int main(void){f;return 0;}");

@@ -1,7 +1,15 @@
-digraph G { graph [rankdir=LR, bgcolor="white", nodesep=0.3, ranksep=0.65, pad=0.25]; node [fontname="Arial", fontsize=12, shape=circle, width=0.55]; edge [fontname="Arial", fontsize=11, arrowsize=0.65];n1 [label="S1",shape=doublecircle,style=solid];
-n2 [label="S2",shape=doublecircle,style=solid];
-n3 [label="S3",shape=doublecircle,style=solid];
-n4 [label="S4",shape=doublecircle,style=solid];
-n2 -> n2 [label="C01"];
-n4 -> n3 [label="C02"];
+digraph G {
+  graph [rankdir=LR, bgcolor="white", nodesep=0.25, ranksep=0.55, pad=0.25];
+  node [fontname="Arial", fontsize=11, shape=circle, width=0.55];
+  edge [fontname="Arial", fontsize=9, arrowsize=0.6];
+  label="D03_空白与无效字节 | 90 states | 47 byte classes";
+  labelloc="t"; fontsize=16;
+  n24 [label="S24", shape=doublecircle];
+  n25 [label="S25", shape=doublecircle];
+  n26 [label="S26", shape=doublecircle];
+  n27 [label="S27", shape=doublecircle];
+  n28 [label="S28", shape=doublecircle];
+  n29 [label="S29", shape=doublecircle];
+  n26 -> n26 [label="C17, C18, C19, C26, C27, C28, C29, C30, C31, C32, C33, C38, C39, C40, C41, C42"];
+  n27 -> n26 [label="C17, C18, C19, C26, C27, C28, C29, C30, C31, C32, C33, C38, C39, C40, C41, C42"];
 }

@@ -1,25 +1,14 @@
-digraph G { graph [rankdir=LR, bgcolor="white", nodesep=0.3, ranksep=0.65, pad=0.25]; node [fontname="Arial", fontsize=12, shape=circle, width=0.55]; edge [fontname="Arial", fontsize=11, arrowsize=0.65];n0 [label="S0",shape=circle,style=solid];
-n13 [label="S13",shape=doublecircle,style=dashed];
-n14 [label="S14",shape=doublecircle,style=dashed];
-n15 [label="S15",shape=doublecircle,style=dashed];
-n16 [label="S16",shape=doublecircle,style=dashed];
-n17 [label="S17",shape=doublecircle,style=dashed];
-n18 [label="S18",shape=doublecircle,style=dashed];
-n19 [label="S19",shape=doublecircle,style=dashed];
-n20 [label="S20",shape=doublecircle,style=dashed];
-n21 [label="S21",shape=doublecircle,style=dashed];
-n22 [label="S22",shape=doublecircle,style=dashed];
-n23 [label="S23",shape=doublecircle,style=dashed];
-start [shape=point,width=0.04]; start -> n0;
-n0 -> n13 [label="C12"];
-n0 -> n14 [label="C13"];
-n0 -> n15 [label="C14"];
-n0 -> n16 [label="C15"];
-n0 -> n17 [label="C16"];
-n0 -> n18 [label="C17"];
-n0 -> n19 [label="C18"];
-n0 -> n20 [label="C19-C20"];
-n0 -> n21 [label="C21"];
-n0 -> n22 [label="C22"];
-n0 -> n23 [label="C23"];
+digraph G {
+  graph [rankdir=LR, bgcolor="white", nodesep=0.25, ranksep=0.55, pad=0.25];
+  node [fontname="Arial", fontsize=11, shape=circle, width=0.55];
+  edge [fontname="Arial", fontsize=9, arrowsize=0.6];
+  label="D02a_起始分派2 | 90 states | 47 byte classes";
+  labelloc="t"; fontsize=16;
+  n6 [label="S6", shape=doublecircle];
+  n7 [label="S7", shape=doublecircle];
+  n8 [label="S8", shape=doublecircle];
+  n9 [label="S9", shape=doublecircle];
+  n10 [label="S10", shape=doublecircle];
+  n11 [label="S11", shape=doublecircle];
+  n6 -> n6 [label="C00, C01, C04, C06, C07, C08, C09, C10, C11, C12, C13, C14, C15, C16, C17, C18, C19, C20, C21, C22, C23, C24, C25, C26, C27, C28, C29, C30, C31, C32, C33, C34, C36, C37, C38, C39, C40, C41, C42, C43, C44, C45, C46"];
 }

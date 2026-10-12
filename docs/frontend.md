@@ -6,11 +6,10 @@
 
 ## 词法分析
 
-`lexer/patterns.json` 是唯一规则源。`tools/generate_lexer_dfa.py` 展开正则宏，用 Thompson NFA、子集构造和保留接受动作的最小化生成 `src/lexer_dfa.hpp`。当前普通 DFA 为 92 状态、48 输入字节类别，覆盖全部 256 字节；32 个关键字在完整 ID 识别后查表。生成表已提交，正常 C++ 构建不需要运行 Python。
+`lexer/patterns.json` 是唯一规则源。`tools/generate_lexer_dfa.py` 展开正则宏，用 Thompson NFA、子集构造和保留接受动作的最小化生成 `src/lexer_dfa.hpp`。当前普通 DFA 为 90 状态、47 输入字节类别，覆盖全部 256 字节；32 个关键字在完整 ID 识别后查表。生成表已提交，正常 C++ 构建不需要运行 Python。
 
 扫描持续推进并记录最后接受状态；最长匹配优先，同长按规则顺序。空白和注释跳过，非法数字、转义、未闭合字面量/注释和非法字节使用既有中文诊断代码。错误恢复后仍输出一个末尾 EOF，20 条错误后停止；此时 EOF 位于停止扫描的位置。位置为左闭右开字节范围，CRLF 换行一次，Tab 算一列，UTF-8 列按字节计算。
 
-头文件上下文不进入普通 DFA。`lex` 和 `compile` 接收直接源码，不执行续行或宏处理；宏功能由已有 `preprocess` / `compile_preprocessed` 负责。minic 命令行默认先预处理，使用 `tokens --raw` 可查看原始单词与列号，见 [command-line.md](command-line.md)。预处理只保证原始文件和行号映射，列号及字节偏移的限制见 [preprocessor.md](preprocessor.md)。
 
 ## 语法分析
 

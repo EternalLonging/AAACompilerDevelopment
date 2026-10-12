@@ -112,15 +112,6 @@
       "exit_code": 0
     },
     {
-      "id": "13_macros",
-      "description": "头文件守卫、条件宏、字符串化和拼接",
-      "source": "programs/13_macros.c",
-      "stdin": "",
-      "stdout": "macro = 7 3\n",
-      "expect": "run",
-      "exit_code": 0
-    },
-    {
       "id": "14_short_circuit",
       "description": "逻辑短路与三目表达式只执行选中分支",
       "source": "programs/14_short_circuit.c",
@@ -281,16 +272,6 @@
       "expect": "reject",
       "phase": "Runtime",
       "message": "初始化"
-    },
-    {
-      "id": "e15_preprocess",
-      "description": "预处理失败阻止后续编译",
-      "source": "errors/e15_preprocess.c",
-      "stdin": "",
-      "stdout": "",
-      "expect": "reject",
-      "phase": "Preprocess",
-      "code": "PP_FAILURE"
     },
     {
       "id": "e16_step_limit",

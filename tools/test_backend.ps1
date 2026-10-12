@@ -13,7 +13,7 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "编译失败：$source" }
         $objects += $object
     }
-    foreach ($name in @('constant_pool', 'symbol_table', 'm1_pipeline', 'm2_pipeline', 'm3_pipeline', 'm4_pipeline', 'preprocessor', 'compiler_flow')) {
+    foreach ($name in @('constant_pool', 'symbol_table', 'm1_pipeline', 'm2_pipeline', 'm3_pipeline', 'm4_pipeline', 'compiler_flow')) {
         $testSources = @("tests/${name}_test.cpp")
         if ($name -eq 'compiler_flow') { $testSources += 'src/compiler.cpp' }
         & $Compiler '-std=c++17' '-Wall' '-Wextra' '-Wpedantic' '-Werror' '-I' 'include' @testSources @objects '-o' "build/${name}_test.exe"
@@ -56,8 +56,6 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'DFA 表过期' }
     python tools/test_lexer_dfa.py build/lexer_probe.exe
     if ($LASTEXITCODE -ne 0) { throw '词法对照测试失败' }
-    python tools/test_cli_preprocessing.py build/minic.exe
-    if ($LASTEXITCODE -ne 0) { throw '命令行预处理测试失败' }
     python tools/test_workbench_service.py build/workbench_driver.exe
     if ($LASTEXITCODE -ne 0) { throw '工作台服务测试失败' }
 } finally {

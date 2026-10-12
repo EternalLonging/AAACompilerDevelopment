@@ -11,8 +11,8 @@
 namespace {
 
 void usage(std::ostream& output) {
-    output << "用法：minic <tokens|parse|symbols|check|ir|run> [--raw] <源文件>\n"
-           << "默认先展开宏；--raw 直接分析原始源码。\n";
+    output << "用法：minic <tokens|parse|symbols|check|ir|run> <源文件>\n"
+           << "源码直接进入词法、语法、语义和中间代码阶段。\n";
 }
 
 // 读取源码；不存在时返回空值，读取失败时报告文件路径。
@@ -27,8 +27,7 @@ minic::MaybeValue<std::string> read_file(const std::filesystem::path& path) {
 // 参数已转换为 UTF-8，各命令共用同一套源码读取与编译流程。
 int cli(const std::vector<std::string>& args) {
     if (args.size() == 2 && args[1] == "--help") { usage(std::cout); return 0; }
-    const bool raw = args.size() == 4 && args[2] == "--raw";
-    if ((args.size() != 3 && !raw) || (args.size() == 3 && args[2] == "--raw")) {
+    if (args.size() != 3) {
         usage(std::cerr); return 1;
     }
     const std::string& command = args[1];
@@ -43,8 +42,7 @@ int cli(const std::vector<std::string>& args) {
         const auto source = read_file(source_path);
         if (!source) { std::cerr << "无法打开源文件：" << args.back() << '\n'; return 1; }
         const auto filename = source_path.generic_u8string();
-        auto compilation = raw ? minic::compile(*source, filename, target) :
-            minic::compile_preprocessed(*source, filename, target);
+        auto compilation = minic::compile(*source, filename, target);
         minic::print_diagnostics(compilation.diagnostics, std::cerr);
         // 检查失败时仍可查看已经生成的部分结果。
         if (command == "tokens" && compilation.lexical)

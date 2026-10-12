@@ -5,7 +5,6 @@
 | 示例 | 展示内容 | 输入 / 输出 |
 |---|---|---|
 | 01_pipeline.c | 单词、AST、符号表、语义、IR、循环和输入 | 输入 5，输出 sum = 15 |
-| 02_records_macros.c | 数组参数、学生记录和同文件宏 | passed = 2，average = 75.000000 |
 | 03_callback_static.c | 直接函数调用和 static 变量 | counter = 1 2，twice = 12 |
 | 04_semantic_error.c | 未声明变量定位 | 预期语义失败 |
 | 05_runtime_error.c | 数组越界定位 | 预期运行失败 |

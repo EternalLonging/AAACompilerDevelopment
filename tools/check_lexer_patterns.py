@@ -1,7 +1,7 @@
 """验证最终词法正则的接受范围、规则竞争和 Token 枚举覆盖。
 
 这里只用 Python 正则验证规则，不代替将来的 C++ DFA 扫描器，
-也不负责三字符组、续行、宏展开或 #include 上下文处理。
+也不负责三字符组、续行或源码预处理。
 """
 from __future__ import annotations
 
@@ -221,31 +221,19 @@ class FinalLexerPatterns(unittest.TestCase):
                 self.assertEqual(errors, [("LEX_UNTERMINATED_COMMENT", comment)])
 
     def test_longest_match_and_positions(self) -> None:
-        tokens, errors, _ = scan("a<<=1; b!=2 && c>=3; p->x; ... ##")
+        tokens, errors, _ = scan("a<<=1; b!=2 && c>=3; p->x; ...")
         self.assertEqual(errors, [])
         self.assertEqual([t[0] for t in tokens],
                          ["ID", "SHIFT_LEFT_ASSIGN", "INT_LITERAL", "SEMI",
                           "ID", "NE", "INT_LITERAL", "AND", "ID", "GE",
                           "INT_LITERAL", "SEMI", "ID", "ARROW", "ID", "SEMI",
-                          "ELLIPSIS", "HASH_HASH", "END_OF_FILE"])
+                          "ELLIPSIS", "END_OF_FILE"])
         tokens, errors, locations = scan("a/*x\r\ny*/\tb\r\nc")
         self.assertEqual(errors, [])
         self.assertEqual(locations, [(1, 1, 0), (2, 5, 10), (3, 1, 13), (3, 2, 14)])
         tokens, errors, locations = scan('"中文" x')
         self.assertEqual(errors, [])
         self.assertEqual(locations[1], (1, 10, 9))  # UTF-8 字节列。
-
-    def test_header_context_patterns(self) -> None:
-        for rule, sample in zip(SPEC["preprocessing"]["header_rules"],
-                                ["<stdio.h>", r'"dir\header.h"']):
-            regex = re.compile(expand(rule["regex"]).encode("ascii"))
-            self.assertIsNotNone(regex.fullmatch(sample.encode("utf-8")))
-            self.assertIsNone(regex.fullmatch(b""))
-        # 头文件规则不加入普通单词 DFA，避免吞掉普通比较表达式。
-        tokens, errors, _ = scan("a<b>c")
-        self.assertEqual(errors, [])
-        self.assertEqual([t[0] for t in tokens],
-                         ["ID", "LT", "ID", "GT", "ID", "END_OF_FILE"])
 
     def test_circle_and_scanf(self) -> None:
         source = ('int main(){float r;float c;r=1;c=2*3.14159*r;'
@@ -260,6 +248,6 @@ class FinalLexerPatterns(unittest.TestCase):
 
 if __name__ == "__main__":
     print(f"验证 {len(RULES)} 条普通词法规则、"
-          f"{len(SPEC['keywords'])} 个关键字和 2 条头文件上下文规则。",
+          f"{len(SPEC['keywords'])} 个关键字。",
           flush=True)
     unittest.main(verbosity=2)

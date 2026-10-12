@@ -44,7 +44,6 @@ Token / Diagnostic 保留需求资料中的 `line`、`col` 简便字段，它们
 
 `Diagnostic{phase, level, line, col, message, code, range, related}`：
 
-- phase 区分预处理、词法、语法、语义、IR 和运行时。
 - level 为 Note / Warning / Error / Fatal；只有 Error / Fatal 阻止下一阶段。
 - message 是可读的中文说明；code 是稳定检索标识，如 `SEM_UNDECLARED`。
 - related 可定位到先前的声明，便于解释重复声明、类型冲突。
@@ -69,7 +68,7 @@ Token / Diagnostic 保留需求资料中的 `line`、`col` 简便字段，它们
 
 `TypeArena` 用 `std::vector<TypeInfo*>` 保存它 new 出来的对象，析构时逐个 delete；表扩容不改变类型对象地址。`TypeInfo::base` 和 params 中的子类型指针只借用，不递归释放。`create()` 返回可填写成员的 `TypeInfo*`，填好后交给 TypePtr 只读使用。
 
-调用 compile / compile_preprocessed 时，返回的 CompilationResult.types 持有全部编译类型。保留整份 CompilationResult，直到语法树、符号表和 IR 都不再使用；单独复制某张表不会复制类型对象。移动编译结果会转交类型所有权，并保留对象地址。
+调用 compile / compile 时，返回的 CompilationResult.types 持有全部编译类型。保留整份 CompilationResult，直到语法树、符号表和 IR 都不再使用；单独复制某张表不会复制类型对象。移动编译结果会转交类型所有权，并保留对象地址。
 
 单独调用 parse、analyze、generate、register_builtins、ConstantPool::intern 或 arithmetic_result 前，先创建 TypeArena 和 TypeArenaScope；管理器必须比借用它的结果活得更久。再次生成已有编译结果的 IR 时，用 `TypeArenaScope scope(compiled.types)`。make_type_info 在当前管理器中创建类型；没有活动 Scope 时抛 logic_error，避免无人释放的对象。run 自行管理执行时的临时类型。
 

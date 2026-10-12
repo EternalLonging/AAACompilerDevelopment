@@ -8,13 +8,11 @@
 
 ## 当前语言范围（2026-10-10）
 
-本次按教学范围删除 `volatile`、代码自动补全、C 语言指针和 `#include`。数组、struct、union、enum、typedef、const、函数、宏及现有控制语句保留。
 
 - `for` 的变量在循环前声明，例如 `int i; for(i=0;i<3;i++){...}`；`for(int i=...)` 会报错。
 - 同一个代码块先声明变量，再写执行语句。语句后可以进入新的 `{...}`，在新块开头声明变量。
 - 不支持指针变量、指针转换、解引用、`->` 和函数指针调用。
 - `scanf("%d", &x)`、数组元素或成员的输入地址保留；普通表达式不能取地址。位运算 `a & b` 保留。
-- `printf` / `scanf` 是内建函数，不需要包含头文件。宏写在当前 `.c` 文件中。
 - `TypeKind::Address` 仅供数组传参和输入输出的内部寻址；不能在源码中声明它。C++ 实现中的普通指针负责连接数据结构，与源语言指针功能不同。
 
 ## 代码按阶段查看
@@ -28,7 +26,6 @@
 | 符号表 | SymbolTable、SymbolTableData | src/semantic.cpp；[建表说明](docs/symbol-table.md) |
 | 中间代码 | Quadruple、IRProgram、generate | src/backend.cpp；[常量池](docs/constant-pool.md) |
 | 执行 | RunResult、run | src/backend.cpp |
-| 预处理与总控 | preprocess、compile、compile_preprocessed | src/frontend.cpp、src/compiler.cpp |
 
 
 正式模块接口见 [modules.md](docs/modules.md)，AST 孩子顺序见 [interface.md](docs/interface.md)。
@@ -46,6 +43,5 @@ python tools/workbench_server.py --open
 
 也可双击 `start-workbench.cmd`。工作台保留 Ctrl+N 新建 `.c`、Ctrl+S 保存、保存或放弃新文件后切换、括号和引号配对、Tab 缩进、语法树导出和优化对比；[操作说明](docs/workbench.md)。
 
-完整回归共 20 项 CTest，覆盖词法对照、真实源码、符号表、常量池、语义、IR、解释执行、宏、命令行、课堂演示和本地服务。浏览器另验证编辑与保存交互。过程文件和编译产物放在 build，不上传 GitHub。
 
 [语言范围](docs/language-scope.md) · [前端说明](docs/frontend.md) · [命令行](docs/command-line.md) · [演示准备](docs/showcase.md) · [联调用例](tests/integration/README.md)

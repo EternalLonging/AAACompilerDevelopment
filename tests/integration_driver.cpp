@@ -16,7 +16,6 @@ minic::MaybeValue<std::string> read_file(const std::filesystem::path& path) {
 }
 const char* phase_name(minic::Phase phase) {
     switch (phase) {
-    case minic::Phase::Preprocess: return "Preprocess";
     case minic::Phase::Lexer: return "Lexer";
     case minic::Phase::Parser: return "Parser";
     case minic::Phase::Semantic: return "Semantic";
@@ -50,26 +49,18 @@ int main(int argc, char* argv[]) {
 #endif
         const auto source = read_file(source_path);
         if (!source) throw std::runtime_error("找不到联调源文件");
-        // 仅用于测试夹具的本地头文件。正式系统头文件搜索另行实现。
-#ifdef MINIC_FIXTURE_PREPROCESS_ONLY
-        const auto preprocessing = minic::preprocess(*source, source_path.u8string());
-        diagnostics(preprocessing.diagnostics);
-        if (!preprocessing.ok()) return 1;
-        std::cout << preprocessing.source;
-        return std::cout ? 0 : 2;
-#else
-        auto compilation = minic::compile_preprocessed(*source, source_path.u8string(), minic::CompileTarget::IR);
+        auto compilation = minic::compile(*source, source_path.u8string(), minic::CompileTarget::IR);
         diagnostics(compilation.diagnostics);
         if (!compilation.ok()) return 1;
         minic::RunOptions options;
         options.max_steps = 10000;
         options.max_call_depth = 128;
-        const auto execution = minic::run(compilation.ir->program, compilation.semantic->symbols, std::cin, std::cout, options);
+        const auto execution = minic::run(compilation.ir->program, compilation.semantic->symbols,
+                                          std::cin, std::cout, options);
         diagnostics(execution.diagnostics);
         if (!execution.ok()) return 1;
         std::cerr << "[fixture_exit=" << *execution.exit_code << "]\n";
         return std::cout ? 0 : 2;
-#endif
     } catch (const std::exception& error) {
         std::cerr << "[fixture_driver_error] " << error.what() << '\n'; return 2;
     }

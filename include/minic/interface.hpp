@@ -63,7 +63,7 @@ struct SourceRange {
 };
 
 // 编译阶段。
-enum class Phase { Preprocess, Lexer, Parser, Semantic, IR, Runtime };
+enum class Phase { Lexer, Parser, Semantic, IR, Runtime };
 // 诊断级别。
 enum class Level { Note, Warning, Error, Fatal };
 
@@ -144,7 +144,7 @@ enum class TokenType {
     STAR_ASSIGN, SLASH_ASSIGN, PERCENT_ASSIGN, BIT_OR, BIT_XOR, BIT_NOT,
     SHIFT_LEFT, SHIFT_RIGHT, AND_ASSIGN, OR_ASSIGN, XOR_ASSIGN,
     SHIFT_LEFT_ASSIGN, SHIFT_RIGHT_ASSIGN, QUESTION, COLON, ARROW,
-    ELLIPSIS, HASH, HASH_HASH
+    ELLIPSIS
 };
 
 // 词法分析
@@ -184,6 +184,7 @@ struct ASTNode {
     ConstantValue value; // 解码后的常量值；非常量时为空。
     SourceRange range; // 节点对应的源码范围。
     TypePtr declared_type = nullptr; // 源码中写出的声明或转换目标类型。
+    
     TypePtr type = nullptr; // 语义检查后的类型；检查前为空。
     ValueCategory category = ValueCategory::None; // 节点是左值、右值、函数还是非表达式。
     StorageClass storage = StorageClass::None; // 声明的存储类别，如 static、extern。

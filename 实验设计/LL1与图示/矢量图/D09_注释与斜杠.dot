@@ -1,16 +1,14 @@
-digraph G { graph [rankdir=LR, bgcolor="white", nodesep=0.3, ranksep=0.65, pad=0.25]; node [fontname="Arial", fontsize=12, shape=circle, width=0.55]; edge [fontname="Arial", fontsize=11, arrowsize=0.65];n18 [label="S18",shape=doublecircle,style=solid];
-n54 [label="S54",shape=doublecircle,style=solid];
-n55 [label="S55",shape=doublecircle,style=solid];
-n56 [label="S56",shape=doublecircle,style=solid];
-n80 [label="S80",shape=doublecircle,style=solid];
-n91 [label="S91",shape=doublecircle,style=solid];
-n18 -> n54 [label="C12"];
-n18 -> n55 [label="C17"];
-n18 -> n56 [label="C24"];
-n54 -> n54 [label="C00-C11, C13-C47"];
-n54 -> n80 [label="C12"];
-n55 -> n55 [label="C00-C01, C04-C47"];
-n80 -> n54 [label="K21"];
-n80 -> n80 [label="C12"];
-n80 -> n91 [label="C17"];
+digraph G {
+  graph [rankdir=LR, bgcolor="white", nodesep=0.25, ranksep=0.55, pad=0.25];
+  node [fontname="Arial", fontsize=11, shape=circle, width=0.55];
+  edge [fontname="Arial", fontsize=9, arrowsize=0.6];
+  label="D09_注释与斜杠 | 90 states | 47 byte classes";
+  labelloc="t"; fontsize=16;
+  n66 [label="S66", shape=doublecircle];
+  n67 [label="S67", shape=doublecircle];
+  n68 [label="S68", shape=doublecircle];
+  n69 [label="S69", shape=doublecircle];
+  n70 [label="S70", shape=doublecircle];
+  n71 [label="S71", shape=doublecircle];
+  n71 -> n71 [label="C00, C01, C04, C06, C07, C08, C09, C10, C11, C12, C13, C14, C15, C16, C17, C18, C19, C20, C21, C22, C23, C24, C25, C26, C27, C28, C29, C30, C31, C32, C33, C34, C36, C37, C38, C39, C40, C41, C42, C43, C44, C45, C46"];
 }

@@ -2,7 +2,6 @@
 
 语义分析使用语法制导的 AST 遍历：登记声明、建立作用域、绑定符号编号、检查类型，必要时插入转换节点；IR 遍历标注后的 AST 生成四元式。符号表保存普通名字、类型标签、成员与作用域，常量池单独按类型和值去重。
 
-保留扩展数值类型、union、struct/union 传值及返回、extern、static、typedef、enum、位运算、宏、字符串化/拼接/重扫描和现有控制流。函数形参顶层 const 不影响签名，函数体内仍禁止修改 const 形参。
 
 C 语言指针、volatile、自动补全、头文件包含已删除；for 声明和同块语句后声明被拒绝。完整范围以 [language-scope.md](language-scope.md) 为准，存储和寻址规则见 [backend-extensions.md](backend-extensions.md)。
 

@@ -1,4 +1,4 @@
-"""验证真实工作台进程、JSON结果、编译失败与本地服务接口。"""
+﻿"""验证真实工作台进程、JSON结果、编译失败与本地服务接口。"""
 
 import argparse
 import importlib.util
@@ -33,12 +33,12 @@ def main():
     check(len(data["optimized"]["quads"]) < len(data["baseline"]["quads"]), "真实生成的指令数应减少")
     check(data["tokens"] and data["ast"] and data["symbols"], "各阶段数据不能为演示假数据")
     check(all(n["parent"] == -1 or n["parent"] < n["id"] for n in data["ast"]), "图形AST父子编号有效")
-    project = {"source": '#include "inc/a.h"\nint main(void){return 0;}\n'}
+    project = {"source": "int main(void){#return 0;}"}
     rejected = server_module.invoke(driver, project, "run")
-    check(not rejected["ok"] and "baseline" not in rejected and rejected["diagnostics"][0]["phase"] == "预处理", "工作台拒绝头文件包含")
-    named = {"entry": "src/demo.c", "source": '#define N 9\nint main(void){printf("%d\\n",N);return 0;}\n', "files": {"main.c": "这份源码不应被编译"}}
+    check(not rejected["ok"] and "baseline" not in rejected, "非法字符应在词法阶段被拒绝")
+    named = {"entry": "src/demo.c", "source": "int main(void){return 9;}\n", "files": {"main.c": "这份源码不应被编译"}}
     named_result = server_module.invoke(driver, named, "run")
-    check(named_result["ok"] and named_result["optimized"]["run"]["output"] == "9\n", "只编译所选源文件")
+    check(named_result["ok"] and named_result["optimized"]["run"]["exit"] == 9, "只编译所选源文件")
     check(any(t["file"] == "src/demo.c" for t in named_result["tokens"]), "源文件保留项目内路径")
     failed = server_module.invoke(driver, {"source": 'int main(void){unknown=1;return 0;}'}, "run")
     check(not failed["ok"] and "baseline" not in failed and failed["diagnostics"][0]["phase"] == "语义", "失败阶段不能继续生成或运行")
