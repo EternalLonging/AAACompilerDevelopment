@@ -60,12 +60,12 @@ int main() {
         require(limit.diagnostics.size() == 20 && limit.diagnostics.back().message.find("错误过多") != std::string::npos, "词法诊断上限");
         auto recovering = syntax("int main(void){ x = ; y = ; return 0; }");
         require(!recovering.root && recovering.diagnostics.size() == 2, "块内多错误恢复");
-        const std::string loop_source = "int a[3]; int b[2][3]; int main(void){for(;;){break;}return 0;}";
+        const std::string loop_source = "int a[3]; int b[6]; int main(void){for(;;){break;}return 0;}";
         auto tree = syntax(loop_source);
         require(tree.ok(), "数组与函数声明");
         const auto& ds = tree.root->children;
         require(ds[0]->declared_type->kind == TypeKind::Array, "一维数组");
-        require(ds[1]->declared_type->base->kind == TypeKind::Array, "多维数组");
+        require(ds[1]->declared_type->base->kind == TypeKind::Int, "一维数组的元素");
         const auto& loop = *ds[2]->children.back()->children[0];
         require(loop.kind == NodeType::For && loop.children.size() == 4 && loop.children[0]->kind == NodeType::Empty &&
                 loop.children[1]->kind == NodeType::Empty && loop.children[2]->kind == NodeType::Empty, "for 可选孩子顺序");
@@ -77,7 +77,7 @@ int main() {
         rejects("int **p;", "PARSE_POINTER_REMOVED");
         rejects("typedef int *P;", "PARSE_DECLARATION_REMOVED");
         rejects("struct S{int x;};int main(void){struct S s;return s->x;}", "PARSE_POINTER_REMOVED");
-        rejects("int main(void){return (int*)0;}", "PARSE_POINTER_REMOVED");
+        rejects("int main(void){return *0;}", "PARSE_POINTER_REMOVED");
         rejects("int main(void){const volatile int x=0;return x;}");
         rejects("int main(void){ if(1) return 0; }", "PARSE_EXPECTED");
         rejects("int main(void){ if(1){} else if(0){} }", "PARSE_EXPECTED");
@@ -86,7 +86,7 @@ int main() {
         rejects("int main(void){ a+b=3; }", "PARSE_ASSIGNMENT_TARGET");
         rejects("int main(void){ int a[2+3]; }", "PARSE_EXPECTED");
         rejects("int int x;", "PARSE_SPECIFIERS");
-        rejects("long long x;", "PARSE_SPECIFIERS");
+        rejects("long long x;", "PARSE_TYPE_REMOVED");
         rejects("struct S{int x:2;};", "PARSE_MEMBER");
         rejects("int main(int){ return 0; }", "PARSE_PARAMETER");
         rejects("int x, f(void){return 0;}", "PARSE_FUNCTION");
@@ -98,8 +98,7 @@ int main() {
             "int main(void){union U{int x;} u;return 0;}",
             "int main(void){enum E{A} e;return 0;}",
             "struct S{union U u;};", "struct S{enum E e;};",
-            "int main(void){return sizeof(union U);}",
-            "int main(void){return (enum E)1;}"
+            "enum E e;"
         }) rejects(source, "PARSE_RECORD_REMOVED");
         for (const auto* source : {
             "#define N 2\nint main(void){printf(\"SHOULD_NOT_RUN\");return N;}",
@@ -124,7 +123,7 @@ int main() {
         }) rejects(std::string("int main(void){") + body + "return 0;}", "PARSE_CONTROL_REMOVED");
         rejects("int main(void){done:return 0;}", "PARSE_LABEL_REMOVED");
         rejects("int main(void){while(1){again:break;}return 0;}", "PARSE_LABEL_REMOVED");
-        execute("int next(void){int count=0;return ++count;}int main(void){return next()+next();}", 2);
+        execute("int next(void){int count=0;count=count+1;return count;}int main(void){return next()+next();}", 2);
         execute("int x=3;int get(void){return x;}int main(void){int x=7;return x+get();}", 10);
         auto invalid_break = compile("int main(void){break;return 0;}");
         auto invalid_continue = compile("int main(void){continue;return 0;}");
@@ -140,29 +139,29 @@ int main() {
         execute("int main(void){return 2+3*4-8/2;}", 10);
         execute("int main(void){int a=0,b=0; a=b=7; return a+b;}", 14);
         execute("int main(void){return 8-3-1;}", 4);
-        execute("int main(void){return 1 ? 0 ? 2 : 3 : 4;}", 3);
-        execute("int main(void){int x=1; return (x=2,x+3);}", 5);
+        rejects("int main(void){return 1?2:3;}", "PARSE_OPERATOR_REMOVED");
+        rejects("int main(void){int x=1; return (x=2,x+3);}");
         execute("int main(void){int x=1; (x)=4; return x;}", 4);
-        execute("int main(void){int x=1; return x++ + ++x;}", 4);
-        execute("int main(void){return (3<<2) | (7&3) ^ 1;}", 14);
-        execute("int main(void){int a[2][3]={{1,2,3},{4,5,6}}; return a[1][2];}", 6);
-        execute("int sum(int a[],int n){int i=0,s=0;for(i=0;i<n;i++){s+=a[i];}return s;} int main(void){int a[]={1,2,3}; return sum(a,3);}", 6);
-        execute("struct S{char c;int x;}; int main(void){struct S s={'a',9}; s.x+=1; return s.x+sizeof(struct S);}", 18);
-        execute("int main(void){struct {int x;} s={4};return s.x;}", 4);
-        execute("struct S; struct S{int x;}; int main(void){struct S s={7};return s.x;}", 7);
-        execute("int f(int x);int f(int x){return x+2;}int main(void){return f(3);}", 5);
+        rejects("int main(void){int x=1; return x++;}", "PARSE_OPERATOR_REMOVED");
+        rejects("int main(void){return 3<<2;}", "PARSE_OPERATOR_REMOVED");
+        rejects("int main(void){int a[2][3];return 0;}", "PARSE_ARRAY_DIMENSION");
+        execute("int sum(int a[],int n){int i=0,s=0;for(i=0;i<n;i=i+1){s=s+a[i];}return s;} int main(void){int a[]={1,2,3}; return sum(a,3);}", 6);
+        execute("struct S{char c;int x;}; int main(void){struct S s={'a',9}; s.x=s.x+1; return s.x+8;}", 18);
+        rejects("int main(void){struct {int x;} s={4};return s.x;}", "PARSE_RECORD_ANONYMOUS");
+        rejects("struct S;", "PARSE_RECORD_FORWARD");
+        rejects("int f(int x);", "PARSE_FUNCTION_DECL_REMOVED");
         execute("int inc(int x){return x+1;} int main(void){return inc(5);}", 6);
         execute("int fact(int n){if(n<=1){return 1;}else{return n*fact(n-1);}}int main(void){return fact(5);}", 120);
-        execute("int main(void){int i=0,s=0;while(i<5){i++;if(i==2){continue;}s+=i;if(i==4){break;}}return s;}", 8);
+        execute("int main(void){int i=0,s=0;while(i<5){i=i+1;if(i==2){continue;}s=s+i;if(i==4){break;}}return s;}", 8);
         execute("int main(void){int x=0; if(0 && (x=3)){x=4;}return x;}", 0);
-        execute("int main(void){double d=(double)3; unsigned int u=0xffffffffU; return (int)d+(int)(u>>31);}", 4);
-        execute("int main(void){int n=0,s=0,i=0;scanf(\"%d\",&n);for(i=1;i<=n;i++){s+=i;}printf(\"sum = %d\\n\",s);return 0;}", 0, "sum = 15\n", "5");
+        rejects("double d;", "PARSE_TYPE_REMOVED");
+        execute("int main(void){int n=0,s=0,i=0;scanf(\"%d\",&n);for(i=1;i<=n;i=i+1){s=s+i;}printf(\"sum = %d\\n\",s);return 0;}", 0, "sum = 15\n", "5");
         execute("int main(void){printf(\"a\" \"b\\n\");return 0;}", 0, "ab\n");
-        execute("int main(void){char s[]=\"\\x4\" \"1\";return sizeof(s);}", 3);
+        execute("int main(void){char s[]=\"\\x4\" \"1\";return s[1];}", 49);
         execute("int main(void){printf(\"a\\\"\" \"b\");return 0;}", 0, "a\"b");
-        execute("struct S{int x;};int main(void){int a[2]={0,0};struct S s={0};char text[8];scanf(\"%d%d%7s\",&a[1],&s.x,text);printf(\"%d %d %s\",a[1],s.x,text);return 0;}", 0, "3 4 abc", "3 4 abc");
-        execute("int sum(int a[][2]){return a[0][1]+a[1][0];}int main(void){int a[2][2]={{1,2},{3,4}};return sum(a);}", 5);
-        execute("int main(void){int x=1;x++;{int y=3;x+=y;}return x;}", 5);
+        execute("struct S{int x;};int main(void){int a[2]={0,0};struct S s={0};char text[8];scanf(\"%d%d%s\",&a[1],&s.x,text);printf(\"%d %d %s\",a[1],s.x,text);return 0;}", 0, "3 4 abc", "3 4 abc");
+        rejects("int sum(int a[][2]){return 0;}", "PARSE_ARRAY_DIMENSION");
+        execute("int main(void){int x=1;x=x+1;{int y=3;x=x+y;}return x;}", 5);
         auto address_error = compile("int main(void){int x=0;return &x;}");
         require(!address_error.ok() && address_error.semantic && !address_error.ir, "普通表达式不能取地址");
         auto function_value = compile("int f(void){return 1;}int main(void){f;return 0;}");

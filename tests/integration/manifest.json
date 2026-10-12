@@ -12,7 +12,7 @@
     },
     {
       "id": "02_input_sum",
-      "description": "输入、for 循环和复合赋值",
+      "description": "输入、for 循环和普通赋值",
       "source": "programs/02_input_sum.c",
       "stdin": "5\n",
       "stdout": "sum = 15\n",
@@ -30,7 +30,7 @@
     },
     {
       "id": "04_control",
-      "description": "while、if、break 和 continue",
+      "description": "while、if、break、continue 和普通赋值",
       "source": "programs/04_control.c",
       "stdin": "",
       "stdout": "control = 12\n",
@@ -39,7 +39,7 @@
     },
     {
       "id": "05_arrays",
-      "description": "多维数组和嵌套初始化",
+      "description": "一维数组和初始化",
       "source": "programs/05_arrays.c",
       "stdin": "",
       "stdout": "array = 21\n",
@@ -48,7 +48,7 @@
     },
     {
       "id": "06_struct",
-      "description": "结构体按值传参、返回值与成员",
+      "description": "简单结构体、赋值与成员",
       "source": "programs/06_struct.c",
       "stdin": "",
       "stdout": "pair = 1 9 2\n",
@@ -97,25 +97,25 @@
     },
     {
       "id": "11_numeric",
-      "description": "无符号回绕、long 和 double",
+      "description": "int、float 和普通算术",
       "source": "programs/11_numeric.c",
       "stdin": "",
-      "stdout": "numeric = 0 123 1.500000\n",
+      "stdout": "numeric = 13 123 1.500000\n",
       "expect": "run",
       "exit_code": 0
     },
     {
       "id": "12_strings",
-      "description": "字符数组、字符指针和限宽字符串输入",
+      "description": "字符数组和字符串输入",
       "source": "programs/12_strings.c",
-      "stdin": "abcdef\n",
+      "stdin": "abcd\n",
       "stdout": "string = Abcd orld\n",
       "expect": "run",
       "exit_code": 0
     },
     {
       "id": "14_short_circuit",
-      "description": "逻辑短路与三目表达式只执行选中分支",
+      "description": "逻辑运算和条件分支",
       "source": "programs/14_short_circuit.c",
       "stdin": "",
       "stdout": "short = 5 0\n",
@@ -134,12 +134,13 @@
     },
     {
       "id": "16_temporary_array",
-      "description": "函数返回结构体后读取数组成员",
+      "description": "拒绝结构体按值返回",
       "source": "programs/16_temporary_array.c",
       "stdin": "",
-      "stdout": "temporary = 8\n",
-      "expect": "run",
-      "exit_code": 0
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Parser",
+      "code": "PARSE_FUNCTION_REMOVED"
     },
     {
       "id": "e01_invalid_byte",
@@ -405,6 +406,46 @@
       "expect": "reject",
       "phase": "Parser",
       "code": "PARSE_DECLARATION_REMOVED"
+    },
+    {
+      "id": "e29_extended_type_removed",
+      "description": "拒绝 MiniC 范围外的基础类型",
+      "source": "errors/e29_extended_type_removed.c",
+      "stdin": "",
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Parser",
+      "code": "PARSE_TYPE_REMOVED"
+    },
+    {
+      "id": "e30_multidimensional_array",
+      "description": "拒绝多维数组",
+      "source": "errors/e30_multidimensional_array.c",
+      "stdin": "",
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Parser",
+      "code": "PARSE_ARRAY_DIMENSION"
+    },
+    {
+      "id": "e31_function_prototype_removed",
+      "description": "拒绝函数声明和原型",
+      "source": "errors/e31_function_prototype_removed.c",
+      "stdin": "",
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Parser",
+      "code": "PARSE_FUNCTION_DECL_REMOVED"
+    },
+    {
+      "id": "e32_compound_assignment_removed",
+      "description": "拒绝复合赋值",
+      "source": "errors/e32_compound_assignment_removed.c",
+      "stdin": "",
+      "stdout": "",
+      "expect": "reject",
+      "phase": "Parser",
+      "code": "PARSE_COMPOUND_ASSIGNMENT"
     }
   ]
 }

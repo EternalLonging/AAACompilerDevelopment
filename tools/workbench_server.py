@@ -108,7 +108,7 @@ def handler(driver):
                     demos.append({"name": file.name, "source": file.read_text(encoding="utf-8"),
                                   "input": "5\n" if file.name.startswith("01") else "",
                                   "files": {}})
-                demos.insert(0, {"name": "常量折叠与短路", "source": 'int main(void) {\n    int x = (2 + 3) * (4 + 5);\n    int hits = 0;\n    if (0 && ++hits) {\n        hits = 99;\n    }\n    printf("value = %d, hits = %d\\n", x, hits);\n    return 0;\n}\n', "input": "", "files": {}})
+                demos.insert(0, {"name": "常量折叠与短路", "source": 'int main(void) {\n    int x = (2 + 3) * (4 + 5);\n    int hits = 0;\n    if (0 && (hits = hits + 1)) {\n        hits = 99;\n    }\n    printf("value = %d, hits = %d\\n", x, hits);\n    return 0;\n}\n', "input": "", "files": {}})
                 self.json(200, demos); return
             assets = {"/": ("index.html", "text/html"), "/app.js": ("app.js", "text/javascript"), "/style.css": ("style.css", "text/css")}
             if self.path not in assets:

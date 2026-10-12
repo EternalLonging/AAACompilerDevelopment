@@ -306,48 +306,30 @@ inline std::string decode_string(const std::string& spelling, char quote) {
 struct FormatPart {
     std::string text; // 直接输出或匹配的文字。
     char conversion = 0; // d、f、c、s；0 表示纯文字。
-    std::size_t width = 0; // 最大输入或输出字符数，0 表示未指定。
-    char length = 0; // h、l、L 长度修饰符，0 表示默认类型。
 };
 
-// M1 格式串支持 %d、%f、%c、printf 的 %s 及 %%。
-inline std::vector<FormatPart> format_parts(const std::string& format, bool scanning) {
+// 将格式串拆成文字和 %d、%f、%c、%s、%%；其他写法报错。
+inline std::vector<FormatPart> format_parts(const std::string& format, bool) {
     std::vector<FormatPart> result;
     std::string text;
     for (std::size_t i = 0; i < format.size() && format[i] != 0; ++i) {
         if (format[i] != '%') { text += format[i]; continue; }
         if (++i >= format.size() || format[i] == 0) throw std::runtime_error("格式串末尾缺少转换符");
         if (format[i] == '%') { text += '%'; continue; }
-        std::size_t width = 0;
-        const bool has_width = format[i] >= '0' && format[i] <= '9';
-        while (i < format.size() && format[i] >= '0' && format[i] <= '9') {
-            width = width * 10 + static_cast<std::size_t>(format[i++] - '0');
-            if (width > max_object_size) throw std::runtime_error("格式宽度超出限制");
-        }
-        char length = 0;
-        if (has_width && !width) throw std::runtime_error("格式宽度必须大于零");
-        if (i < format.size() && (format[i] == 'h' || format[i] == 'l' || format[i] == 'L')) length = format[i++];
-        if (i >= format.size() || (format[i] != 'd' && format[i] != 'u' && format[i] != 'x' && format[i] != 'o' &&
-            format[i] != 'f' && format[i] != 'c' && format[i] != 's'))
-            throw std::runtime_error("不支持该格式转换符");
-        if ((format[i] == 's' || format[i] == 'c') && length) throw std::runtime_error("暂不支持宽字符格式");
-        if (format[i] != 'f' && length == 'L') throw std::runtime_error("L 仅能修饰浮点格式");
-        if (format[i] == 'f' && length == 'h') throw std::runtime_error("h 不能修饰浮点格式");
-        if (!scanning && width) throw std::runtime_error("printf 宽度格式尚未支持");
-        if (scanning && width && format[i] != 's') throw std::runtime_error("当前输入宽度只支持 %s");
+        if (format[i] != 'd' && format[i] != 'f' && format[i] != 'c' && format[i] != 's')
+            throw std::runtime_error("MiniC 格式串只支持 %d、%f、%c、%s 和 %%");
         if (!text.empty()) { result.push_back({text, 0}); text.clear(); }
-        result.push_back({{}, format[i], width, length});
+        result.push_back({{}, format[i]});
     }
     if (!text.empty()) result.push_back({text, 0});
     return result;
 }
 
-inline TypePtr format_type(const FormatPart& part, bool scanning) {
+inline TypePtr format_type(const FormatPart& part, bool) {
     auto result = make_type_info();
-    if (part.conversion == 'f') result->kind = part.length == 'L' ? TypeKind::LongDouble : part.length == 'l' ? TypeKind::Double : TypeKind::Float;
+    if (part.conversion == 'f') result->kind = TypeKind::Float;
     else if (part.conversion == 'c' || part.conversion == 's') result->kind = TypeKind::Char;
-    else result->kind = part.length == 'l' ? TypeKind::Long : part.length == 'h' && scanning ? TypeKind::Short : TypeKind::Int;
-    result->is_unsigned = part.conversion == 'u' || part.conversion == 'x' || part.conversion == 'o';
+    else result->kind = TypeKind::Int;
     return result;
 }
 

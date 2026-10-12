@@ -151,6 +151,12 @@ def main():
             ('int main(void){switch(1){}return 0;}', 'PARSE_CONTROL_REMOVED'),
             ('int main(void){goto done;return 0;}', 'PARSE_CONTROL_REMOVED'),
             ('int main(void){done:return 0;}', 'PARSE_LABEL_REMOVED'),
+            ('double x;int main(void){return 0;}', 'PARSE_TYPE_REMOVED'),
+            ('int a[2][3];int main(void){return 0;}', 'PARSE_ARRAY_DIMENSION'),
+            ('int f(int x);int main(void){return 0;}', 'PARSE_FUNCTION_DECL_REMOVED'),
+            ('int main(void){int x=0;x+=1;return x;}', 'PARSE_COMPOUND_ASSIGNMENT'),
+            ('int main(void){return sizeof(int);}', 'PARSE_OPERATOR_REMOVED'),
+            ('int main(void){printf("%ld",1);return 0;}', 'SEM_FORMAT'),
         ):
             editor.fill(source)
             page.locator("#run").click()

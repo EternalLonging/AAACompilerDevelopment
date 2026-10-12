@@ -6,8 +6,8 @@ int main(void) {
     if (zero && 1 / zero) {
         x = 99;
     }
-    x += 1 || ++zero;
-    x += zero ? 1 / zero : 4;
+    if (zero || 1) { x = x + 1; }
+    if (zero) { x = x + 1 / zero; } else { x = x + 4; }
     printf("short = %d %d\n", x, zero);
     return 0;
 }

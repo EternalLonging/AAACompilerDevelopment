@@ -2,8 +2,8 @@
 int sum_to(int n) {
     int i;
     int sum = 0;
-    for (i = 1; i <= n; i++) {
-        sum += i;
+    for (i = 1; i <= n; i=i+1) {
+        sum = sum + i;
     }
     return sum;
 }

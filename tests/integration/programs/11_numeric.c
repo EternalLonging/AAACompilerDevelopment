@@ -1,8 +1,8 @@
 int main(void) {
-    unsigned int u = 4294967295U;
-    long n = 123L;
-    double d = 1.5;
-    u += 1U;
-    printf("numeric = %u %ld %lf\n", u, n, d);
+    int u = 12;
+    int n = 123;
+    float d = 1.5;
+    u = u + 1;
+    printf("numeric = %d %d %f\n", u, n, d);
     return 0;
 }

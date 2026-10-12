@@ -1,7 +1,7 @@
 /* 普通局部变量在每次调用时重新初始化。 */
 int next(void) {
     int count = 0;
-    count++;
+    count=count+1;
     return count;
 }
 

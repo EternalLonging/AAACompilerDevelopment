@@ -11,9 +11,9 @@ struct Student {
 int count_pass(struct Student p[], int count) {
     int i;
     int passed = 0;
-    for (i = 0; i < count; i++) {
+    for (i = 0; i < count; i=i+1) {
         if (p[i].score >= 60) {
-            passed++;
+            passed=passed+1;
         }
     }
     return passed;
@@ -23,11 +23,11 @@ int main(void) {
     struct Student students[3] = {{"Alice", 90}, {"Bob", 55}, {"Chen", 80}};
     int i;
     int total = 0;
-    for (i = 0; i < 3; i++) {
-        total += students[i].score;
+    for (i = 0; i < 3; i=i+1) {
+        total = total + students[i].score;
         printf("%s: %d\n", students[i].name, students[i].score);
     }
     printf("passed = %d\n", count_pass(students, 3));
-    printf("average = %f\n", (float)total / 3);
+    printf("average = %f\n", total / 3.0);
     return 0;
 }

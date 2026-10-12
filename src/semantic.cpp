@@ -683,29 +683,21 @@ private:
                     node.type = detail::type(TypeKind::Char);
                 }
             } else if (node.kind == NodeType::IntLiteral) {
-                static const std::regex pattern(R"((0[xX][0-9a-fA-F]+|0[0-7]*|[1-9][0-9]*)([uU][lL]?|[lL][uU]?)?)");
+                static const std::regex pattern(R"((0[xX][0-9a-fA-F]+|0[0-7]*|[1-9][0-9]*))");
                 std::smatch match;
                 if (!std::regex_match(node.name, match, pattern)) throw std::runtime_error("整数常量写法或后缀无效");
                 const auto value = std::stoull(match[1].str(), nullptr, 0);
-                const auto suffix = match[2].str();
-                auto type = make_type_info(); type->kind = suffix.find_first_of("lL") == std::string::npos ? TypeKind::Int : TypeKind::Long;
-                type->is_unsigned = suffix.find_first_of("uU") != std::string::npos;
-                const bool nondecimal = match[1].str().size() > 1 && match[1].str()[0] == '0';
-                if (value > std::numeric_limits<int>::max() && nondecimal) type->is_unsigned = true;
-                if (value > (type->is_unsigned ? std::numeric_limits<unsigned>::max() : static_cast<unsigned long long>(std::numeric_limits<int>::max())))
+                if (value > static_cast<unsigned long long>(std::numeric_limits<int>::max()))
                     throw std::runtime_error("整数常量超出 32 位目标范围");
-                node.type = type;
-                node.value = type->is_unsigned ? ConstantValue{static_cast<unsigned long long>(value)} : ConstantValue{static_cast<long long>(value)};
+                node.type = detail::type(TypeKind::Int);
+                node.value = static_cast<long long>(value);
             } else {
-                static const std::regex pattern(R"(((\d+\.\d*|\.\d+)([eE][+-]?\d+)?|\d+[eE][+-]?\d+)[fFlL]?)");
+                static const std::regex pattern(R"(((\d+\.\d*|\.\d+)([eE][+-]?\d+)?|\d+[eE][+-]?\d+)[fF]?)");
                 if (!std::regex_match(node.name, pattern)) throw std::runtime_error("M1 浮点常量写法不受支持");
-                const auto suffix = node.name.back();
-                // 保留项目的无后缀 float 约定；L 后缀采用 64 位 long double 目标。
-                const auto kind = suffix == 'l' || suffix == 'L' ? TypeKind::LongDouble : TypeKind::Float;
                 const auto value = std::stod(node.name);
                 if (!std::isfinite(value)) throw std::runtime_error("浮点常量必须有限");
-                node.value = kind == TypeKind::Float ? detail::checked_float(value) : value;
-                node.type = detail::type(kind);
+                node.value = detail::checked_float(value);
+                node.type = detail::type(TypeKind::Float);
             }
             node.category = ValueCategory::RValue;
         } catch (const std::exception& exception) {

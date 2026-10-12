@@ -51,6 +51,11 @@ def main():
         ('int main(void){default:;return 0;}', '语法', 'PARSE_CONTROL_REMOVED'),
         ('int main(void){goto done;return 0;}', '语法', 'PARSE_CONTROL_REMOVED'),
         ('int main(void){done:return 0;}', '语法', 'PARSE_LABEL_REMOVED'),
+        ('double x;int main(void){return 0;}', '语法', 'PARSE_TYPE_REMOVED'),
+        ('int a[2][3];int main(void){return 0;}', '语法', 'PARSE_ARRAY_DIMENSION'),
+        ('int f(int x);int main(void){return 0;}', '语法', 'PARSE_FUNCTION_DECL_REMOVED'),
+        ('int main(void){int x=0;x+=1;return x;}', '语法', 'PARSE_COMPOUND_ASSIGNMENT'),
+        ('int main(void){printf("%lf",1.0);return 0;}', '语义', 'SEM_FORMAT'),
     ]:
         result = server_module.invoke(driver, {"source": removed_source}, "run")
         check(not result["ok"] and "baseline" not in result and "preprocessing" not in result,

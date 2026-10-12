@@ -10,14 +10,14 @@ import tempfile
 # 这些程序遵守项目语法，并且不依赖动态内存或系统头文件。
 PROGRAMS = [
     ("bubble_sort", """void sort(int a[],int n) { int i,j,t;
-for(i=0;i<n;i++) { for(j=0;j<n-1-i;j++) {
+for(i=0;i<n;i=i+1) { for(j=0;j<n-1-i;j=j+1) {
 if(a[j]>a[j+1]) { t=a[j]; a[j]=a[j+1]; a[j+1]=t; } } } }
 int main(void) { int a[5]={5,1,4,2,3}; sort(a,5);
 printf("sort = %d %d %d %d %d\\n",a[0],a[1],a[2],a[3],a[4]); return 0; }
 """, "sort = 1 2 3 4 5\n", ""),
     ("record_scope", """struct S { int x; };
 int main(void) { struct S a={3};
-{ struct S { int y; int z; }; struct S b={4,5}; a.x+=b.z; }
+{ struct S { int y; int z; }; struct S b={4,5}; a.x=a.x+b.z; }
 printf("shadow = %d\\n",a.x); return 0; }
 """, "shadow = 8\n", ""),
     ("input", """int main(void) { int a,b; scanf("%d%d",&a,&b);
@@ -133,12 +133,12 @@ def main():
             ("goto_removed", 'int main(void){goto done;return 0;}', "语法", "PARSE_CONTROL_REMOVED"),
             ("label_removed", 'int main(void){done:return 0;}', "语法", "PARSE_LABEL_REMOVED"),
             ("volatile_removed", 'volatile int x;int main(void){return 0;}', "语法", "PARSE_"),
-            ("for_declaration", 'int main(void){for(int i=0;i<3;i++){}return 0;}', "语法", "PARSE_FOR_DECLARATION"),
-            ("late_declaration", 'int main(void){int x=0;x++;int y=2;return y;}', "语法", "PARSE_DECLARATION_ORDER"),
+            ("for_declaration", 'int main(void){for(int i=0;i<3;i=i+1){}return 0;}', "语法", "PARSE_FOR_DECLARATION"),
+            ("late_declaration", 'int main(void){int x=0;x=x+1;int y=2;return y;}', "语法", "PARSE_DECLARATION_ORDER"),
             ("address_removed", 'int main(void){int x=0;return &x;}', "语义", "SEM_ADDRESS"),
             ("negative_index", 'int main(void){int a[2]={1,2};int i=-1;return a[i];}', "运行", "越界"),
             ("unrelated_pointers", 'int main(void){int a[2],b[2];return a-b;}', "语义", "SEM_OPERANDS"),
-            ("shift_count", 'int main(void){int x=1,n=32;return x<<n;}', "运行", "移位"),
+            ("shift_count", 'int main(void){int x=1,n=32;return x<<n;}', "语法", "PARSE_OPERATOR_REMOVED"),
             ("integer_overflow", 'int main(void){int x=2147483647;return x+1;}', "运行", "范围"),
             ("object_size_limit", 'int main(void){int a[5000000];return 0;}', "语义", "16 MiB"),
             ("const_pointer_write", 'int main(void){int x=1;const int *p=&x;*p=2;return 0;}', "语法", "PARSE_POINTER_REMOVED"),

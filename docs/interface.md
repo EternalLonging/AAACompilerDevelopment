@@ -1,5 +1,7 @@
 # 公共数据结构与模块交接约定 v1.5
 
+当前源码范围见 [language-scope.md](language-scope.md)。为兼容现有联调，公共接口保留旧枚举值和类型字段；源码不会生成被删功能对应的节点。孩子顺序保持不变。
+
 日期：2026-10-10。依据：README 和 `需求分析/00–05` 文档。
 
 本文件是本组编译器的公共接口基线；可编译定义在 `include/minic/interface.hpp`，全部位于 `minic` 命名空间。后续模块引用该头文件，不再各自定义同名结构体。常量池、符号表、诊断、数组、记录及控制流已有实现；正式词法与语法已实现，范围见 [frontend.md](frontend.md)。实际范围见 [backend-extensions.md](backend-extensions.md)。
@@ -74,15 +76,15 @@ Token / Diagnostic 保留需求资料中的 `line`、`col` 简便字段，它们
 
 | kind | 有效字段 | 示例 |
 |---|---|---|
-| Char / Short / Int / Long | is_unsigned、限定符 | unsigned int |
-| Void / Float / Double / LongDouble | 限定符 | float |
+| Char / Int / Float | is_const 限定符 | const int |
+| Void | 函数返回类型或空参数列表 | void print(int x) |
 | Address | base=内部地址对应的数据类型 | 数组传参、输入输出；源码不能声明 |
-| Array | base=元素类型，array_length=当前维长度 | int[3][4]：外层 3，base 是长度 4 的数组 |
+| Array | base=元素类型，array_length=当前维长度 | int[3]：base 为 int |
 | Function | base=返回类型，params、variadic、has_prototype | int(int, float)、printf 可变参数签名 |
 | Struct | name=标签拼写，record_id=解析后的身份 | struct Node |
 | Unknown / Error | 无 | 尚未确定 / 已判定非法 |
 
-每层类型独立保存 const；数组递归保存各维元素类型和长度。array_length 为空表示尚未确定，不表示 0。volatile 字段已删除。
+每层类型独立保存 const；源语言数组只有一维。array_length 为空表示尚未确定，不表示 0。volatile 字段已删除。
 
 Function.params 保存形参类型，Call.children 保存函数名字和实参。只允许直接函数调用。printf/scanf 内建签名使用内部 Address 表示字符数据，builtin 标记负责专用格式检查。f() 与 f(void) 用 has_prototype 区分。
 
@@ -115,26 +117,23 @@ M1/M2 的数组长度可直接存确定的整型长度。尚未实现的常量�
 | 节点 kind | name / declared_type | children 顺序 |
 |---|---|---|
 | Program | — | 顶层声明/定义，按源码顺序 |
-| FunctionDecl | 函数名；完整 Function 声明类型 | ParamDecl 列表，顺序对应 params |
 | FunctionDef | 同上 | ParamDecl 列表，**最后一个是 Block 函数体** |
-| ParamDecl | 形参名（原型可为空）；形参声明类型 | 无 |
+| ParamDecl | 形参名；形参声明类型 | 无 |
 | VarDecl / MemberDecl | 名字；声明类型 | 无，或 `[初始化表达式]`；M1/M2 MemberDecl 无初始化 |
-| StructDef / UnionDef | 标签；可为空代表匿名 | MemberDecl 列表 |
+| StructDef | 结构体标签名 | MemberDecl 列表 |
 | Block | — | 声明和语句，按源码顺序 |
 | ExprStmt | — | `[表达式]` |
-| Assign | `=` 或复合赋值运算符 | `[目标表达式, 来源表达式]` |
+| Assign | `=` | `[目标表达式, 来源表达式]` |
 | BinaryOp | 运算符，如 `+`、`<`、`&&` | `[左操作数, 右操作数]` |
-| UnaryOp | `+`、`-`、`!`、`&`（仅 scanf）、`pre++`、`post++` 等 | `[操作数]` |
+| UnaryOp | `+`、`-`、`!`、`&`（仅 scanf） | `[操作数]` |
 | Call | name 可保留直接被调函数名 | `[被调表达式, 实参0, 实参1, …]` |
 | If | — | `[条件, 真分支]`，或 `[条件, 真分支, 假分支]` |
 | While | — | `[条件, 循环体]` |
 | For | — | 固定 `[初始化, 条件, 更新, 循环体]`，缺失分量为 Empty |
 | Return | — | 无，或 `[返回表达式]` |
-| ImplicitCast / Cast | 目标类型；ImplicitCast.type 为目标类型 | `[被转换表达式]` |
-| ArrayAccess | — | `[数组表达式, 下标表达式]`；多维用嵌套节点 |
+| ImplicitCast | 语义阶段生成的转换目标类型 | `[被转换表达式]` |
+| ArrayAccess | — | `[数组表达式, 下标表达式]`；只支持一维数组 |
 | MemberAccess | 成员名 | `[对象表达式]`；只支持 `s.m`，拒绝 `p->m` |
-| Conditional | — | `[条件, 真值表达式, 假值表达式]` |
-| Sizeof | 对类型求值时 declared_type 非空 | 对表达式为 `[表达式]`；对类型无孩子 |
 | InitList | — | 初始化项列表，顺序保存；指定初始化为后续扩展 |
 | Identifier | 名字 | 无 |
 | IntLiteral / FloatLiteral / CharLiteral / StringLiteral | 含引号、转义的原文 | 无 |
@@ -170,7 +169,7 @@ SymbolId / ScopeId / RecordId 是各自 vector 的下标，从 0 分配；invali
 
 结构体先分配 RecordId 并登记标签，再处理成员和布局。不完整记录不能直接分配对象，也不能按值包含自身。尚未布局和 offset=0 不同。
 
-布局必须选定目标模型，不能用宿主机器 sizeof。目前 char=1、int=4、float=4、内部地址=8 字节，各自同大小对齐。struct 成员按对齐向上取整后确定 offset，末尾补齐到最大对齐。例如 `{char c; int x;}` 中 c 偏移 0、x 偏移 4，总大小 8，不能简单累计成 5。short=2/2、long=4/4、double/long double=8/8；完整目标约定见 [backend-completion.md](backend-completion.md)。
+布局必须选定目标模型，不能用宿主机器 sizeof。目前 char=1、int=4、float=4、内部地址=8 字节，各自同大小对齐。struct 成员按对齐向上取整后确定 offset，末尾补齐到最大对齐。例如 `{char c; int x;}` 中 c 偏移 0、x 偏移 4，总大小 8，不能简单累计成 5。源码只有 int、float、char；完整目标约定见 [backend-completion.md](backend-completion.md)。
 
 `ScopeEntry` 内两张映射：
 

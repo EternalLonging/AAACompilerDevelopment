@@ -1264,11 +1264,11 @@ class Machine {
                     const auto capacity = address.last - address.offset;
                     if (capacity < 1) throw std::runtime_error("scanf 字符数组没有容量");
                     input_ >> std::ws; std::string text;
-                    const auto limit = part.width ? std::min(part.width, capacity - 1) : capacity - 1;
+                    const auto limit = capacity - 1;
                     while (input_.peek() != std::char_traits<char>::eof() && !std::isspace(static_cast<unsigned char>(input_.peek())) && text.size() < limit)
                         text.push_back(static_cast<char>(input_.get()));
                     if (text.empty()) throw std::runtime_error("scanf 无法读取字符串");
-                    if (!part.width && input_.peek() != std::char_traits<char>::eof() && !std::isspace(static_cast<unsigned char>(input_.peek())))
+                    if (input_.peek() != std::char_traits<char>::eof() && !std::isspace(static_cast<unsigned char>(input_.peek())))
                         throw std::runtime_error("scanf 输入字符串超过数组容量");
                     for (const unsigned char byte : text) { store_address(address, static_cast<long long>(byte > 127 ? byte - 256 : byte)); ++address.offset; }
                     store_address(address, static_cast<long long>(0));
@@ -1277,12 +1277,6 @@ class Machine {
                     long long integer = 0;
                     if (!(input_ >> integer)) throw std::runtime_error("scanf 无法读取整数");
                     input_value = convert_value(integer, expected);
-                } else if (part.conversion == 'u' || part.conversion == 'x' || part.conversion == 'o') {
-                    unsigned long long integer = 0;
-                    input_ >> (part.conversion == 'x' ? std::hex : part.conversion == 'o' ? std::oct : std::dec) >> integer;
-                    input_ >> std::dec;
-                    if (!input_ || integer >= (static_cast<unsigned long long>(1) << detail::integer_bits(expected))) throw std::runtime_error("scanf 无符号输入超出范围");
-                    input_value = static_cast<long long>(integer);
                 } else if (part.conversion == 'f') {
                     double floating = 0;
                     if (!(input_ >> floating)) throw std::runtime_error("scanf 无法读取浮点数");
@@ -1305,8 +1299,6 @@ class Machine {
                     if (!holds<long long>(value)) throw std::runtime_error("%d/%c 需要整数");
                     const auto integer = get<long long>(value);
                     if (part.conversion == 'c') formatted << static_cast<char>(static_cast<unsigned char>(integer));
-                    else if (part.conversion == 'u' || part.conversion == 'x' || part.conversion == 'o')
-                        formatted << (part.conversion == 'x' ? std::hex : part.conversion == 'o' ? std::oct : std::dec) << static_cast<unsigned long long>(integer);
                     else formatted << integer;
                 }
                 output_ << formatted.str();
