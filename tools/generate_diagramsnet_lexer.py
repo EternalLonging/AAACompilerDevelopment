@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from tools.generate_lexer_dfa import SPEC, derive
 
-OUT = ROOT / "实验设计" / "diagramsnet_当前词法"
+OUT = ROOT / "实验设计" / "diagramsnet_逐字节DFA"
 TARGET = OUT / "词法状态转换图.drawio"
 DATA = derive(SPEC["rules"])
 SHORT = {"WHITESPACE": "空白", "NEWLINE": "换行", "LINE_COMMENT": "行注释",
