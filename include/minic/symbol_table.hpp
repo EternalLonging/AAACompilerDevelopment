@@ -3,7 +3,7 @@
 
 namespace minic {
 
-// 符号表管理类，详细规则见 docs/modules.md。
+// 符号表管理类，详细规则见 docs/公共约定/模块接口.md。
 class SymbolTable {
 public:
     // 构造函数。建立全局作用域及空表，使用传入的诊断收集器。

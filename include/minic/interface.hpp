@@ -188,7 +188,7 @@ struct ASTNode {
     ScopeId scope_id = invalid_id; // 节点所属的作用域编号。
     RecordId record_id = invalid_id; // 节点涉及的结构体编号。
     MaybeValue<std::size_t> member_index; // 成员在成员表中的下标；非成员访问时为空。
-    std::vector<ASTNode*> children; // 子节点列表；排列顺序见 docs/interface.md。
+    std::vector<ASTNode*> children; // 子节点列表；排列顺序见 docs/公共约定/数据结构与AST约定.md。
 };
 
 // AST 节点的统一内存池。节点之间只保存普通指针，由 Arena 在析构时统一释放。

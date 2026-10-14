@@ -13,8 +13,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from tools.generate_lexer_dfa import NFA, Parser, SPEC, derive, expand
 
-REFERENCE = ROOT / "实验设计/状态转换图_清晰总图/词法状态转换总图_清晰版.drawio"
-TARGET = ROOT / "实验设计/diagramsnet_当前词法/词法状态转换图.drawio"
+REFERENCE = ROOT / "tools/资源/词法参考布局.drawio"
+TARGET = ROOT / "实验设计/词法分析/状态转换图/词法状态转换图.drawio"
 NORMAL_RULES = [rule for rule in SPEC["rules"] if rule["action"] != "error"]
 TAIL = r'''[abfnrtv\\'"?]|[0-7][0-7]?[0-7]?|x{HEX_DIGIT}+'''
 
@@ -64,7 +64,7 @@ def generate():
     """沿用参考图的位置、弧形自循环和局部返回边，返回原生 XML。"""
     root = ET.parse(REFERENCE).getroot()
     root.set("diagramKind", "normal-recognition-with-macro-edges")
-    root.set("rulesSha256", hashlib.sha256((ROOT / "lexer/patterns.json").read_bytes()).hexdigest())
+    root.set("rulesSha256", hashlib.sha256((ROOT / "src/词法分析/词法规则.json").read_bytes()).hexdigest())
     diagram = root.find("diagram")
     diagram.set("id", "reference")
     diagram.set("name", "词法状态转换总图")

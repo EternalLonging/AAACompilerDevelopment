@@ -12,7 +12,7 @@ import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SPEC = json.loads((ROOT / "lexer" / "patterns.json").read_text(encoding="utf-8"))
+SPEC = json.loads((ROOT / "src/词法分析/词法规则.json").read_text(encoding="utf-8"))
 MACRO = re.compile(r"\{([A-Z][A-Z0-9_]*)\}")
 
 

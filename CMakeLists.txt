@@ -8,12 +8,37 @@ if(MSVC)
     add_compile_options(/utf-8)
 endif()
 
-add_library(minic_backend STATIC
-    src/semantic.cpp
-    src/backend.cpp
-    src/common.cpp
+# MinGW 汇编器不能写入中文目标路径，构建副本使用英文临时路径。
+# configure_file 会跟踪源码变化，重新构建时自动更新副本。
+function(minic_sources output)
+    set(result)
+    foreach(source IN LISTS ARGN)
+        if(MINGW)
+            get_filename_component(filename "${source}" NAME)
+            set(compilation_source "${CMAKE_CURRENT_BINARY_DIR}/native_sources/${filename}")
+            configure_file("${source}" "${compilation_source}" COPYONLY)
+            list(APPEND result "${compilation_source}")
+        else()
+            list(APPEND result "${source}")
+        endif()
+    endforeach()
+    set(${output} "${result}" PARENT_SCOPE)
+endfunction()
+
+minic_sources(backend_sources
+    src/语义分析/type_arena.cpp
+    src/语义分析/type_rules.cpp
+    src/语义分析/analyzer.cpp
+    src/符号表管理/symbol_table.cpp
+    src/中间代码生成/constant_pool.cpp
+    src/中间代码生成/ir.cpp
+    src/中间代码生成/interpreter.cpp
+    src/公共支持/diagnostic.cpp
+    src/总控与展示/display.cpp
+    src/总控与展示/compilation_result.cpp
 )
-target_include_directories(minic_backend PUBLIC include)
+add_library(minic_backend STATIC ${backend_sources})
+target_include_directories(minic_backend PUBLIC include PRIVATE src/公共支持)
 if(MSVC)
     target_compile_options(minic_backend PRIVATE /W4 /utf-8)
 else()
@@ -21,15 +46,22 @@ else()
 endif()
 
 # 词法、语法与后端组成真实源码编译入口。
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/frontend.cpp")
-    add_library(minic_compiler STATIC src/compiler.cpp src/frontend.cpp)
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/词法分析/lexer.cpp")
+    minic_sources(compiler_sources
+        src/总控与展示/compiler.cpp
+        src/词法分析/lexer.cpp
+        src/语法分析/parser.cpp
+    )
+    add_library(minic_compiler STATIC ${compiler_sources})
+    target_include_directories(minic_compiler PRIVATE src/词法分析)
     target_link_libraries(minic_compiler PUBLIC minic_backend)
     if(MSVC)
         target_compile_options(minic_compiler PRIVATE /W4 /utf-8)
     else()
         target_compile_options(minic_compiler PRIVATE -Wall -Wextra -Wpedantic)
     endif()
-    add_executable(minic src/main.cpp)
+    minic_sources(cli_sources src/总控与展示/main.cpp)
+    add_executable(minic ${cli_sources})
     target_link_libraries(minic PRIVATE minic_compiler)
     if(MINGW)
         target_link_options(minic PRIVATE -municode)

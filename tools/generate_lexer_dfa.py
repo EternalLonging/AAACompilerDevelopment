@@ -6,7 +6,7 @@ from pathlib import Path
 import re
 
 ROOT = Path(__file__).resolve().parents[1]
-SPEC = json.loads((ROOT / 'lexer/patterns.json').read_text(encoding='utf-8'))
+SPEC = json.loads((ROOT / 'src/词法分析/词法规则.json').read_text(encoding='utf-8'))
 BYTESET = frozenset(range(256))
 
 def expand(text, stack=()):
@@ -223,7 +223,7 @@ def generate():
     for index, members in enumerate(dfa['classes']):
         for byte in members:
             classes[byte] = index
-    lines = ['// 由 tools/generate_lexer_dfa.py 生成；请修改 lexer/patterns.json 后重新生成。',
+    lines = ['// 由 tools/generate_lexer_dfa.py 生成；请修改 src/词法分析/词法规则.json 后重新生成。',
              '#pragma once', '#include "minic/interface.hpp"',
              'namespace minic::lexer_detail {',
              'enum class Action { Token, Skip, Error };',
@@ -252,7 +252,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='从当前项目正则生成最小化 DFA')
     parser.add_argument('--check', action='store_true', help='检查已提交状态表是否需要重新生成')
     args = parser.parse_args()
-    target = ROOT / 'src/lexer_dfa.hpp'
+    target = ROOT / 'src/词法分析/lexer_dfa.hpp'
     expected = generate()
     if args.check:
         if not target.exists() or target.read_text('utf-8') != expected:
