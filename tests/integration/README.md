@@ -52,8 +52,8 @@
 | e32_compound_assignment_removed | 拒绝复合赋值 | Parser 拒绝 |
 
 ```powershell
-ctest --test-dir build/cmake --output-on-failure
-python tools/test_integration.py --compiler build/cmake/integration_driver.exe
+ctest --test-dir build/ninja --output-on-failure
+python tools/test_integration.py --compiler build/ninja/integration_driver.exe
 ```
 
 使用正式前端逐一核对输出、返回值和诊断；删除功能的旧源码作为拒绝用例保留。

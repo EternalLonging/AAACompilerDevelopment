@@ -145,7 +145,7 @@ def handler(driver):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--driver", type=Path, default=ROOT / "build/cmake/workbench_driver.exe")
+    parser.add_argument("--driver", type=Path, default=ROOT / "build/ninja/workbench_driver.exe")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--open", action="store_true", help="启动后在默认浏览器打开")
     args = parser.parse_args()

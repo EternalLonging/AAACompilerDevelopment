@@ -3,7 +3,7 @@
 
 namespace minic {
 
-// 常量池管理类，类型支持和去重规则见 docs/constant-pool.md。
+// 常量池管理类，类型支持和去重规则见 docs/中间代码生成/常量池.md。
 class ConstantPool {
 public:
     // 登记常量，返回编号。类型和值相同则复用；非法输入抛出异常。

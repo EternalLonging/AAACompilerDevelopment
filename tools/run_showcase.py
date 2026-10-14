@@ -11,7 +11,7 @@ DEMO = ROOT / "examples" / "showcase"
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--compiler", type=Path, default=ROOT / "build/cmake/minic.exe",
+    parser.add_argument("--compiler", type=Path, default=ROOT / "build/ninja/minic.exe",
                         help="正式 minic 程序路径")
     parser.add_argument("--output", type=Path, default=ROOT / "build/showcase",
                         help="演示文本保存目录")
