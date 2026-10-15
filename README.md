@@ -53,3 +53,4 @@ python tools/workbench_server.py --open
 | web | 图形工作台页面 |
 
 [公共数据与 AST 约定](docs/公共约定/数据结构与AST约定.md) · [模块接口](docs/公共约定/模块接口.md) · [源码联调](docs/公共约定/源码联调说明.md) · [整理说明](docs/公共约定/仓库整理说明.md)
+<img width="2364" height="171" alt="image" src="https://github.com/user-attachments/assets/bcf3c651-91fe-48b6-84a1-d9417602ba2f" />
