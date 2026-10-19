@@ -8,6 +8,7 @@
 | 词法分析 | [generate_reference_lexer_diagram.py](generate_reference_lexer_diagram.py) | 生成或核对已确认的单张总图 |
 | 语法分析 | [generate_parser_tables.py](generate_parser_tables.py) | 整理当前文法并推导 FIRST/FOLLOW/SELECT、预测格；`--check` 核对交付资料 |
 | 语法分析 | [test_parser_tables.py](test_parser_tables.py) | 手算集合对照、损坏文件拒绝、真实语法样例的独立 Earley 覆盖 |
+| 五部分设计 | [generate_design_tables.py](generate_design_tables.py) | 生成集合、预测、语义、IR 与符号表六份 Excel 数据；真实编译验证示例与转换规则，逐格核对成品 |
 | 词法与语法 | [export_frontend_tables.mjs](export_frontend_tables.mjs) | 共用中文 Excel 导出与预览；词法原入口保持兼容 |
 | 五部分联调 | [test_backend.ps1](test_backend.ps1) | 严格编译模块和真实前端并执行测试 |
 | 五部分联调 | [test_integration.py](test_integration.py)、[test_acceptance.py](test_acceptance.py) | 源码联调、命令行验收 |

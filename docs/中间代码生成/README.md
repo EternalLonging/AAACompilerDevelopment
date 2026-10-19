@@ -10,6 +10,7 @@
 | 公共接口 | [ir.hpp](../../include/minic/ir.hpp)、[constant_pool.hpp](../../include/minic/constant_pool.hpp)、[interpreter.hpp](../../include/minic/interpreter.hpp) |
 
 - [四元式实现](四元式实现.md)
+- [中间代码生成表](../../实验设计/中间代码生成/中间代码表格/中间代码生成表.xlsx)
 - [常量池](常量池.md)
 - [存储与寻址](存储与寻址.md)
 

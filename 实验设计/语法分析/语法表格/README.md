@@ -5,6 +5,9 @@
 | 文件 | 内容 |
 |---|---|
 | [文法表.xlsx](文法表.xlsx) | 独立的文法产生式表，127 条产生式，按编号列出左右部及实现位置 |
+| [FIRST与FOLLOW表.xlsx](FIRST与FOLLOW表.xlsx) | 60 个非终结符的可空性、FIRST 与 FOLLOW |
+| [SELECT集表.xlsx](SELECT集表.xlsx) | 127 条产生式各自的 SELECT 集 |
+| [预测分析表.xlsx](预测分析表.xlsx) | 非空预测格及配套冲突、终结符、上下文约束 |
 | [语法分析表.xlsx](语法分析表.xlsx) | 11 张工作表，提供文法、集合、预测表、优先级、AST 与诊断等可筛选数据 |
 | [当前文法.bnf](当前文法.bnf) | 127 条有编号的产生式，60 个非终结符，使用真实 TokenType 名字 |
 | [当前文法与约束.md](当前文法与约束.md) | 可直接阅读的文法、18 项上下文约束、3 个预测冲突及来源快照 |
@@ -33,5 +36,7 @@ python tools/test_parser_tables.py build/ninja/workbench_driver.exe
 `--data` 更新 BNF、Markdown 和中间数据；Excel 由第二步更新。修改解析器后先核对生成器中的文法与约束，再重新生成。`--check` 逐单元格检查实际 Excel，并核对 BNF、Markdown 与来源快照。普通 CTest 验收不需要 Node.js 或电子表格库。
 
 `--grammar-data` 只提取独立文法表的数据，与综合表中的文法产生式保持一致。`--check` 同时核对两份 Excel。
+
+另三份独立集合与预测表复用同一文法推导，随[五部分设计表工具](../../../tools/generate_design_tables.py)生成和核对，命令见[表格总览](../../表格总览.md)。
 
 生成和预览共用前端导出器；原词法生成入口仍可使用。中间数据、预览和检查日志放在被忽略的 build 目录。

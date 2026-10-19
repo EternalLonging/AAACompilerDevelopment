@@ -10,6 +10,7 @@
 | 公共接口 | [semantic.hpp](../../include/minic/semantic.hpp)、[type_arena.hpp](../../include/minic/type_arena.hpp) |
 
 - [语义实现](语义实现.md)
+- [语义分析表](../../实验设计/语义分析/语义表格/语义分析表.xlsx)
 - [语言范围](../公共约定/语言支持范围.md)
 - [存储与寻址](../中间代码生成/存储与寻址.md)
 
