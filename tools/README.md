@@ -3,6 +3,7 @@
 | 所属部分 | 工具 | 用途 |
 |---|---|---|
 | 词法分析 | [generate_lexer_dfa.py](generate_lexer_dfa.py) | 从词法规则生成 C++ DFA；`--check` 检查是否过期 |
+| 词法分析 | [generate_lexer_tables.py](generate_lexer_tables.py)、[generate_lexer_tables.mjs](generate_lexer_tables.mjs) | 推导并生成中文 Excel；`--check` 逐单元格核对已提交表格 |
 | 词法分析 | [check_lexer_patterns.py](check_lexer_patterns.py)、[test_lexer_dfa.py](test_lexer_dfa.py) | 正则规则检查、独立对照真实扫描器 |
 | 词法分析 | [generate_reference_lexer_diagram.py](generate_reference_lexer_diagram.py) | 生成或核对已确认的单张总图 |
 | 五部分联调 | [test_backend.ps1](test_backend.ps1) | 严格编译模块和真实前端并执行测试 |
