@@ -6,6 +6,9 @@
 | 词法分析 | [generate_lexer_tables.py](generate_lexer_tables.py)、[generate_lexer_tables.mjs](generate_lexer_tables.mjs) | 推导并生成中文 Excel；`--check` 逐单元格核对已提交表格 |
 | 词法分析 | [check_lexer_patterns.py](check_lexer_patterns.py)、[test_lexer_dfa.py](test_lexer_dfa.py) | 正则规则检查、独立对照真实扫描器 |
 | 词法分析 | [generate_reference_lexer_diagram.py](generate_reference_lexer_diagram.py) | 生成或核对已确认的单张总图 |
+| 语法分析 | [generate_parser_tables.py](generate_parser_tables.py) | 整理当前文法并推导 FIRST/FOLLOW/SELECT、预测格；`--check` 核对交付资料 |
+| 语法分析 | [test_parser_tables.py](test_parser_tables.py) | 手算集合对照、损坏文件拒绝、真实语法样例的独立 Earley 覆盖 |
+| 词法与语法 | [export_frontend_tables.mjs](export_frontend_tables.mjs) | 共用中文 Excel 导出与预览；词法原入口保持兼容 |
 | 五部分联调 | [test_backend.ps1](test_backend.ps1) | 严格编译模块和真实前端并执行测试 |
 | 五部分联调 | [test_integration.py](test_integration.py)、[test_acceptance.py](test_acceptance.py) | 源码联调、命令行验收 |
 | 总控与展示 | [run_showcase.py](run_showcase.py) | 检查课堂演示并保存各阶段结果 |
