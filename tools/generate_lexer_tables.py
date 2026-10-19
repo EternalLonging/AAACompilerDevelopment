@@ -159,7 +159,7 @@ def read_workbook(path):
                 kind = cell.get('t')
                 value = cell.findtext('s:v', default='', namespaces=NS)
                 if cell.find('s:f', NS) is not None:
-                    raise ValueError('静态词法数据中不应出现公式：' + cell.get('r'))
+                    raise ValueError('静态表格数据中不应出现公式：' + cell.get('r'))
                 if kind == 'e':
                     raise ValueError('Excel 错误单元格：' + cell.get('r'))
                 if kind == 's':
