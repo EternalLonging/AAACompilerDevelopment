@@ -15,6 +15,7 @@ from generate_lexer_tables import check_workbook
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / '实验设计/语法分析/语法表格'
 TARGET = OUTPUT / '语法分析表.xlsx'
+GRAMMAR_TARGET = OUTPUT / '文法表.xlsx'
 PARSER = ROOT / 'src/语法分析/parser.cpp'
 EPSILON = 'ε'
 END = 'END_OF_FILE'
@@ -372,15 +373,33 @@ def build_payload():
     return {'schema': 1, 'header_row': 7, 'sheets': sheets}, bnf, document
 
 
+def grammar_payload(payload):
+    """从综合资料提取文法工作表，返回单表导出数据。"""
+    grammar = dict(payload['sheets'][0])
+    grammar['title'] = 'MiniC 文法产生式表'
+    names = {row[1] for row in grammar['rows']}
+    grammar['context'] = f'{len(grammar["rows"])} 条产生式，{len(names)} 个非终结符；编号与当前文法.bnf 一致。'
+    grammar['notes'] = [
+        '开始符号：程序。ε 表示空串；END_OF_FILE 是输入结束标记，不放入产生式右部。',
+        '这是当前解析器的文法骨架；使用时须结合《当前文法与约束.md》中的上下文条件。',
+    ]
+    return {**payload, 'sheets': [grammar]}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument('--data', type=Path, help='写入 Excel 数据并更新文法与说明文件')
+    mode.add_argument('--grammar-data', type=Path, help='仅写入独立文法表的 Excel 数据')
     mode.add_argument('--check', action='store_true', help='检查已交付文件与当前推导及来源是否一致')
     args = parser.parse_args()
     try:
         payload, bnf, document = build_payload()
-        if args.data:
+        if args.grammar_data:
+            args.grammar_data.parent.mkdir(parents=True, exist_ok=True)
+            args.grammar_data.write_text(json.dumps(grammar_payload(payload), ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+            print('已导出独立文法表数据：', args.grammar_data)
+        elif args.data:
             args.data.parent.mkdir(parents=True, exist_ok=True)
             args.data.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
             OUTPUT.mkdir(parents=True, exist_ok=True)
@@ -393,6 +412,8 @@ def main():
                     raise ValueError(name + ' 需要重新核对并生成')
             count = check_workbook(TARGET, payload)
             print(f'语法资料一致：{len(payload["sheets"])} 张表，{count} 个单元格')
+            grammar_count = check_workbook(GRAMMAR_TARGET, grammar_payload(payload))
+            print(f'独立文法表一致：1 张表，{grammar_count} 个单元格')
     except (ValueError, OSError, KeyError, zipfile.BadZipFile, ET.ParseError) as error:
         parser.exit(1, f'语法资料检查失败：{error}\n')
 

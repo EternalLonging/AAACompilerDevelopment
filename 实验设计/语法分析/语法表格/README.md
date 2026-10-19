@@ -4,6 +4,7 @@
 
 | 文件 | 内容 |
 |---|---|
+| [文法表.xlsx](文法表.xlsx) | 独立的文法产生式表，127 条产生式，按编号列出左右部及实现位置 |
 | [语法分析表.xlsx](语法分析表.xlsx) | 11 张工作表，提供文法、集合、预测表、优先级、AST 与诊断等可筛选数据 |
 | [当前文法.bnf](当前文法.bnf) | 127 条有编号的产生式，60 个非终结符，使用真实 TokenType 名字 |
 | [当前文法与约束.md](当前文法与约束.md) | 可直接阅读的文法、18 项上下文约束、3 个预测冲突及来源快照 |
@@ -23,10 +24,14 @@ Excel 工作表依次为：文法产生式、FIRST与FOLLOW、SELECT集、预测
 ```powershell
 python tools/generate_parser_tables.py --data build/语法表格数据.json
 node tools/export_frontend_tables.mjs build/语法表格数据.json 实验设计/语法分析/语法表格/语法分析表.xlsx build/语法表格预览 <node_modules目录>
+python tools/generate_parser_tables.py --grammar-data build/文法表数据.json
+node tools/export_frontend_tables.mjs build/文法表数据.json 实验设计/语法分析/语法表格/文法表.xlsx build/文法表预览 <node_modules目录>
 python tools/generate_parser_tables.py --check
 python tools/test_parser_tables.py build/ninja/workbench_driver.exe
 ```
 
 `--data` 更新 BNF、Markdown 和中间数据；Excel 由第二步更新。修改解析器后先核对生成器中的文法与约束，再重新生成。`--check` 逐单元格检查实际 Excel，并核对 BNF、Markdown 与来源快照。普通 CTest 验收不需要 Node.js 或电子表格库。
+
+`--grammar-data` 只提取独立文法表的数据，与综合表中的文法产生式保持一致。`--check` 同时核对两份 Excel。
 
 生成和预览共用前端导出器；原词法生成入口仍可使用。中间数据、预览和检查日志放在被忽略的 build 目录。
