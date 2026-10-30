@@ -61,6 +61,9 @@ int main() {
         require(loop->children.size() == 4 && loop->children[0]->kind == NodeType::Empty &&
                 loop->children[1]->kind == NodeType::Empty && loop->children[2]->kind == NodeType::Empty &&
                 loop->children[3]->kind == NodeType::Block, "for 缺项仍占三个位置");
+        require(loop->children[0]->range.end.offset == loop->children[0]->range.begin.offset + 1 &&
+                loop->children[2]->range.end.offset == loop->children[2]->range.begin.offset + 1,
+                "for 缺项保留分号或右括号的位置");
         auto parentheses = syntax("int f(){return (1+2)*3;}");
         auto product = parentheses.root->children[0]->children.back()->children[0]->children[0];
         require(product->name == "*" && product->children[0]->name == "+" &&
@@ -85,6 +88,41 @@ int main() {
         auto stream = lex("int a;", "stream.c").tokens;
         stream[0].type = static_cast<TokenType>(10000);
         require(!parse(stream).root, "无效 Token 编号不得用于访问预测表");
+        const std::string declarations = "struct S{int a,b[2];char c;} first,second[3];int x=1,y[2],z;float f(char c,int a[],struct S s[]){return 1.0;}";
+        auto lists = syntax(declarations);
+        require(lists.ok() && lists.root->children.size() == 7, "结构体对象与逗号声明列表");
+        const auto& globals = lists.root->children;
+        require(globals[0]->kind == NodeType::StructDef && globals[1]->name == "first" &&
+                globals[2]->name == "second" && globals[3]->name == "x" && globals[4]->name == "y" &&
+                globals[5]->name == "z" && globals[6]->name == "f", "全局声明保持源码顺序");
+        require(globals[0]->children[0]->name == "a" && globals[0]->children[1]->name == "b" &&
+                globals[0]->children[2]->name == "c" &&
+                globals[0]->children[1]->declared_type->base->kind == TypeKind::Int &&
+                globals[2]->declared_type->array_length.value() == 3, "成员顺序和数组基础类型");
+        require(globals[3]->range.begin.offset == declarations.find("int x") &&
+                globals[3]->range.end.offset == declarations.find(",y") &&
+                globals[5]->range.end.offset == declarations.find(";float") + 1 &&
+                globals[0]->range.end.offset == declarations.find("} first") + 1,
+                "逗号声明和结构体定义的源码范围");
+        const auto& signature = globals[6]->children;
+        require(signature.size() == 4 && signature[0]->name == "c" && signature[1]->name == "a" &&
+                signature[2]->name == "s" && signature[2]->declared_type->base->name == "S" &&
+                globals[6]->declared_type->params[0]->kind == TypeKind::Char &&
+                globals[6]->declared_type->base->kind == TypeKind::Float, "形参顺序和函数完整类型");
+        auto strings = syntax("char text[]=\"a\" \"b\";");
+        require(strings.ok() && strings.root->children[0]->children[0]->name == "\"a\" \"b\"" &&
+                strings.root->children[0]->declared_type->base->kind == TypeKind::Char,
+                "连续字符串初始化和无界字符数组");
+        std::string many = "int v0";
+        for (int i = 1; i < 1500; ++i) many += ",v" + std::to_string(i);
+        auto variables = syntax(many + ";");
+        require(variables.ok() && variables.root->children.size() == 1500 &&
+                variables.root->children[749]->name == "v749" && variables.root->children.back()->name == "v1499",
+                "长逗号声明列表保持顺序并完成类型");
+        std::string broken = "int f(){";
+        for (int i = 0; i < 30; ++i) broken += "a=;";
+        auto errors = syntax(broken + "}");
+        require(!errors.root && errors.diagnostics.size() == 20, "语义值不完整时安全恢复并遵守诊断上限");
         execute("int main(void){return 2+3*4-8/2;}", 10);
         execute("int main(void){int a=0,b=0;a=b=7;return a+b;}", 14);
         execute("int sum(int a[],int n){int i=0,s=0;for(i=0;i<n;i=i+1){s=s+a[i];}return s;} int main(void){int a[3];a[0]=1;a[1]=2;a[2]=3;return sum(a,3);}", 6);
