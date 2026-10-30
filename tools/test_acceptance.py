@@ -101,7 +101,7 @@ def main():
             ("parser_stop", 'int main(void) { int x=; printf("SHOULD_NOT_RUN"); return 0; }', "语法", "PARSE_"),
             ("semantic_stop", 'int main(void) { x=1; printf("SHOULD_NOT_RUN"); return 0; }', "语义", "SEM_UNDECLARED"),
             ("runtime_zero", 'int main(void) { int x=0; x=1/x; printf("SHOULD_NOT_RUN"); return 0; }', "运行", "除零"),
-            ("runtime_bounds", 'int main(void) { int a[2]; a[0]=1; a[1]=2; int i=2; a[i]=3; printf("SHOULD_NOT_RUN"); return 0; }', "运行", "越界"),
+            ("runtime_bounds", 'int main(void) { int a[2]; int i=2; a[0]=1; a[1]=2; a[i]=3; printf("SHOULD_NOT_RUN"); return 0; }', "运行", "越界"),
         ]:
             file = folder / (name + ".c")
             file.write_text(source + "\n", encoding="utf-8")

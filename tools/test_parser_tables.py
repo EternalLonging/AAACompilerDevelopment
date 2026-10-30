@@ -1,4 +1,4 @@
-"""核对集合推导的边界，并用独立 Earley 识别器检查教学文法覆盖真实语法样例。"""
+"""核对集合推导的边界，并用独立 Earley 识别器对照运行文法和真实解析器。"""
 from __future__ import annotations
 
 from collections import defaultdict
@@ -170,7 +170,7 @@ def corpus_checks(driver):
             assert predicts(tokens[:-1], rules) == grammar_accepts, 'LL(1) 表与独立识别器不一致：' + name
             parser_accepts = bool(actual['ast'])
             if parser_accepts:
-                assert grammar_accepts, '教学文法遗漏了实际接受的源码：' + name
+                assert grammar_accepts, '运行文法遗漏了实际接受的源码：' + name
                 accepted += 1
             if expected_grammar is not None:
                 assert grammar_accepts == expected_grammar, '文法判定不符：' + name

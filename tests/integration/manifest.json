@@ -90,7 +90,7 @@
       "stdout": "",
       "expect": "reject",
       "phase": "Parser",
-      "code": "PARSE_FUNCTION"
+      "code": "PARSE_EXPECTED"
     },
     {
       "id": "e01_invalid_byte",

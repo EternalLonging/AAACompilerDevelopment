@@ -62,7 +62,7 @@ def main():
         execute("04_semantic_error", "04_semantic_error.c", "run", expected="", code=1,
                 errors=("[语义/错误]", "SEM_UNDECLARED", "04_semantic_error.c:3:5"))
         execute("05_runtime_error", "05_runtime_error.c", "run", expected="", code=1,
-                errors=("[运行/错误]", "越界", "05_runtime_error.c:5:20"))
+                errors=("[运行/错误]", "越界", "05_runtime_error.c:7:20"))
     except (AssertionError, OSError, UnicodeError, subprocess.TimeoutExpired) as error:
         summary.write_text("本轮演示失败：" + str(error) + "\n", encoding="utf-8")
         print("演示检查失败：" + str(error))
