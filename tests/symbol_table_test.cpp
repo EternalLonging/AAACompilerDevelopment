@@ -101,10 +101,6 @@ static void test_types() {
     require(!same_type(integer, qualified) && can_assign(qualified, integer),
             "结构相等比较限定符，赋值类型规则不检查左值 const");
     qualified->is_const = false;
-    qualified->is_unsigned = true;
-    require(!same_type(integer, qualified) && can_assign(integer, qualified) &&
-            arithmetic_result(integer, qualified)->is_unsigned,
-            "无符号参与公共类型及数值转换");
     const TypePtr types[] = {character, integer, floating};
     const bool assignment[3][3] = {{true, false, false}, {true, true, false}, {true, true, true}};
     for (std::size_t target = 0; target < 3; ++target) {

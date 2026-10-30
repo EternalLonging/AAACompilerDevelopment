@@ -6,9 +6,7 @@
 #include <stdexcept>
 
 namespace minic {
-namespace {
-CompilationResult compile_stages(const std::string& source, const std::string& filename,
-                                 CompileTarget target) {
+CompilationResult compile(const std::string& source, const std::string& filename, CompileTarget target) {
     if (target != CompileTarget::Tokens && target != CompileTarget::Parse &&
         target != CompileTarget::Check && target != CompileTarget::IR)
         throw std::invalid_argument("无效的编译目标");
@@ -30,11 +28,6 @@ CompilationResult compile_stages(const std::string& source, const std::string& f
     result.ir = generate(*result.syntax->root, result.semantic->symbols);
     collect(*result.ir);
     return result;
-}
-}
-
-CompilationResult compile(const std::string& source, const std::string& filename, CompileTarget target) {
-    return compile_stages(source, filename, target);
 }
 
 }

@@ -11,9 +11,7 @@ using TypePair = std::pair<const TypeInfo*, const TypeInfo*>;
 // 比较类型的每一层，循环引用视为无效类型。
 bool compare(const TypePtr& left, const TypePtr& right, std::vector<TypePair>& path) {
     if (path.size() > 128) return false;
-    if (!left || !right || left->kind != right->kind ||
-        left->is_unsigned != right->is_unsigned ||
-        left->is_const != right->is_const)
+    if (!left || !right || left->kind != right->kind || left->is_const != right->is_const)
         return false;
     for (const auto& pair : path)
         if (pair.first == left && pair.second == right) return false;
@@ -60,9 +58,6 @@ bool compare(const TypePtr& left, const TypePtr& right, std::vector<TypePair>& p
     return equal;
 }
 
-// 判断教学目标支持的数值类型。
-bool m1_number(const TypePtr& type) { return detail::numeric(type); }
-
 TypePtr basic_type(TypeKind kind) {
     auto type = make_type_info();
     type->kind = kind;
@@ -77,21 +72,13 @@ bool same_type(const TypePtr& left, const TypePtr& right) {
 }
 
 TypePtr arithmetic_result(const TypePtr& left, const TypePtr& right) {
-    if (!m1_number(left) || !m1_number(right)) return basic_type(TypeKind::Error);
-    if (left->kind == TypeKind::LongDouble || right->kind == TypeKind::LongDouble) return basic_type(TypeKind::LongDouble);
-    if (left->kind == TypeKind::Double || right->kind == TypeKind::Double) return basic_type(TypeKind::Double);
+    if (!detail::numeric(left) || !detail::numeric(right)) return basic_type(TypeKind::Error);
     if (left->kind == TypeKind::Float || right->kind == TypeKind::Float) return basic_type(TypeKind::Float);
-    auto result = make_type_info();
-    result->kind = left->kind == TypeKind::Long || right->kind == TypeKind::Long ? TypeKind::Long : TypeKind::Int;
-    result->is_unsigned = (left->is_unsigned && detail::integer_bits(left) == 32) || (right->is_unsigned && detail::integer_bits(right) == 32);
-    return result;
+    return basic_type(TypeKind::Int);
 }
 
 bool can_assign(const TypePtr& target, const TypePtr& source) {
-    if (!m1_number(target) || !m1_number(source)) return false;
-    if (target->is_unsigned || source->is_unsigned || target->kind == TypeKind::Short || source->kind == TypeKind::Short ||
-        target->kind == TypeKind::Long || source->kind == TypeKind::Long || target->kind == TypeKind::Double || source->kind == TypeKind::Double ||
-        target->kind == TypeKind::LongDouble || source->kind == TypeKind::LongDouble) return true;
+    if (!detail::numeric(target) || !detail::numeric(source)) return false;
     if (target->kind == source->kind || target->kind == TypeKind::Float) return true;
     return target->kind == TypeKind::Int && source->kind == TypeKind::Char;
 }

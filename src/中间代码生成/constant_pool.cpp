@@ -14,8 +14,7 @@ void append_bytes(std::string& key, const T& value) {
 }
 
 bool integer_kind(TypeKind kind) {
-    return kind == TypeKind::Char || kind == TypeKind::Short ||
-           kind == TypeKind::Int || kind == TypeKind::Long;
+    return kind == TypeKind::Char || kind == TypeKind::Int;
 }
 
 // 复制合法类型，避免调用者修改原对象后改变已登记常量的类型。
@@ -30,7 +29,6 @@ TypePtr snapshot_type(const TypePtr& type) {
 
 void append_scalar_type(std::string& key, const TypeInfo& type) {
     append_bytes(key, type.kind);
-    append_bytes(key, type.is_unsigned);
     append_bytes(key, type.is_const);
 }
 
@@ -44,44 +42,34 @@ ConstantId ConstantPool::intern(TypePtr type, ConstantValue value,
     if (integer_kind(type->kind)) {
         type = snapshot_type(type);
         append_scalar_type(key, *type);
-        if (type->is_unsigned) {
-            const auto number = constant_get_if<unsigned long long>(value);
-            if (!number) throw std::invalid_argument("无符号整数常量需要 unsigned long long 值");
-            append_bytes(key, *number);
-        } else {
-            const auto number = constant_get_if<long long>(value);
-            if (!number) throw std::invalid_argument("有符号整数常量需要 long long 值");
-            append_bytes(key, *number);
-        }
-    } else if (type->kind == TypeKind::Float || type->kind == TypeKind::Double || type->kind == TypeKind::LongDouble) {
+        const auto number = constant_get_if<long long>(value);
+        if (!number) throw std::invalid_argument("整数常量需要 long long 值");
+        append_bytes(key, *number);
+    } else if (type->kind == TypeKind::Float) {
         type = snapshot_type(type);
-        if (type->is_unsigned) throw std::invalid_argument("浮点类型不能带 unsigned");
         auto number = constant_get_if<double>(value);
         if (!number || !std::isfinite(*number)) {
             throw std::invalid_argument("浮点常量需要有限的 double 值");
         }
         append_scalar_type(key, *type);
-        if (type->kind == TypeKind::Float) {
-            // 先判断范围，避免把超出 float 范围的值直接窄化转换。
-            if (std::fabs(*number) > std::numeric_limits<float>::max()) {
-                throw std::invalid_argument("浮点常量超出 float 可表示范围");
-            }
-            const float rounded = static_cast<float>(*number);
-            *number = static_cast<double>(rounded);
+        // 先判断范围，避免把超出 float 范围的值直接窄化转换。
+        if (std::fabs(*number) > std::numeric_limits<float>::max()) {
+            throw std::invalid_argument("浮点常量超出 float 可表示范围");
         }
+        const float rounded = static_cast<float>(*number);
+        *number = static_cast<double>(rounded);
         // 不做 == 或近似比较：正负零必须分开，不同浮点位表示不能误合并。
         append_bytes(key, *number);
     } else if (type->kind == TypeKind::Array) {
         const auto bytes = constant_get_if<std::string>(value);
         if (!bytes || !type->base || type->base->kind != TypeKind::Char ||
-            type->is_unsigned || !type->array_length ||
+            !type->array_length ||
             *type->array_length == 0 || *type->array_length - 1 != bytes->size() ||
             !type->params.empty() || type->variadic ||
             !type->name.empty() || type->record_id != invalid_id) {
             throw std::invalid_argument("字符串常量需要长度包含终止零的窄 char[N] 类型");
         }
         const auto base = snapshot_type(type->base);
-        if (base->is_unsigned) throw std::invalid_argument("字符串元素必须为普通 char");
         auto copy = make_type_info(*type);
         copy->base = base;
         type = std::move(copy);

@@ -12,10 +12,9 @@ static void require(bool condition, const char* message) {
     if (!condition) throw std::runtime_error(message);
 }
 
-static TypePtr number_type(TypeKind kind, bool is_unsigned = false) {
+static TypePtr number_type(TypeKind kind) {
     auto type = make_type_info();
     type->kind = kind;
-    type->is_unsigned = is_unsigned;
     return type;
 }
 
@@ -49,30 +48,17 @@ int main() {
                 "去重应依据类型和值，不是指针或拼写");
         require(pool.get(ten)->spelling == "10" && pool.get(ten)->range.file == "first.c",
                 "去重后应保留首次出现信息");
-        const auto unsigned_ten = pool.intern(number_type(TypeKind::Int, true),
-                                              static_cast<unsigned long long>(10), "10U");
-        const auto long_ten = pool.intern(number_type(TypeKind::Long), static_cast<long long>(10), "10L");
         const auto float_ten = pool.intern(number_type(TypeKind::Float), 10.0, "10.0f");
-        const auto double_ten = pool.intern(number_type(TypeKind::Double), 10.0, "10.0");
-        require(unsigned_ten != ten && long_ten != ten && float_ten != ten &&
-                double_ten != float_ten, "不同 C 类型不能合并");
-        const auto maximum = std::numeric_limits<unsigned long long>::max();
-        const auto big = pool.intern(number_type(TypeKind::Long, true), maximum, "ULONG_MAX");
-        require(constant_get<unsigned long long>(pool.get(big)->value) == maximum,
-                "大整数不可经过 double 丢失精度");
+        require(float_ten != ten, "不同数值类型不能合并");
 
-        const auto positive_zero = pool.intern(number_type(TypeKind::Double), 0.0, "0.0");
-        const auto negative_zero = pool.intern(number_type(TypeKind::Double), -0.0, "-0.0");
+        const auto positive_zero = pool.intern(number_type(TypeKind::Float), 0.0, "0.0");
+        const auto negative_zero = pool.intern(number_type(TypeKind::Float), -0.0, "-0.0");
         require(positive_zero != negative_zero &&
                 std::signbit(constant_get<double>(pool.get(negative_zero)->value)),
                 "浮点正零和负零必须保留区别");
         const auto rounded = pool.intern(number_type(TypeKind::Float), 1.0 + 1e-9, "rounded");
         require(rounded == pool.intern(number_type(TypeKind::Float), 1.0, "1.0f"),
                 "float 应按自身精度舍入后去重");
-        require(pool.intern(number_type(TypeKind::Double), 1.0 + 1e-9, "distinct") !=
-                pool.intern(number_type(TypeKind::Double), 1.0, "1.0"),
-                "double 不使用 float 精度或近似比较");
-
         const std::string embedded_zero("a\0b", 3);
         const auto text = pool.intern(string_type(3), embedded_zero, "\"a\\0b\"");
         require(text == pool.intern(string_type(3), embedded_zero, "\"a\\000b\""),
@@ -87,15 +73,13 @@ int main() {
 
         rejects(pool, [&] { pool.intern({}, static_cast<long long>(1), "1"); });
         rejects(pool, [&] { pool.intern(integer, ConstantValue{}, "?"); });
-        rejects(pool, [&] { pool.intern(integer, static_cast<unsigned long long>(1), "1"); });
-        rejects(pool, [&] { pool.intern(number_type(TypeKind::Double),
+        rejects(pool, [&] { pool.intern(number_type(TypeKind::Float),
                                        std::numeric_limits<double>::infinity(), "inf"); });
-        rejects(pool, [&] { pool.intern(number_type(TypeKind::Double),
+        rejects(pool, [&] { pool.intern(number_type(TypeKind::Float),
                                        std::numeric_limits<double>::quiet_NaN(), "nan"); });
         rejects(pool, [&] { pool.intern(number_type(TypeKind::Float),
                                        std::numeric_limits<double>::max(), "overflow"); });
         rejects(pool, [&] { pool.intern(string_type(2), std::string("a"), "bad length"); });
-        require(pool.intern(number_type(TypeKind::LongDouble), 1.0, "1.0L") != pool.intern(number_type(TypeKind::Double), 1.0, "1.0"), "long double 保留独立类型身份");
         rejects(pool, [&] { constant_operand(invalid_id); });
 
         // 修改调用方仍持有的可写类型，不得改变已入池的类型和索引身份。

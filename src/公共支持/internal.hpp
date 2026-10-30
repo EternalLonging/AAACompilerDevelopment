@@ -18,14 +18,14 @@ inline TypePtr type(TypeKind kind) {
 }
 
 inline bool floating(const TypePtr& value) {
-    return value && !value->is_unsigned && (value->kind == TypeKind::Float || value->kind == TypeKind::Double || value->kind == TypeKind::LongDouble);
+    return value && value->kind == TypeKind::Float;
 }
 inline bool integral(const TypePtr& value) {
-    return value && (value->kind == TypeKind::Char || value->kind == TypeKind::Short || value->kind == TypeKind::Int || value->kind == TypeKind::Long);
+    return value && (value->kind == TypeKind::Char || value->kind == TypeKind::Int);
 }
 inline bool numeric(const TypePtr& value) { return integral(value) || floating(value); }
 inline int integer_bits(const TypePtr& value) {
-    return value->kind == TypeKind::Char ? 8 : value->kind == TypeKind::Short ? 16 : 32;
+    return value->kind == TypeKind::Char ? 8 : 32;
 }
 inline TypePtr unqualified(const TypePtr& value) {
     auto result = make_type_info(*value); result->is_const = false; return result;
@@ -65,7 +65,7 @@ inline std::size_t align_up(std::size_t size, std::size_t alignment) {
 inline Layout layout(const TypePtr& value, const SymbolTableData& symbols, std::size_t depth = 0) {
     if (!value || depth > 128) throw std::runtime_error("对象类型为空或嵌套过深");
     if (integral(value)) { const auto size = static_cast<std::size_t>(integer_bits(value) / 8); return {size, size}; }
-    if (floating(value)) return value->kind == TypeKind::Float ? Layout{4, 4} : Layout{8, 8};
+    if (floating(value)) return {4, 4};
     if (value->kind == TypeKind::Address && value->base) return {8, 8};
     if (value->kind == TypeKind::Array) {
         if (!value->array_length || !*value->array_length) throw std::runtime_error("数组长度必须已确定且大于零");
@@ -103,7 +103,6 @@ inline MaybeValue<long long> integer_constant(const ASTNode& node, std::size_t d
     if (depth > 128 || !integral(node.type)) return emptyValue;
     if (node.kind == NodeType::IntLiteral || node.kind == NodeType::CharLiteral) {
         if (const auto* value = constant_get_if<long long>(node.value)) return *value;
-        if (const auto* value = constant_get_if<unsigned long long>(node.value); value && *value <= std::numeric_limits<unsigned>::max()) return static_cast<long long>(*value);
         return emptyValue;
     }
     if (node.children.empty() || !node.children[0]) return emptyValue;
@@ -124,10 +123,7 @@ inline MaybeValue<long long> integer_constant(const ASTNode& node, std::size_t d
         if (!right) return emptyValue;
         if (node.name == "+") value = *left + *right;
         else if (node.name == "-") value = *left - *right;
-        else if (node.name == "*") {
-            if (node.type->is_unsigned) value = static_cast<long long>((static_cast<unsigned long long>(*left) * static_cast<unsigned long long>(*right)) & ((static_cast<unsigned long long>(1) << integer_bits(node.type)) - 1));
-            else value = *left * *right;
-        }
+        else if (node.name == "*") value = *left * *right;
         else if (node.name == "&") value = *left & *right;
         else if (node.name == "|") value = *left | *right;
         else if (node.name == "^") value = *left ^ *right;
@@ -150,7 +146,6 @@ inline MaybeValue<long long> integer_constant(const ASTNode& node, std::size_t d
         else return emptyValue;
     } else return emptyValue;
     const auto bits = integer_bits(node.type);
-    if (node.type->is_unsigned) return static_cast<long long>(static_cast<unsigned long long>(value) & ((static_cast<unsigned long long>(1) << bits) - 1));
     const auto low = -(static_cast<long long>(1) << (bits - 1));
     const auto high = (static_cast<long long>(1) << (bits - 1)) - 1;
     if (value < low || value > high) return emptyValue;
@@ -173,8 +168,7 @@ inline double checked_float(double value) {
 
 // 安全折叠数值常量，保留每一步 float 舍入；失败则保留原表达式。
 inline MaybeValue<ConstantValue> folded_value(const ASTNode& node, std::size_t depth = 0) {
-    // 新的整数宽度及 unsigned 保留运行求值，避免套用旧的 32 位折叠规则。
-    if (depth > 128 || !numeric(node.type) || node.type->is_unsigned || node.type->kind == TypeKind::Long || node.type->kind == TypeKind::Short) return emptyValue;
+    if (depth > 128 || !numeric(node.type)) return emptyValue;
     if (const auto integer = integer_constant(node, depth)) return ConstantValue{*integer};
     if (node.kind == NodeType::FloatLiteral) {
         if (const auto* value = constant_get_if<double>(node.value)) return ConstantValue{*value};
@@ -219,7 +213,7 @@ inline MaybeValue<ConstantValue> folded_value(const ASTNode& node, std::size_t d
             constant_get_if<long long>(*right_value)) return emptyValue;
     } else return emptyValue;
     try {
-        if (floating(node.type)) return std::isfinite(result) ? MaybeValue<ConstantValue>{node.type->kind == TypeKind::Float ? ConstantValue{checked_float(result)} : ConstantValue{result}} : emptyValue;
+        if (floating(node.type)) return std::isfinite(result) ? MaybeValue<ConstantValue>{ConstantValue{checked_float(result)}} : emptyValue;
         const auto truncated = std::trunc(result);
         if (!std::isfinite(truncated) || truncated < std::numeric_limits<int>::min() ||
             truncated > std::numeric_limits<int>::max()) return emptyValue;
