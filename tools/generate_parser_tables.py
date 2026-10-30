@@ -1,4 +1,4 @@
-"""为当前 LL(1) 教学子集推导文法集合并核对语法资料。"""
+"""从唯一文法生成 LL(1) 运行表、推导集合并核对语法资料。"""
 from __future__ import annotations
 
 import argparse
@@ -19,6 +19,49 @@ GRAMMAR_TARGET = OUTPUT / '文法表.xlsx'
 PARSER = ROOT / 'src/语法分析/parser.cpp'
 EPSILON = 'ε'
 END = 'END_OF_FILE'
+RUNTIME_TABLE = ROOT / 'include/minic/detail/predictive_table.hpp'
+
+
+def runtime_table():
+    """从同一份文法生成 C++ 运行表，返回完整头文件。"""
+    rows = productions()
+    sets = derive(rows)
+    interface = (ROOT / 'include/minic/interface.hpp').read_text(encoding='utf-8')
+    enum = re.search(r'enum class TokenType\s*\{(.*?)\};', interface, re.S)[1]
+    terminals = re.findall(r'\b[A-Z][A-Z_]+\b', enum)
+    symbols = terminals + sets['names']
+    width = max(len(row['rhs']) for row in rows)
+    lines = ['// 自动生成：python tools/generate_parser_tables.py --runtime；请修改生成器中的 GRAMMAR。',
+             '#pragma once', '#include "minic/interface.hpp"', '', 'namespace minic { namespace predictive {',
+             f'inline constexpr int terminal_count = {len(terminals)}; // 终结符数量，编号与 TokenType 一致。',
+             'enum Nonterminal {']
+    lines += [f'    {name} = {symbols.index(name)},' for name in sets['names']]
+    lines += ['};', 'struct Production {', '    int length; // 右部符号个数，0 表示空产生式。',
+              f'    int rhs[{width}]; // 右部符号编号，保持文法顺序。', '};',
+              'inline constexpr Production productions[] = {']
+    for row in rows:
+        rhs = ', '.join(str(symbols.index(symbol)) for symbol in row['rhs']) or '0'
+        lines.append(f'    {{{len(row["rhs"])}, {{{rhs}}}}}, // {row["id"]}: {row["lhs"]} -> {" ".join(row["rhs"]) or EPSILON}')
+    lines += ['};', '// 行为非终结符，列为 TokenType；值为产生式下标，-1 表示语法错误。',
+              f'inline constexpr int table[][{len(terminals)}] = {{']
+    for name in sets['names']:
+        entries = []
+        for terminal in terminals:
+            choices = sets['table'].get((name, terminal), [])
+            if len(choices) > 1:
+                raise ValueError(f'预测表冲突：{name}, {terminal}')
+            entries.append(str(int(choices[0][1:]) - 1) if choices else '-1')
+        lines.append('    {' + ', '.join(entries) + '}, // ' + name)
+    lines += ['};', '// FOLLOW 集成员标记，用于错误恢复时同步输入。',
+              f'inline constexpr bool follow[][{len(terminals)}] = {{']
+    for name in sets['names']:
+        lines.append('    {' + ', '.join('true' if t in sets['follow'][name] else 'false' for t in terminals) + '}, // ' + name)
+    lines += ['};', 'inline constexpr const char* names[] = {']
+    lines += ['    "' + name + '",' for name in symbols]
+    lines += ['};']
+    for i, terminal in enumerate(terminals):
+        lines.append(f'static_assert(static_cast<int>(TokenType::{terminal}) == {i}, "请重新生成预测表");')
+    return '\n'.join(lines + ['} }', ''])
 
 # 每组记录实现函数；右部的英文大写名字直接使用 TokenType。
 # 声明形状直接由产生式限制；类型检查、词法值和 AST 交接见 CONSTRAINTS。
@@ -91,7 +134,7 @@ CONSTRAINTS = [
     ('C04', '名字和类型', 'declaration', '声明可见性、重名、结构体布局、赋值和调用类型兼容由语义阶段检查。', '语义'),
     ('C05', '控制流', 'statement', 'break/continue 所在循环、return 所在函数和返回类型由语义阶段检查。', '语义'),
     ('C06', 'AST 交接', 'finish', '重复后缀按从左到右建立 AST；节点类型、孩子顺序和类型归属保持公共接口约定。', 'AST'),
-    ('C07', '错误恢复', 'recover', '语法错误后跳到分号、块结束或下一个声明开头继续分析；错误输入不交付成功 AST。', 'PARSE_EXPECTED'),
+    ('C07', '错误恢复', 'recover', '按预测项和 FOLLOW 同步；终结符失配时跳过输入或补缺，错误输入不交付成功 AST。', 'PARSE_EXPECTED'),
 ]
 
 AST = [
@@ -126,11 +169,11 @@ AST = [
 RECOVERY = [
     ('输入协议', 'parse', '必须且只能有一个末尾 END_OF_FILE；缺失、提前或重复均拒绝。', 'PARSE_TOKEN_STREAM'),
     ('类型生命周期', 'parse', '直接调用前建立 TypeArenaScope，类型管理器保留到 AST 用完；节点由 ParseResult.arena 统一释放。', '接口约定'),
-    ('普通语法错误', 'fail', '记录当前位置、错误码和中文消息后抛出 ParseFailure，由顶层或块捕获。', 'Error'),
-    ('块内恢复', 'recover', '跳过分号前的错误内容；跟踪内嵌花括号，在当前块右花括号前停下，由 block 消费。', 'external=false'),
-    ('顶层恢复', 'recover', '可消费孤立右花括号；跳过错误内容后，遇到下一个顶层说明符也可停止。', 'external=true'),
+    ('普通语法错误', 'report', '记录当前位置、错误码和中文消息；首个错误之后停用 AST 动作，继续识别并收集错误。', 'Error'),
+    ('非终结符恢复', 'recover', '跳到当前行有效预测项时重试；遇到 FOLLOW 或文件结束时弹出当前非终结符。', '预测表 / FOLLOW'),
+    ('终结符恢复', 'recover', '在分号、闭括号和文件结束前按缺失终结符处理，否则跳过当前输入再匹配。', '每步弹栈或推进'),
     ('错误上限', 'stopped', '累计 20 条诊断后停止；第 20 条追加“错误过多，停止本阶段”。', '20 条'),
-    ('递归与树高', 'finish', '递归深度与 AST 高度均限制为 128；声明符层数也有限制；超限立即停止。', 'PARSE_DEPTH / Fatal'),
+    ('嵌套与树高', 'finish', '括号嵌套和 AST 高度均限制为 128；分析过程使用显式栈，不递归调用解析函数。', 'PARSE_DEPTH / Fatal'),
     ('失败产物', 'run', '只要存在 Error 或 Fatal，root 为空；恢复所得部分树不作为成功结果交给后续阶段。', 'ParseResult'),
     ('成功产物', 'run', 'Program 按源码顺序保存顶层节点；声明类型已填写，绑定、类型标注和隐式转换交给语义。', 'ParseResult'),
 ]
@@ -259,19 +302,19 @@ def build_payload():
 
     references = {function: source_reference(function, source) for function in
                   {row['function'] for row in rows} | {row[2] for row in CONSTRAINTS}
-                  | {row[1] for row in AST} | {row[1] for row in RECOVERY} | {'precedence'}}
+                  | {row[1] for row in AST} | {row[1] for row in RECOVERY}}
     conflicts, table_rows = [], []
     for (name, token), choices in sorted(dfa['table'].items(), key=lambda pair: (dfa['names'].index(pair[0][0]), order[pair[0][1]])):
         table_rows.append([name, token, spelling[token], ' / '.join(choices), len(choices)])
         if len(choices) > 1:
             raise ValueError(f'文法不是 LL(1)：M[{name}, {token}] = {choices}')
     priority_rows = []
-    precedence = source.split('static int precedence(TT type)', 1)[1].split('default: return 0;', 1)[0]
-    for cases, value in re.findall(r'((?:\s*case TT::[A-Z_]+:)+) return (\d+);', precedence):
-        names = re.findall(r'TT::([A-Z_]+)', cases)
-        priority_rows.append([int(value), ' '.join(spelling[name] for name in names), '、'.join(names),
-                              '右结合' if value == '2' else '左结合', 'Assign' if value == '2' else 'BinaryOp',
-                              references['precedence']])
+    layers = ['赋值续', '逻辑或续', '逻辑与续', '相等续', '关系续', '加法续', '乘法续']
+    for value, layer in enumerate(layers, 1):
+        names = [row['rhs'][0] for row in rows if row['lhs'] == layer and row['rhs']]
+        priority_rows.append([value, ' '.join(spelling[name] for name in names), '、'.join(names),
+                              '右结合' if value == 1 else '左结合', 'Assign' if value == 1 else 'BinaryOp',
+                              references['expression']])
     if len(priority_rows) != 7:
         raise ValueError('运算符优先级分组改变，需要核对文法')
     priority_rows += [['—', '+ - ! &', 'PLUS、MINUS、NOT、AMP', '前缀递归，右结合', 'UnaryOp', references['unary']],
@@ -292,6 +335,7 @@ def build_payload():
                                 '；'.join(dict.fromkeys(messages)) or ('单词表须恰好一个末尾 EOF' if code == 'PARSE_TOKEN_STREAM' else '动态消息，包含实际遇到的单词'),
                                 '、'.join(map(str, line_numbers))])
     sources = ['src/语法分析/parser.cpp', 'include/minic/parser.hpp', 'include/minic/interface.hpp',
+               'include/minic/detail/predictive_table.hpp', 'tools/generate_parser_tables.py',
                'src/词法分析/词法规则.json', 'docs/公共约定/语言支持范围.md', 'docs/公共约定/数据结构与AST约定.md']
     # 统一换行为 LF，避免 Windows 与 Linux 检出格式不同导致快照失效。
     source_hashes = {name: hashlib.sha256((ROOT / name).read_text(encoding='utf-8').encode('utf-8')).hexdigest()
@@ -306,7 +350,7 @@ def build_payload():
         sheet('文法产生式', 'MiniC 的 LL(1) 文法', count,
               ['编号', '左部', '右部', '实现函数', '源码位置'],
               [[row['id'], row['lhs'], ' '.join(row['rhs']) or EPSILON, row['function'], references[row['function']]] for row in rows],
-              [12, 24, 100, 23, 43], ['实际使用递归下降和优先级分析；文法重写不改变 AST 节点及孩子顺序。',
+              [12, 24, 100, 23, 43], ['实际使用分析栈和预测表；匹配后的 AST 动作保持节点及孩子顺序。',
                                      '开始符号为“程序”，ε 表示空串；END_OF_FILE 为输入结束标记，不放入产生式右部。']),
         sheet('FIRST与FOLLOW', '可空性与 FIRST / FOLLOW', '集合按 TokenType 顺序显示。FIRST 的 ε 单列为“可空”，FOLLOW 不含 ε。',
               ['非终结符', '可空', 'FIRST（不含 ε）', 'FOLLOW'],
@@ -321,8 +365,8 @@ def build_payload():
               ['非终结符', '向前看 Token', '候选产生式', '实际处理', '源码位置'], conflicts, [24, 27, 28, 105, 43]),
         sheet('终结符', '当前文法使用的 Token', '只列当前文法和结束标记；词法识别但语法拒绝的种别不作为可用文法终结符。',
               ['Token 种别', '拼写或类别', '用途'], [[name, spelling[name], '输入结束标记' if name == END else '文法终结符'] for name in sorted(dfa['terminals'], key=lambda name: order[name])], [28, 27, 24]),
-        sheet('运算符优先级', '表达式优先级与结合性', '二元优先级数值直接读取 precedence()，数值越大越先结合。前缀、后缀不虚构代码数值。',
-              ['代码优先级', '运算符', 'Token 种别', '结合方式', 'AST 节点', '源码位置'], priority_rows, [16, 20, 57, 40, 45, 43],
+        sheet('运算符优先级', '表达式优先级与结合性', '优先顺序来自表达式文法层级，序号越大越先结合；运行时全部由预测表选择产生式。',
+              ['文法层级', '运算符', 'Token 种别', '结合方式', 'AST 节点', '源码位置'], priority_rows, [16, 20, 57, 40, 45, 43],
               ['一般后缀先于前缀，前缀先于二元运算；括号中的表达式单独解析。逗号仅分隔参数、声明或初值，不是表达式运算符。']),
         sheet('AST孩子顺序', '语法阶段实际生成的 AST', '只列 parser.cpp 使用的节点；ImplicitCast 由语义阶段生成。',
               ['节点', '名字或声明类型', '孩子顺序', '孩子数量', '源码位置'], [[name, text, children, number, references[function]] for name, function, text, children, number in AST], [27, 57, 84, 18, 43]),
@@ -336,7 +380,7 @@ def build_payload():
     bnf = '# MiniC 的 LL(1) 文法\n# 开始符号：程序；结束标记：END_OF_FILE；空串：ε\n# 词法值、赋值左部形状和语义检查见《当前文法与约束.md》。\n'
     bnf += ''.join(f'{row["id"]}: {row["lhs"]} -> {" ".join(row["rhs"]) or EPSILON}\n' for row in rows)
     document = '# 当前文法与约束\n\n' + count + '\n\n'
-    document += '依据当前 `parser.cpp` 整理。正式算法仍是递归下降和表达式优先级攀升，AST 节点及孩子顺序保持不变。文法直接区分函数定义、变量和成员声明；只允许一维数组、非空具名结构体和具名形参，不接受函数原型、裸类型声明或嵌套声明符。\n\n'
+    document += '正式解析器采用分析栈和 LL(1) 预测表。`tools/generate_parser_tables.py` 中的 GRAMMAR 同时生成运行表、FIRST/FOLLOW、SELECT 与 Excel 资料；产生式完成匹配后执行 AST 动作，保持节点和孩子顺序。文法直接区分函数定义、变量和成员声明；只允许一维数组、非空具名结构体和具名形参，不接受函数原型、裸类型声明或嵌套声明符。\n\n'
     document += '开始符号为“程序”；空源码允许，`END_OF_FILE` 是输入结束标记，不在产生式右部。FIRST 的可空性单独显示，FOLLOW 不含 ε。预测表采用非空格清单，遗漏的组合为错误格；同一格出现两个候选式时生成器立即报错。文法不代替字面量值、赋值左部形状和语义检查。\n\n'
     document += '## 文法\n\n```bnf\n' + bnf + '```\n\n## 上下文约束\n\n| 编号 | 类别 | 条件 | 实现 |\n|---|---|---|---|\n'
     document += ''.join(f'| {i} | {title} | {text} | `{function}()` |\n' for i, title, function, text, _ in CONSTRAINTS)
@@ -379,11 +423,12 @@ def overview(payload):
 
 函数定义、变量、成员、单层数组和非空结构体的形状直接写在产生式中。字面量数值、赋值左部形状、名字和类型检查仍由对应阶段完成。
 
-正式解析器使用递归下降和优先级攀升；这些表用于展示文法和验证 LL(1) 性质，不会替换 AST 构造代码。AST 节点及孩子顺序未改变，因此语义分析无须随文法的等价整理重写。
+正式解析器使用分析栈和 LL(1) 预测表；运行表和这些资料从同一份文法生成。AST 在产生式匹配完成后组合，节点及孩子顺序未改变，语义分析继续使用原接口。
 
 ## 重新生成与验收
 
 ```powershell
+python tools/generate_parser_tables.py --runtime
 python tools/generate_parser_tables.py --data build/语法表格数据.json
 python tools/generate_parser_tables.py --grammar-data build/文法表数据.json
 python tools/generate_design_tables.py --data build/设计表格 --driver build/ninja/workbench_driver.exe
@@ -400,11 +445,20 @@ python tools/generate_design_tables.py --check --driver build/ninja/workbench_dr
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument('--runtime', action='store_true', help='从文法生成 C++ 运行表')
     mode.add_argument('--data', type=Path, help='写入 Excel 数据并更新文法与说明文件')
     mode.add_argument('--grammar-data', type=Path, help='仅写入独立文法表的 Excel 数据')
     mode.add_argument('--check', action='store_true', help='检查已交付文件与当前推导及来源是否一致')
     args = parser.parse_args()
     try:
+        expected_table = runtime_table()
+        if args.runtime:
+            RUNTIME_TABLE.parent.mkdir(parents=True, exist_ok=True)
+            RUNTIME_TABLE.write_text(expected_table, encoding='utf-8')
+            print('已生成运行预测表：', RUNTIME_TABLE)
+            return
+        if RUNTIME_TABLE.read_text(encoding='utf-8') != expected_table:
+            raise ValueError('运行预测表已过期，请先执行 --runtime')
         payload, bnf, document = build_payload()
         if args.grammar_data:
             args.grammar_data.parent.mkdir(parents=True, exist_ok=True)

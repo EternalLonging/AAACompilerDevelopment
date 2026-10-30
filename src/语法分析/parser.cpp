@@ -1,4 +1,5 @@
 #include "minic/parser.hpp"
+#include "minic/detail/predictive_table.hpp"
 
 #include <algorithm>
 #include <limits>
@@ -10,484 +11,423 @@ namespace minic {
 namespace {
 using TT = TokenType;
 using Node = ASTNode*;
+using namespace predictive;
 struct ParseFailure {};
 
-// 根据单词表建立语法树；名字绑定由语义阶段处理。
+// 查预测表识别语法；产生式匹配完成后，把孩子的结果组合成 AST。
 class Parser {
-    const std::vector<Token>& tokens; // 词法阶段生成的单词表，最后一个单词是 EOF。
-    std::size_t pos = 0; // 下一个要读取的单词下标。
-    unsigned depth = 0; // 当前解析函数的嵌套层数，用来限制递归深度。
-    ParseResult result; // 最终的语法树和本阶段诊断。
-    std::unordered_map<const ASTNode*, unsigned> heights; // 各节点的树高，用来限制语法树深度。
+    // 保存一次文法符号的匹配结果；下标连接孩子，避免递归调用。
+    struct Match {
+        int symbol; // 终结符或非终结符编号。
+        std::size_t begin = 0, end = 0; // 匹配的单词区间，右端不包含。
+        std::vector<std::size_t> children; // 产生式右部，保持文法顺序。
+        Node ast = nullptr; // 此符号组合出的 AST 节点。
+        TypePtr type = nullptr; // 类型说明符组合出的类型。
+        std::vector<Node> declarations; // 一条声明中的结构体、变量或成员。
+        bool unary_form = false; // 表达式是否具有一元式形状，供赋值左部检查。
+        explicit Match(int value) : symbol(value) {}
+    };
+    struct Frame {
+        std::size_t match; // 此栈项对应的匹配结果下标。
+        bool reduce; // false 表示匹配符号，true 表示组合已匹配的孩子。
+    };
+    const std::vector<Token>& tokens; // 词法阶段给出的单词表，末尾为 EOF。
+    std::size_t pos = 0; // 下一个输入单词的下标。
+    unsigned nesting = 0; // 当前尚未闭合的括号层数。
+    ParseResult result; // 返回的 AST 内存池、根节点和诊断。
+    std::vector<Match> matches; // 匹配结果按下标保存，扩容不会改变下标。
+    std::vector<Frame> stack; // 待匹配符号和待执行的归约动作。
+    std::unordered_map<Node, unsigned> heights; // 已组合 AST 节点的高度。
 
-    // 查看后面的单词，不移动读取位置；超过末尾时返回 EOF。
-    const Token& peek(std::size_t ahead = 0) const {
-        return tokens[std::min(pos + ahead, tokens.size() - 1)];
-    }
-    // 判断当前单词是否属于指定种别。
-    bool at(TT type) const { return peek().type == type; }
-    // 取出当前单词并向后移动；EOF 不再向后移动。
-    Token take() { const auto token = peek(); if (!at(TT::END_OF_FILE)) ++pos; return token; }
-    // 当前种别匹配时读取并返回 true，否则不读取并返回 false。
-    bool accept(TT type) { if (!at(type)) return false; take(); return true; }
-    // 记录语法错误，并结束当前解析分支，交给外层恢复处理。
-    [[noreturn]] void fail(const std::string& message, const std::string& code = "PARSE_EXPECTED",
-                           Level level = Level::Error) {
-        const auto& token = peek();
+    // 记录当前位置的错误，最多保留 20 条诊断。
+    void report(const std::string& message, const std::string& code = "PARSE_EXPECTED",
+                Level level = Level::Error, std::size_t at = std::numeric_limits<std::size_t>::max()) {
+        const auto& token = tokens[at == std::numeric_limits<std::size_t>::max() ? pos : at];
         result.diagnostics.push_back({Phase::Parser, level, token.line, token.col,
-                                       message, code, token.range, {}});
+                                      message, code, token.range, {}});
         if (result.diagnostics.size() == 20)
             result.diagnostics.back().message += "；错误过多，停止本阶段";
+    }
+    // 记录无法继续的 AST 约束错误，返回主循环处理。
+    [[noreturn]] void fail(const std::string& message, const std::string& code,
+                           Level level = Level::Error, std::size_t at = std::numeric_limits<std::size_t>::max()) {
+        report(message, code, level, at);
         throw ParseFailure{};
     }
-    // 读取必须出现的单词；种别不符时报告错误。
-    Token expect(TT type, const std::string& spelling) {
-        if (!at(type)) fail("需要 " + spelling + "，实际遇到 " +
-                            (at(TT::END_OF_FILE) ? "文件结束" : peek().lexeme));
-        return take();
-    }
-    // 错误达到上限或出现致命错误时，停止继续解析。
+    // 判断是否已达到错误上限或出现致命错误。
     bool stopped() const {
         return result.diagnostics.size() >= 20 ||
             (!result.diagnostics.empty() && result.diagnostics.back().level == Level::Fatal);
     }
-    // 在进入和离开解析函数时维护嵌套层数。
-    struct Nest {
-        Parser& parser; // 当前解析器；离开本层时自动减少嵌套计数。
-        // 进入一层解析；达到上限时报告致命错误。
-        explicit Nest(Parser& p) : parser(p) {
-            if (p.depth >= 128) p.fail("语法嵌套超过 128 层", "PARSE_DEPTH", Level::Fatal);
-            ++p.depth;
-        }
-        // 离开这一层，恢复嵌套计数。
-        ~Nest() { --parser.depth; }
-    };
-    // 判断当前单词是否可以作为声明的类型。
-    bool specifier() const {
-        switch (peek().type) {
-        case TT::KW_VOID: case TT::KW_CHAR: case TT::KW_INT:
-        case TT::KW_FLOAT: case TT::KW_STRUCT:
-            return true;
-        default: return false;
-        }
-    }
-    // 创建 AST 节点，填写种类、名字和开始位置。
+    // 返回文法孩子的匹配结果。
+    Match& child(Match& m, std::size_t i) { return matches[m.children[i]]; }
+    // 返回匹配结果的首个单词。
+    const Token& first(const Match& m) const { return tokens[m.begin]; }
+    // 创建 AST 节点并填写起始位置。
     Node node(NodeType kind, const Token& start, const std::string& name = "") {
         auto n = result.arena.make();
         n->kind = kind; n->name = name; n->range = start.range;
         heights[n] = 1;
         return n;
     }
-    // 补齐节点的结束位置和树高；树高超限时报告错误。
-    void finish(ASTNode& n) {
-        if (pos) n.range.end = tokens[pos - 1].range.end;
+    // 设置 AST 结束位置并检查树高；end 为单词区间右端。
+    void finish(Node n, std::size_t end) {
+        if (end) n->range.end = tokens[end - 1].range.end;
         unsigned height = 1;
-        for (const auto& child : n.children) {
-            const auto found = heights.find(child);
-            height = std::max(height, 1 + (found == heights.end() ? 1 : found->second));
-        }
+        for (auto c : n->children) height = std::max(height, 1 + heights.at(c));
         if (height > 128) fail("语法树嵌套超过 128 层", "PARSE_DEPTH", Level::Fatal);
-        heights[&n] = height;
+        heights[n] = height;
     }
-    // 保存声明开头的基础类型和结构体定义。
-    struct Specs {
-        TypePtr type = nullptr; // 声明中的基础类型，例如 int 或 struct S。
-        std::vector<Node> definitions; // 声明中同时定义的结构体节点。
-    };
-
-    // 读取类型说明，返回声明的基础信息。
-    Specs specs() {
-        Nest nest(*this);
-        Specs s;
-        auto type = make_type_info();
-        const auto token = peek();
-        if (!specifier()) fail("声明需要明确的类型", "PARSE_SPECIFIERS");
-        take();
-        switch (token.type) {
-        case TT::KW_VOID: type->kind = TypeKind::Void; break;
-        case TT::KW_CHAR: type->kind = TypeKind::Char; break;
-        case TT::KW_INT: type->kind = TypeKind::Int; break;
-        case TT::KW_FLOAT: type->kind = TypeKind::Float; break;
-        case TT::KW_STRUCT: {
-            type->kind = TypeKind::Struct;
-            if (at(TT::ID)) type->name = take().lexeme;
-            if (accept(TT::LBRACE)) {
-                if (type->name.empty())
-                    fail("struct 定义必须有标签名", "PARSE_RECORD_ANONYMOUS");
-                auto def = node(NodeType::StructDef, token, type->name);
-                while (!at(TT::RBRACE) && !at(TT::END_OF_FILE)) {
-                    auto members = declaration(false, true);
-                    for (auto* member : members) def->children.push_back(member);
-                }
-                if (def->children.empty()) fail("结构体定义不能为空", "PARSE_RECORD");
-                expect(TT::RBRACE, "'}'"); finish(*def);
-                s.definitions.push_back(def);
-            } else if (type->name.empty()) {
-                fail("struct 类型需要标签名和定义", "PARSE_RECORD");
+    // 根据已匹配的类型单词建立基础类型。
+    TypePtr specs(const Match& m) {
+        auto t = make_type_info();
+        switch (first(m).type) {
+        case TT::KW_VOID: t->kind = TypeKind::Void; break;
+        case TT::KW_CHAR: t->kind = TypeKind::Char; break;
+        case TT::KW_INT: t->kind = TypeKind::Int; break;
+        case TT::KW_FLOAT: t->kind = TypeKind::Float; break;
+        default: t->kind = TypeKind::Struct; t->name = tokens[m.begin + 1].lexeme; break;
+        }
+        return t;
+    }
+    // 在基础类型外加一层已匹配的数组，并检查界限数值。
+    TypePtr declarator(TypePtr base, Match& array) {
+        if (array.begin == array.end) return base;
+        auto t = make_type_info(); t->kind = TypeKind::Array; t->base = base;
+        const auto& size = tokens[array.begin + 1];
+        if (size.type != TT::RBRACKET) {
+            std::size_t used = 0;
+            unsigned long long value = 0;
+            try { value = std::stoull(size.lexeme, &used, 0); }
+            catch (const std::exception&) { fail("数组长度超出范围", "PARSE_ARRAY_BOUND", Level::Error, array.begin + 1); }
+            if (used != size.lexeme.size()) fail("数组长度不能带 U 和 L 后缀", "PARSE_ARRAY_BOUND", Level::Error, array.begin + 1);
+            if (!value || value > std::numeric_limits<std::size_t>::max())
+                fail("数组长度必须为可表示的正整数", "PARSE_ARRAY_BOUND", Level::Error, array.begin + 1);
+            t->array_length = static_cast<std::size_t>(value);
+        }
+        return t;
+    }
+    // 用类型、名字、可选数组和可选初值建立一个变量或成员。
+    Node object(NodeType kind, const Token& start, TypePtr type, Match& id,
+                Match& array, Match* init) {
+        auto n = node(kind, start, first(id).lexeme);
+        n->declared_type = declarator(type, array);
+        std::size_t end = array.end;
+        if (init && init->ast) { n->children.push_back(init->ast); end = init->end; }
+        finish(n, end);
+        return n;
+    }
+    // 展开已匹配的对象续表，按源码顺序构造同一声明中的变量。
+    void objects(Match& m, TypePtr type, Match& id, Match& tail) {
+        m.declarations.push_back(object(NodeType::VarDecl, first(m), type, id,
+                                        child(tail, 0), &child(tail, 1)));
+        auto rest = &child(tail, 2);
+        while (!rest->children.empty()) {
+            m.declarations.push_back(object(NodeType::VarDecl, first(m), type, child(*rest, 1),
+                                            child(*rest, 2), &child(*rest, 3)));
+            rest = &child(*rest, 4);
+        }
+        finish(m.declarations.back(), m.end);
+    }
+    // 组合一条已匹配的声明；此函数不读取或推进输入。
+    void declaration(Match& m) {
+        if (m.symbol == 成员声明) {
+            auto type = child(m, 0).type;
+            m.declarations.push_back(object(NodeType::MemberDecl, first(m), type,
+                                            child(m, 1), child(m, 2), nullptr));
+            auto rest = &child(m, 3);
+            while (!rest->children.empty()) {
+                m.declarations.push_back(object(NodeType::MemberDecl, first(m), type,
+                                                child(*rest, 1), child(*rest, 2), nullptr));
+                rest = &child(*rest, 3);
             }
-            break;
+            finish(m.declarations.back(), m.end);
+            return;
         }
-        default: fail("需要类型说明符", "PARSE_SPECIFIERS");
-        }
-        s.type = type;
-        return s;
-    }
-
-    // 声明符中的一层数组或函数。
-    struct Layer {
-        TypeKind kind = TypeKind::Array; // 这一层是数组还是函数。
-        MaybeValue<std::size_t> length; // 数组元素个数；省略界限时为空。
-        std::vector<Node> params; // 本层函数的形参节点，按声明顺序保存。
-    };
-    // 声明符信息，例如 a[3] 或 fn(int)。
-    struct Declarator {
-        std::string name; // 声明的名字；无名形参或类型名中可以为空。
-        std::vector<Layer> layers; // 从名字向外保存数组、函数。
-        SourceRange range; // 声明符从开始到结束的源码范围。
-    };
-    // 读取名字及其数组、函数层次；abstract 为 true 时允许没有名字。
-    Declarator declarator(bool abstract = false) {
-        Nest nest(*this);
-        Declarator d; d.range = peek().range;
-        if (at(TT::ID)) d.name = take().lexeme;
-        else if (!abstract) fail("声明符需要名字", "PARSE_DECLARATOR");
-        while (at(TT::LBRACKET) || at(TT::LPAREN)) {
-            if (d.layers.size() >= 128) fail("声明符嵌套过深", "PARSE_DEPTH", Level::Fatal);
-            Layer layer;
-            if (accept(TT::LBRACKET)) {
-                layer.kind = TypeKind::Array;
-                for (const auto& previous : d.layers)
-                    if (previous.kind == TypeKind::Array)
-                        fail("MiniC 只支持一维数组", "PARSE_ARRAY_DIMENSION");
-                if (!at(TT::RBRACKET)) {
-                    const auto size = expect(TT::INT_LITERAL, "正整数数组长度（暂不支持常量表达式界限）");
-                    std::size_t used = 0;
-                    unsigned long long value = 0;
-                    try { value = std::stoull(size.lexeme, &used, 0); }
-                    catch (const std::exception&) { fail("数组长度超出范围", "PARSE_ARRAY_BOUND"); }
-                    if (used != size.lexeme.size())
-                        fail("数组长度不能带 U 和 L 后缀", "PARSE_ARRAY_BOUND");
-                    if (!value || value > std::numeric_limits<std::size_t>::max())
-                        fail("数组长度必须为可表示的正整数", "PARSE_ARRAY_BOUND");
-                    layer.length = static_cast<std::size_t>(value);
+        auto type = specs(m);
+        auto id = &child(m, 1);
+        auto tail = &child(m, 2);
+        if (first(m).type == TT::KW_STRUCT) {
+            if (first(*tail).type == TT::LBRACE) {
+                auto def = node(NodeType::StructDef, first(m), first(*id).lexeme);
+                def->children = child(*tail, 1).declarations;
+                auto rest = &child(*tail, 2);
+                while (!rest->children.empty()) {
+                    const auto& members = child(*rest, 0).declarations;
+                    def->children.insert(def->children.end(), members.begin(), members.end());
+                    rest = &child(*rest, 1);
                 }
-                expect(TT::RBRACKET, "']'");
+                finish(def, child(*tail, 3).end);
+                m.declarations.push_back(def);
+                auto& after = child(*tail, 4);
+                if (after.children.size() == 1) { finish(def, m.end); return; }
+                id = &child(after, 0); tail = &child(after, 1);
             } else {
-                take(); layer.kind = TypeKind::Function;
-                {
-                    if (at(TT::KW_VOID) && peek(1).type == TT::RPAREN) take();
-                    else if (!at(TT::RPAREN)) {
-                        do {
-                            const auto start = peek();
-                            auto ps = specs();
-                            if (!ps.definitions.empty()) fail("请先单独声明形参使用的记录类型", "PARSE_PARAMETER");
-                            auto pd = declarator(true);
-                            auto param = node(NodeType::ParamDecl, start, pd.name);
-                            param->declared_type = build_type(ps.type, pd);
-                            if (param->declared_type->kind == TypeKind::Struct ||
-                                param->declared_type->kind == TypeKind::Function)
-                                fail("形参只支持标量或一维数组", "PARSE_FUNCTION");
-                            if (param->declared_type->kind == TypeKind::Void)
-                                fail("void 只能单独表示空形参列表", "PARSE_PARAMETER");
-                            finish(*param);
-                            layer.params.push_back(std::move(param));
-                        } while (accept(TT::COMMA));
-                    }
-                    expect(TT::RPAREN, "')'");
-                }
+                id = &child(*tail, 0); tail = &child(*tail, 1);
             }
-            d.layers.push_back(std::move(layer));
+        } else if (tail->symbol == 外部声明尾) {
+            tail = &child(*tail, 0);
         }
-        if (pos) d.range.end = tokens[pos - 1].range.end;
-        return d;
-    }
-    // 按声明符的层次组合完整类型，不改变基础类型。
-    TypePtr build_type(TypePtr base, const Declarator& d) {
-        for (auto i = d.layers.rbegin(); i != d.layers.rend(); ++i) {
-            auto type = make_type_info(); type->kind = i->kind; type->base = base;
-
-            type->array_length = i->length;
-            for (const auto& param : i->params) type->params.push_back(param->declared_type);
-            if (i->kind == TypeKind::Function &&
-                (base->kind == TypeKind::Array || base->kind == TypeKind::Function))
-                fail("函数不能返回数组或函数", "PARSE_DECLARATOR");
-            if (i->kind == TypeKind::Array &&
-                (base->kind == TypeKind::Function || base->kind == TypeKind::Void))
-                fail("数组元素不能是函数或 void", "PARSE_DECLARATOR");
-            base = type;
-        }
-        return base;
-    }
-    // 读取一条声明，返回其中的类型定义、变量或函数节点。
-    std::vector<Node> declaration(bool external, bool member = false) {
-        Nest nest(*this);
-        const auto start = peek();
-        auto s = specs();
-        if (member && !s.definitions.empty())
-            fail("成员类型的内联定义暂不支持，请先单独定义记录类型", "PARSE_MEMBER");
-        std::vector<Node> nodes = std::move(s.definitions);
-        if (accept(TT::SEMI)) {
-            if (member)
-                fail("此声明需要声明符", "PARSE_DECLARATOR");
-            if (nodes.empty() && s.type->kind == TypeKind::Struct)
-                fail("请先写出完整 struct 定义，不支持前向声明", "PARSE_RECORD_FORWARD");
-            if (nodes.empty()) fail("声明缺少声明符", "PARSE_DECLARATOR");
-            for (auto& n : nodes) finish(*n);
-            return nodes;
-        }
-        bool first_declarator = true;
-        do {
-            auto d = declarator();
-            const auto type = build_type(s.type, d);
-            const bool function = type->kind == TypeKind::Function;
-            if (!function && s.type->kind == TypeKind::Void)
-                fail("void 只能用于函数返回值或空形参列表", "PARSE_DECLARATOR");
-            if (member && function)
-                fail("成员不支持函数或位域", "PARSE_MEMBER");
-            auto n = node(member ? NodeType::MemberDecl : function ? NodeType::FunctionDef : NodeType::VarDecl, start, d.name);
-            n->declared_type = type;
-            if (function) {
-                if (type->base->kind == TypeKind::Struct)
-                    fail("struct 不能作为函数返回值", "PARSE_FUNCTION");
-                n->children = std::move(d.layers.front().params);
-                if (at(TT::LBRACE)) {
-                    if (!external) fail("函数定义只能出现在顶层", "PARSE_FUNCTION");
-                    if (!first_declarator) fail("函数定义不能与其他声明符共用声明", "PARSE_FUNCTION");
-                    for (const auto& param : n->children)
-                        if (param->name.empty()) fail("函数定义中的形参需要名字", "PARSE_PARAMETER");
-                    n->kind = NodeType::FunctionDef;
-                    n->children.push_back(block());
-                    finish(*n); nodes.push_back(std::move(n));
-                    return nodes;
-                }
-                fail("函数必须带函数体", "PARSE_FUNCTION");
-            }
-            if (accept(TT::ASSIGN)) {
-                if (member || function)
-                    fail("此声明不允许初始化", "PARSE_INITIALIZER");
-                n->children.push_back(initializer());
-            }
-            finish(*n); nodes.push_back(std::move(n));
-            first_declarator = false;
-        } while (accept(TT::COMMA));
-        expect(TT::SEMI, "';'");
-        if (!nodes.empty()) finish(*nodes.back());
-        return nodes;
-    }
-    // 读取一个赋值式初始化。
-    Node initializer() {
-        Nest nest(*this);
-        return expression(2);
-    }
-    // 恢复到当前块的下一个分号；跳过完整的内嵌花括号，保证每次推进。
-    void recover(std::size_t before, bool external) {
-        unsigned braces = 0;
-        while (!at(TT::END_OF_FILE)) {
-            if (at(TT::RBRACE) && braces == 0) {
-                if (external) take();
-                return;
-            }
-            if (at(TT::LBRACE)) ++braces;
-            else if (at(TT::RBRACE)) --braces;
-            if (take().type == TT::SEMI && braces == 0) return;
-            if (external && pos > before && braces == 0 && specifier()) return;
-        }
-    }
-    // 读取花括号块，要求本块声明写在语句之前。
-    Node block() {
-        Nest nest(*this);
-        const auto start = expect(TT::LBRACE, "'{'（控制体必须使用花括号）");
-        auto n = node(NodeType::Block, start);
-        bool saw_statement = false;
-        while (!at(TT::RBRACE) && !at(TT::END_OF_FILE) && !stopped()) {
-            const auto before = pos;
-            try {
-                if (specifier()) {
-                    if (saw_statement)
-                        fail("同一块中的声明必须放在语句之前", "PARSE_DECLARATION_ORDER");
-                    auto ds = declaration(false);
-                    for (auto& d : ds) n->children.push_back(std::move(d));
-                } else {
-                    saw_statement = true;
-                    n->children.push_back(statement());
-                }
-            } catch (const ParseFailure&) {
-                if (stopped()) throw;
-                recover(before, false);
+        if (tail->symbol != 函数尾) { objects(m, type, *id, *tail); return; }
+        auto fn = node(NodeType::FunctionDef, first(m), first(*id).lexeme);
+        auto fn_type = make_type_info(); fn_type->kind = TypeKind::Function; fn_type->base = type;
+        auto& params = child(*tail, 1);
+        if (params.children.size() == 2) {
+            fn->children.push_back(child(params, 0).ast);
+            auto rest = &child(params, 1);
+            while (!rest->children.empty()) {
+                fn->children.push_back(child(*rest, 1).ast); rest = &child(*rest, 2);
             }
         }
-        expect(TT::RBRACE, "'}'");
-        finish(*n); return n;
+        for (auto p : fn->children) fn_type->params.push_back(p->declared_type);
+        fn->declared_type = fn_type;
+        fn->children.push_back(child(*tail, 3).ast);
+        finish(fn, m.end); m.declarations.push_back(fn);
     }
-    // 读取括号中的条件表达式。
-    Node condition() {
-        expect(TT::LPAREN, "'('"); auto n = expression(); expect(TT::RPAREN, "')'"); return n;
+    // 将已匹配的局部声明和语句列表组合成块。
+    void block(Match& m) {
+        m.ast = node(NodeType::Block, first(m));
+        auto rest = &child(m, 1);
+        while (!rest->children.empty()) {
+            const auto& declarations = child(*rest, 0).declarations;
+            m.ast->children.insert(m.ast->children.end(), declarations.begin(), declarations.end());
+            rest = &child(*rest, 1);
+        }
+        rest = &child(m, 2);
+        while (!rest->children.empty()) {
+            m.ast->children.push_back(child(*rest, 0).ast); rest = &child(*rest, 1);
+        }
+        finish(m.ast, m.end);
     }
-    // 读取一条语句，返回控制流、表达式或块节点。
-    Node statement() {
-        Nest nest(*this);
-        const auto start = peek();
-        if (at(TT::LBRACE)) return block();
-        if (accept(TT::SEMI)) return node(NodeType::Empty, start);
-        if (accept(TT::KW_IF)) {
-            auto n = node(NodeType::If, start); n->children.push_back(condition());
-            n->children.push_back(block());
-            if (accept(TT::KW_ELSE)) n->children.push_back(block());
-            finish(*n); return n;
-        }
-        if (accept(TT::KW_WHILE)) {
-            auto n = node(NodeType::While, start);
-            n->children.push_back(condition()); n->children.push_back(block()); finish(*n); return n;
-        }
-        if (accept(TT::KW_FOR)) {
-            auto n = node(NodeType::For, start); expect(TT::LPAREN, "'('");
-            if (specifier()) fail("for 初始化只支持表达式，请在循环前声明变量", "PARSE_FOR_DECLARATION");
-            n->children.push_back(at(TT::SEMI) ? node(NodeType::Empty, peek()) : expression());
-            expect(TT::SEMI, "';'");
-            n->children.push_back(at(TT::SEMI) ? node(NodeType::Empty, peek()) : expression());
-            expect(TT::SEMI, "';'");
-            n->children.push_back(at(TT::RPAREN) ? node(NodeType::Empty, peek()) : expression());
-            expect(TT::RPAREN, "')'"); n->children.push_back(block()); finish(*n); return n;
-        }
-        if (accept(TT::KW_RETURN)) {
-            auto n = node(NodeType::Return, start);
-            if (!at(TT::SEMI)) n->children.push_back(expression());
-            expect(TT::SEMI, "';'"); finish(*n); return n;
-        }
-        if (accept(TT::KW_BREAK) || accept(TT::KW_CONTINUE)) {
-            auto n = node(start.type == TT::KW_BREAK ? NodeType::Break :
-                NodeType::Continue, start);
-            expect(TT::SEMI, "';'"); finish(*n); return n;
-        }
-        auto n = node(NodeType::ExprStmt, start); n->children.push_back(expression());
-        expect(TT::SEMI, "';'"); finish(*n); return n;
-    }
-
-    // 返回二元运算符优先级；不是二元运算符时返回 0。
-    static int precedence(TT type) {
-        switch (type) {
-        case TT::ASSIGN: return 2;
-        case TT::OR: return 3;
-        case TT::AND: return 4;
-        case TT::EQ: case TT::NE: return 5;
-        case TT::LT: case TT::LE: case TT::GT: case TT::GE: return 6;
-        case TT::PLUS: case TT::MINUS: return 7;
-        case TT::STAR: case TT::SLASH: case TT::PERCENT: return 8;
-        default: return 0;
-        }
-    }
-    // 判断节点是否符合赋值左部的一元表达式语法；可否赋值由语义阶段检查。
-    static bool unary_shape(const ASTNode& n) {
-        switch (n.kind) {
-        case NodeType::Identifier: case NodeType::IntLiteral: case NodeType::FloatLiteral:
-        case NodeType::CharLiteral: case NodeType::StringLiteral: case NodeType::UnaryOp:
-        case NodeType::Call: case NodeType::ArrayAccess: case NodeType::MemberAccess:
-            return true;
-        default: return false;
-        }
-    }
-    // 从最低允许的优先级开始读取表达式，返回表达式树。
-    Node expression(int minimum = 1) {
-        Nest nest(*this);
-        auto left = unary();
-        // 括号表达式在语法上属于 PrimaryExpression，保留其赋值左部资格。
-        bool shape = unary_shape(*left) || parenthesized;
-        while (precedence(peek().type) >= minimum) {
-            const auto op = take(); const int priority = precedence(op.type);
-            auto n = node(priority == 2 ? NodeType::Assign : NodeType::BinaryOp, op, op.lexeme);
-            n->range.begin = left->range.begin; n->range.file = left->range.file;
-            if (priority == 2 && !shape) fail("赋值左部必须符合一元表达式形状", "PARSE_ASSIGNMENT_TARGET");
-            n->children.push_back(std::move(left));
-            n->children.push_back(expression(priority == 2 ? priority : priority + 1));
-            finish(*n); left = std::move(n); shape = false;
-        }
-        parenthesized = false;
-        return left;
-    }
-    bool parenthesized = false; // 最近的一元表达式是否来自括号，供赋值左部语法检查使用。
-    // 读取前缀运算、括号或字面量，返回表达式节点。
-    Node unary() {
-        Nest nest(*this);
-        const auto start = peek(); parenthesized = false;
-        switch (start.type) {
-        case TT::PLUS: case TT::MINUS: case TT::NOT: case TT::AMP: {
-            take(); auto n = node(NodeType::UnaryOp, start,
-                start.lexeme);
-            n->children.push_back(unary()); finish(*n); parenthesized = false; return n;
-        }
+    // 按已选语句产生式组合控制流节点，保持公共 AST 孩子顺序。
+    void statement(Match& m) {
+        const auto token = first(m).type;
+        if (token == TT::LBRACE) { m.ast = child(m, 0).ast; return; }
+        NodeType kind = NodeType::ExprStmt;
+        switch (token) {
+        case TT::SEMI: kind = NodeType::Empty; break;
+        case TT::KW_IF: kind = NodeType::If; break;
+        case TT::KW_WHILE: kind = NodeType::While; break;
+        case TT::KW_FOR: kind = NodeType::For; break;
+        case TT::KW_RETURN: kind = NodeType::Return; break;
+        case TT::KW_BREAK: kind = NodeType::Break; break;
+        case TT::KW_CONTINUE: kind = NodeType::Continue; break;
         default: break;
         }
-        if (at(TT::LPAREN)) {
-            take();
-            auto n = expression(); expect(TT::RPAREN, "')'");
-            n->range.begin = start.range.begin; finish(*n);
-            n = postfix(std::move(n)); parenthesized = true; return n;
-        }
-        Node n;
-        switch (start.type) {
-        case TT::ID:
-            n = node(NodeType::Identifier, take(), start.lexeme); break;
-        case TT::INT_LITERAL:
-            if (start.lexeme.find_first_of("uUlL") != std::string::npos)
-                fail("整数常量不接受后缀", "PARSE_LITERAL");
-            n = node(NodeType::IntLiteral, take(), start.lexeme); break;
-        case TT::FLOAT_LITERAL:
-            if (start.lexeme.back() == 'l' || start.lexeme.back() == 'L')
-                fail("浮点常量不接受 L 后缀", "PARSE_LITERAL");
-            n = node(NodeType::FloatLiteral, take(), start.lexeme); break;
-        case TT::CHAR_LITERAL: n = node(NodeType::CharLiteral, take(), start.lexeme); break;
-        case TT::STRING_LITERAL: {
-            n = node(NodeType::StringLiteral, take(), start.lexeme);
-            // 保留每段引号和转义；语义解码器按多段字符串处理。
-            while (at(TT::STRING_LITERAL)) { n->name += " " + take().lexeme; finish(*n); }
-            break;
-        }
-        default: fail("需要表达式，实际遇到 " +
-                      (at(TT::END_OF_FILE) ? "文件结束" : start.lexeme), "PARSE_EXPRESSION");
-        }
-        n = postfix(std::move(n)); parenthesized = false; return n;
-    }
-    // 在已有表达式后读取调用、下标或成员访问，返回最终节点。
-    Node postfix(Node base) {
-        while (at(TT::LPAREN) || at(TT::LBRACKET) || at(TT::DOT)) {
-            const auto op = take(); Node n;
-            if (op.type == TT::LPAREN) {
-                n = node(NodeType::Call, op, base->kind == NodeType::Identifier ? base->name : "");
-                n->children.push_back(std::move(base));
-                if (!at(TT::RPAREN)) do { n->children.push_back(expression(2)); } while (accept(TT::COMMA));
-                expect(TT::RPAREN, "')'");
-            } else if (op.type == TT::LBRACKET) {
-                n = node(NodeType::ArrayAccess, op); n->children.push_back(std::move(base));
-                n->children.push_back(expression()); expect(TT::RBRACKET, "']'");
-            } else {
-                const auto member = expect(TT::ID, "成员名字");
-                n = node(NodeType::MemberAccess, op, member.lexeme);
-                n->children.push_back(base);
+        m.ast = node(kind, first(m));
+        if (kind == NodeType::If || kind == NodeType::While) {
+            m.ast->children = {child(m, 2).ast, child(m, 4).ast};
+            if (kind == NodeType::If && child(m, 5).ast) m.ast->children.push_back(child(m, 5).ast);
+        } else if (kind == NodeType::For) {
+            for (auto i : {2, 4, 6}) {
+                auto& expr = child(m, i);
+                m.ast->children.push_back(expr.ast ? expr.ast : node(NodeType::Empty, first(expr)));
             }
-            n->range.begin = n->children.front()->range.begin;
-            n->range.file = n->children.front()->range.file;
-            finish(*n); base = std::move(n);
+            m.ast->children.push_back(child(m, 8).ast);
+        } else if (kind == NodeType::Return) {
+            if (child(m, 1).ast) m.ast->children.push_back(child(m, 1).ast);
+        } else if (kind == NodeType::ExprStmt) m.ast->children.push_back(child(m, 0).ast);
+        finish(m.ast, m.end);
+    }
+    // 按文法层级组合表达式：普通二元尾表左折叠，赋值右结合。
+    void expression(Match& m) {
+        auto& left = child(m, 0);
+        m.ast = left.ast; m.unary_form = left.unary_form;
+        auto rest = &child(m, 1);
+        if (m.symbol == 表达式) {
+            if (rest->children.empty()) return;
+            if (!m.unary_form) fail("赋值左部必须符合一元表达式形状", "PARSE_ASSIGNMENT_TARGET", Level::Error, rest->begin);
+            auto n = node(NodeType::Assign, first(*rest), "=");
+            n->range.begin = m.ast->range.begin; n->range.file = m.ast->range.file;
+            n->children = {m.ast, child(*rest, 1).ast};
+            finish(n, m.end); m.ast = n; m.unary_form = false;
+            return;
         }
-        return base;
+        while (!rest->children.empty()) {
+            auto& right = child(*rest, 1);
+            auto n = node(NodeType::BinaryOp, first(*rest), first(*rest).lexeme);
+            n->range.begin = m.ast->range.begin; n->range.file = m.ast->range.file;
+            n->children = {m.ast, right.ast};
+            finish(n, right.end); m.ast = n; m.unary_form = false;
+            rest = &child(*rest, 2);
+        }
+    }
+    // 组合前缀、一元主式和字面量；括号主式保留一元式形状。
+    void unary(Match& m) {
+        m.unary_form = true;
+        if (m.symbol == 一元式) {
+            if (m.children.size() == 1) m.ast = child(m, 0).ast;
+            else {
+                m.ast = node(NodeType::UnaryOp, first(m), first(m).lexeme);
+                m.ast->children.push_back(child(m, 1).ast); finish(m.ast, m.end);
+            }
+            return;
+        }
+        if (m.symbol == 字符串) {
+            m.ast = node(NodeType::StringLiteral, first(m), first(m).lexeme);
+            for (auto i = m.begin + 1; i < m.end; ++i) m.ast->name += " " + tokens[i].lexeme;
+        } else if (first(m).type == TT::LPAREN) {
+            m.ast = child(m, 1).ast; m.ast->range.begin = first(m).range.begin;
+        } else if (child(m, 0).symbol == 字符串) {
+            m.ast = child(m, 0).ast;
+        } else {
+            NodeType kind = NodeType::Identifier;
+            switch (first(m).type) {
+            case TT::INT_LITERAL:
+                if (first(m).lexeme.find_first_of("uUlL") != std::string::npos)
+                    fail("整数常量不接受后缀", "PARSE_LITERAL", Level::Error, m.begin);
+                kind = NodeType::IntLiteral; break;
+            case TT::FLOAT_LITERAL:
+                if (first(m).lexeme.find_last_of("lL") == first(m).lexeme.size() - 1)
+                    fail("浮点常量不接受 L 后缀", "PARSE_LITERAL", Level::Error, m.begin);
+                kind = NodeType::FloatLiteral; break;
+            case TT::CHAR_LITERAL: kind = NodeType::CharLiteral; break;
+            default: break;
+            }
+            m.ast = node(kind, first(m), first(m).lexeme);
+        }
+        finish(m.ast, m.end);
+    }
+    // 按源码顺序把已匹配的调用、下标和成员访问包在主式外面。
+    void postfix(Match& m) {
+        m.ast = child(m, 0).ast; m.unary_form = true;
+        auto rest = &child(m, 1);
+        while (!rest->children.empty()) {
+            auto& suffix = child(*rest, 0);
+            const auto op = first(suffix).type;
+            Node n;
+            if (op == TT::LPAREN) {
+                n = node(NodeType::Call, first(suffix), m.ast->kind == NodeType::Identifier ? m.ast->name : "");
+                n->children.push_back(m.ast);
+                auto args = &child(suffix, 1);
+                if (!args->children.empty()) {
+                    n->children.push_back(child(*args, 0).ast); args = &child(*args, 1);
+                    while (!args->children.empty()) {
+                        n->children.push_back(child(*args, 1).ast); args = &child(*args, 2);
+                    }
+                }
+            } else if (op == TT::LBRACKET) {
+                n = node(NodeType::ArrayAccess, first(suffix));
+                n->children = {m.ast, child(suffix, 1).ast};
+            } else {
+                n = node(NodeType::MemberAccess, first(suffix), first(child(suffix, 1)).lexeme);
+                n->children.push_back(m.ast);
+            }
+            n->range.begin = m.ast->range.begin; n->range.file = m.ast->range.file;
+            finish(n, suffix.end); m.ast = n;
+            rest = &child(*rest, 1);
+        }
+    }
+    // 执行已完整匹配的产生式动作；不查输入，不再识别语法。
+    void reduce(std::size_t index) {
+        auto& m = matches[index];
+        switch (m.symbol) {
+        case 程序:
+            if (index == 0) {
+                m.ast = node(NodeType::Program, first(m));
+                auto rest = &m;
+                while (!rest->children.empty()) {
+                    const auto& decls = child(*rest, 0).declarations;
+                    m.ast->children.insert(m.ast->children.end(), decls.begin(), decls.end());
+                    rest = &child(*rest, 1);
+                }
+                finish(m.ast, m.end); m.ast->range.end = tokens[pos].range.end;
+            }
+            break;
+        case 标量类型: case 成员类型: m.type = specs(m); break;
+        case 外部声明: case 局部声明: case 成员声明: declaration(m); break;
+        case 形参: {
+            const bool record = first(m).type == TT::KW_STRUCT;
+            auto& id = child(m, record ? 2 : 1);
+            m.ast = node(NodeType::ParamDecl, first(m), first(id).lexeme);
+            if (record) {
+                Match array(static_cast<int>(TT::LBRACKET)); // struct 形参在文法中必须是数组。
+                array.begin = child(m, 3).begin; array.end = child(m, 5).end;
+                m.ast->declared_type = declarator(specs(m), array);
+            } else m.ast->declared_type = declarator(specs(m), child(m, 2));
+            finish(m.ast, m.end); break;
+        }
+        case 块: block(m); break;
+        case 语句: statement(m); break;
+        case 初值可选: case 否则可选:
+            if (!m.children.empty()) m.ast = child(m, 1).ast;
+            break;
+        case 表达式可选:
+            if (!m.children.empty()) m.ast = child(m, 0).ast;
+            break;
+        case 表达式: case 逻辑或式: case 逻辑与式: case 相等式: case 关系式: case 加法式: case 乘法式:
+            expression(m); break;
+        case 一元式: case 主式: case 字符串: unary(m); break;
+        case 后缀式: postfix(m); break;
+        default: break; // 列表和尾部由所属父节点遍历，不反复复制列表。
+        }
+    }
+    // 非终结符错误时跳到其预测项或 FOLLOW；终结符错误时插入或跳过。
+    void recover(int symbol) {
+        const auto look = static_cast<int>(tokens[pos].type);
+        report(std::string("需要 ") + names[symbol] + "，实际遇到 " +
+               (look == 0 ? "文件结束" : tokens[pos].lexeme));
+        if (symbol >= terminal_count) {
+            const auto row = symbol - terminal_count;
+            while (tokens[pos].type != TT::END_OF_FILE) {
+                const auto t = static_cast<int>(tokens[pos].type);
+                if (table[row][t] >= 0) return;
+                if (follow[row][t]) break;
+                ++pos;
+            }
+            stack.pop_back();
+        } else {
+            const auto t = tokens[pos].type;
+            if (t == TT::END_OF_FILE || t == TT::SEMI || t == TT::RBRACE ||
+                t == TT::RPAREN || t == TT::RBRACKET) stack.pop_back();
+            else ++pos;
+        }
     }
 
 public:
-    // 使用词法单词表建立解析器，开始位置为第一个单词。
+    // 保存单词表引用，解析期间不改变原始单词。
     explicit Parser(const std::vector<Token>& input) : tokens(input) {}
-    // 解析整个文件；任何语法错误都会使结果中的根节点为空。
+    // 分析栈循环：匹配终结符、查表展开非终结符、完成后组合 AST。
     ParseResult run() {
-        auto root = node(NodeType::Program, peek());
-        while (!at(TT::END_OF_FILE) && !stopped()) {
-            const auto before = pos;
-            try {
-                auto declarations = declaration(true);
-                for (auto& d : declarations) root->children.push_back(std::move(d));
-            } catch (const ParseFailure&) {
-                if (!stopped()) recover(before, true);
+        matches.emplace_back(程序); matches.emplace_back(static_cast<int>(TT::END_OF_FILE));
+        stack.push_back({1, false}); stack.push_back({0, false});
+        while (!stack.empty() && !stopped()) {
+            const auto frame = stack.back();
+            const auto symbol = matches[frame.match].symbol;
+            if (frame.reduce) {
+                stack.pop_back(); matches[frame.match].end = pos;
+                if (result.diagnostics.empty()) {
+                    try { reduce(frame.match); } catch (const ParseFailure&) {}
+                }
+                continue;
             }
+            const auto look = static_cast<int>(tokens[pos].type);
+            if (symbol < terminal_count) {
+                if (symbol != look) { recover(symbol); continue; }
+                stack.pop_back(); matches[frame.match].begin = pos;
+                if (look != 0) {
+                    if (tokens[pos].type == TT::LPAREN || tokens[pos].type == TT::LBRACE || tokens[pos].type == TT::LBRACKET) {
+                        if (++nesting > 128) { report("括号嵌套超过 128 层", "PARSE_DEPTH", Level::Fatal); break; }
+                    } else if (nesting && (tokens[pos].type == TT::RPAREN || tokens[pos].type == TT::RBRACE || tokens[pos].type == TT::RBRACKET)) --nesting;
+                    ++pos;
+                }
+                matches[frame.match].end = pos;
+                continue;
+            }
+            const int choice = table[symbol - terminal_count][look];
+            if (choice < 0) { recover(symbol); continue; }
+            stack.pop_back(); matches[frame.match].begin = pos;
+            stack.push_back({frame.match, true});
+            const auto& production = productions[choice];
+            for (int i = 0; i < production.length; ++i) {
+                const auto index = matches.size();
+                matches.emplace_back(production.rhs[i]);
+                matches[frame.match].children.push_back(index);
+            }
+            for (auto it = matches[frame.match].children.rbegin(); it != matches[frame.match].children.rend(); ++it)
+                stack.push_back({*it, false});
         }
-        root->range.end = peek().range.end;
-        if (!has_errors(result.diagnostics)) result.root = std::move(root);
+        if (result.diagnostics.empty()) result.root = matches[0].ast;
         return std::move(result);
     }
 };
@@ -495,14 +435,16 @@ public:
 
 ParseResult parse(const std::vector<Token>& tokens) {
     if (tokens.empty() || tokens.back().type != TT::END_OF_FILE ||
-        std::any_of(tokens.begin(), tokens.end() - 1, [](const Token& t) { return t.type == TT::END_OF_FILE; })) {
+        std::any_of(tokens.begin(), tokens.end() - 1, [](const Token& t) { return t.type == TT::END_OF_FILE; }) ||
+        std::any_of(tokens.begin(), tokens.end(), [](const Token& t) {
+            return static_cast<int>(t.type) < 0 || static_cast<int>(t.type) >= terminal_count;
+        })) {
         ParseResult result;
         const auto range = tokens.empty() ? SourceRange{} : tokens.back().range;
         result.diagnostics.push_back({Phase::Parser, Level::Error, range.begin.line, range.begin.col,
-            "单词表必须包含且只包含一个末尾 EOF", "PARSE_TOKEN_STREAM", range, {}});
+            "单词表必须使用有效种别，且只包含一个末尾 EOF", "PARSE_TOKEN_STREAM", range, {}});
         return result;
     }
     return Parser(tokens).run();
 }
 }
-

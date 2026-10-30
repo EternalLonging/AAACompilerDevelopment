@@ -1,12 +1,15 @@
 # 语法分析
 
-使用递归下降和表达式优先级构造 AST，语法错误时返回诊断。
+使用分析栈和 LL(1) 预测分析表识别语法，匹配完成后构造 AST，语法错误时返回诊断。
 
 公开入口：`parse(tokens)`。
 
 | 内容 | 文件 |
 |---|---|
 | 实现 | [parser.cpp](../../src/语法分析/parser.cpp) |
+| 运行预测表 | [predictive_table.hpp](../../include/minic/detail/predictive_table.hpp) |
+| 算法与阅读顺序 | [语法实现](语法实现.md) |
+| 文法唯一来源 | [generate_parser_tables.py](../../tools/generate_parser_tables.py) |
 | 公共接口 | [parser.hpp](../../include/minic/parser.hpp) |
 | 文法与集合 | [当前文法](../../实验设计/语法分析/语法表格/README.md) |
 | AST 约定 | [数据结构与 AST](../公共约定/数据结构与AST约定.md) |

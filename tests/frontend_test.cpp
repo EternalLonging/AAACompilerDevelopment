@@ -35,6 +35,56 @@ int main() {
         auto tree = syntax("int a[3]; int main(void){for(;;){break;}return 0;}");
         require(tree.ok() && tree.root->children.size() == 2, "数组与函数定义");
         require(tree.root->children[0]->declared_type->kind == TypeKind::Array, "一维数组");
+        auto expressions = syntax("int f(int x,int y){int a,b;a=b=9;return 8-3-1+2*4;}");
+        require(expressions.ok(), "表驱动表达式解析");
+        auto body = expressions.root->children[0]->children.back();
+        auto assignment = body->children[2]->children[0];
+        require(assignment->kind == NodeType::Assign && assignment->children[0]->name == "a" &&
+                assignment->children[1]->kind == NodeType::Assign &&
+                assignment->children[1]->children[0]->name == "b", "赋值必须右结合");
+        auto sum = body->children.back()->children[0];
+        require(sum->name == "+" && sum->children[0]->name == "-" &&
+                sum->children[0]->children[0]->name == "-" && sum->children[1]->name == "*",
+                "减法左结合，乘法先于加法");
+        auto suffixes = syntax("struct S{int a[3],b;};int f(struct S s[],int i){return s[i].a[1];}");
+        require(suffixes.ok(), "结构体数组形参和后缀序列");
+        auto access = suffixes.root->children[1]->children.back()->children[0]->children[0];
+        require(access->kind == NodeType::ArrayAccess && access->children[0]->kind == NodeType::MemberAccess &&
+                access->children[0]->name == "a" && access->children[0]->children[0]->kind == NodeType::ArrayAccess,
+                "下标和成员后缀按源码顺序组合");
+        auto call = syntax("int f(){return g(1,2,3);}");
+        auto called = call.root->children[0]->children.back()->children[0]->children[0];
+        require(called->kind == NodeType::Call && called->children.size() == 4 &&
+                called->children[0]->name == "g" && called->children[3]->name == "3", "调用的首个孩子是被调函数");
+        auto optional = syntax("void f(){for(;;){break;}return;}");
+        auto loop = optional.root->children[0]->children.back()->children[0];
+        require(loop->children.size() == 4 && loop->children[0]->kind == NodeType::Empty &&
+                loop->children[1]->kind == NodeType::Empty && loop->children[2]->kind == NodeType::Empty &&
+                loop->children[3]->kind == NodeType::Block, "for 缺项仍占三个位置");
+        auto parentheses = syntax("int f(){return (1+2)*3;}");
+        auto product = parentheses.root->children[0]->children.back()->children[0]->children[0];
+        require(product->name == "*" && product->children[0]->name == "+" &&
+                product->children[0]->range.begin.offset == 15 && product->children[0]->range.end.offset == 20,
+                "括号影响优先级并保留完整源码范围");
+        rejects("int f(){int a,b,c;a+b=c;return 0;}");
+        require(syntax("int f(){int a,b,c;(a+b)=c;return 0;}").ok(), "括号主式的左值合法性交给语义检查");
+        auto recovery = syntax("int f(){\na=;\nb=;\nreturn 0;}");
+        bool line2 = false, line3 = false;
+        for (const auto& d : recovery.diagnostics) { line2 |= d.line == 2; line3 |= d.line == 3; }
+        require(!recovery.root && line2 && line3, "FOLLOW 同步必须继续报告下一条语句的错误");
+        std::string flat = "void f(){";
+        for (int i = 0; i < 3000; ++i) flat += ";";
+        flat += "return;}";
+        auto long_list = syntax(flat);
+        require(long_list.ok() && long_list.root->children[0]->children.back()->children.size() == 3001,
+                "平坦语句列表不消耗 C++ 递归栈");
+        rejects("int f(){return " + std::string(140, '(') + "1" + std::string(140, ')') + ";}");
+        rejects("int f(){return " + std::string(140, '!') + "1;}");
+        rejects("int a[0];");
+        rejects("int a[2U];");
+        auto stream = lex("int a;", "stream.c").tokens;
+        stream[0].type = static_cast<TokenType>(10000);
+        require(!parse(stream).root, "无效 Token 编号不得用于访问预测表");
         execute("int main(void){return 2+3*4-8/2;}", 10);
         execute("int main(void){int a=0,b=0;a=b=7;return a+b;}", 14);
         execute("int sum(int a[],int n){int i=0,s=0;for(i=0;i<n;i=i+1){s=s+a[i];}return s;} int main(void){int a[3];a[0]=1;a[1]=2;a[2]=3;return sum(a,3);}", 6);

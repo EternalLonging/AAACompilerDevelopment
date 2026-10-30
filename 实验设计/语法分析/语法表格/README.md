@@ -15,11 +15,12 @@
 
 函数定义、变量、成员、单层数组和非空结构体的形状直接写在产生式中。字面量数值、赋值左部形状、名字和类型检查仍由对应阶段完成。
 
-正式解析器使用递归下降和优先级攀升；这些表用于展示文法和验证 LL(1) 性质，不会替换 AST 构造代码。AST 节点及孩子顺序未改变，因此语义分析无须随文法的等价整理重写。
+正式解析器使用分析栈和 LL(1) 预测表；运行表和这些资料从同一份文法生成。AST 在产生式匹配完成后组合，节点及孩子顺序未改变，语义分析继续使用原接口。
 
 ## 重新生成与验收
 
 ```powershell
+python tools/generate_parser_tables.py --runtime
 python tools/generate_parser_tables.py --data build/语法表格数据.json
 python tools/generate_parser_tables.py --grammar-data build/文法表数据.json
 python tools/generate_design_tables.py --data build/设计表格 --driver build/ninja/workbench_driver.exe
