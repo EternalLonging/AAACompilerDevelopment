@@ -347,5 +347,5 @@
       "description": "单字节兜底规则，必须最后；合法单字节规则同长时优先"
     }
   ],
-  "language_scope": "MiniC LL(1) 教学子集：基础类型、struct、数组、普通函数、块和基本控制流；不含 typedef、union、enum、指针、强制类型转换、sizeof、标签和存储类别"
+  "language_scope": "MiniC LL(1) 教学子集：基础类型、struct、数组、普通函数、块和基本控制流"
 }

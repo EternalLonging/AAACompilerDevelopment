@@ -182,21 +182,8 @@ class Generator {
             const auto& target = child(node, 0);
             if (target.category != ValueCategory::LValue) throw std::runtime_error("赋值目标必须是左值");
             const auto destination = address(target);
-            std::string original;
-            if (node.name != "=") {
-                original = temporary(target.type);
-                emit("load", destination, "-", original, node.range);
-            }
             const auto source = expression(child(node, 1));
-            if (node.name == "=") emit("store", source, "-", destination, node.range);
-            else {
-                if (node.name != "+=" && node.name != "-=" && node.name != "*=" && node.name != "/=" && node.name != "%=" &&
-                    node.name != "&=" && node.name != "|=" && node.name != "^=" && node.name != "<<=" && node.name != ">>=")
-                    throw std::runtime_error("不支持的复合赋值");
-                const auto value = temporary(node.type);
-                emit(node.name.substr(0, node.name.size() - 1), original, source, value, node.range);
-                emit("store", value, "-", destination, node.range);
-            }
+            emit("store", source, "-", destination, node.range);
             result = temporary(node.type);
             emit("load", destination, "-", result, node.range);
             break;

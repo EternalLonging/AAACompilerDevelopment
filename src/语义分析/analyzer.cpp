@@ -305,12 +305,8 @@ private:
         if (left->category != ValueCategory::LValue || left->type->is_const || !detail::numeric(left->type)) {
             error(node, "赋值目标必须是可修改的数值变量", "SEM_LVALUE"); return;
         }
-        const bool integer_compound = node.name == "%=" || node.name == "&=" || node.name == "|=" || node.name == "^=" || node.name == "<<=" || node.name == ">>=";
-        const bool compound = node.name == "+=" || node.name == "-=" || node.name == "*=" || node.name == "/=" || integer_compound;
-        if (node.name != "=" && !compound) { error(node, "不支持的赋值运算符"); return; }
-        auto source = compound ? arithmetic_result(left->type, right->type) : right->type;
-        if (integer_compound && detail::floating(source)) { error(node, "位运算和取余需要整型操作数", "SEM_OPERANDS"); return; }
-        if (!can_assign(left->type, source)) { error(node, "赋值需要不允许的隐式类型转换", "SEM_ASSIGN_TYPE"); return; }
+        if (node.name != "=") { error(node, "赋值运算符必须是 ="); return; }
+        if (!can_assign(left->type, right->type)) { error(node, "赋值需要不允许的隐式类型转换", "SEM_ASSIGN_TYPE"); return; }
         convert(right, left->type);
         node.type = detail::unqualified(left->type);
         node.category = ValueCategory::RValue;

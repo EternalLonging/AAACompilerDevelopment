@@ -42,9 +42,6 @@ static void rejects(Node ast, const std::string& code) {
 }
 
 static void integer_operators() {
-    succeeds(main_program(block(variable("x", TypeKind::Int, integer(12)), statement(assign("x", integer(2), ">>=")),
-        statement(assign("x", integer(4), "|=")), statement(assign("x", integer(3), "^=")),
-        ret(binary(",", assign("x", integer(1), "<<="), id("x"))))), 8);
     succeeds(main_program(block(ret(binary("&", unary("~", integer(0)), integer(15))))), 15);
     succeeds(main_program(block(variable("x", TypeKind::Int, integer(-7)), ret(binary(">>", id("x"), integer(1))))), -4);
     fails(main_program(block(variable("x", TypeKind::Int, integer(1)), ret(binary("<<", id("x"), integer(32))))), "移位");
