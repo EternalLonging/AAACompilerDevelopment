@@ -1,23 +1,32 @@
 # 当前语法分析资料
 
-文法资料依据当前递归下降实现整理。预测分析表用于讲解和核对 LL(1) 文法，实际 AST 构造入口仍是 `src/语法分析/parser.cpp`。
+110 条产生式，49 个非终结符，0 个预测冲突格。
 
 | 文件 | 内容 |
 |---|---|
-| [当前文法.bnf](当前文法.bnf) | 122 条有编号的产生式，56 个非终结符，使用真实 TokenType 名字 |
-| [当前文法与约束.md](当前文法与约束.md) | 文法、9 项上下文约束、0 个预测冲突和来源快照 |
+| [当前文法.bnf](当前文法.bnf) | 有编号的 LL(1) 产生式 |
+| [文法表.xlsx](文法表.xlsx) | 产生式、对应解析函数及源码位置 |
+| [FIRST与FOLLOW表.xlsx](FIRST与FOLLOW表.xlsx) | 非终结符的 FIRST、FOLLOW 与可空性 |
+| [SELECT集表.xlsx](SELECT集表.xlsx) | 每条产生式的 SELECT 集 |
+| [预测分析表.xlsx](预测分析表.xlsx) | 非空预测格、终结符及阶段检查约定 |
+| [当前文法与约束.md](当前文法与约束.md) | 文法、检查职责和来源快照 |
 
-开始符号为“程序”，ε 表示空串，`END_OF_FILE` 是输入结束标记。FIRST、FOLLOW、SELECT 集和预测格由 `tools/generate_parser_tables.py` 推导，未列出的组合都是错误格。
+开始符号为“程序”。ε 表示空串，END_OF_FILE 表示输入结束。FIRST 中的 ε 单独列在“可空”列，FOLLOW 不含 ε。预测表每格至多一条产生式，未列出的格子表示语法错误。
 
-正式解析器使用递归下降和优先级攀升。文法资料说明产生式结构，AST 孩子顺序、类型检查和错误恢复由实现负责。
+函数定义、变量、成员、单层数组和非空结构体的形状直接写在产生式中。字面量数值、赋值左部形状、名字和类型检查仍由对应阶段完成。
+
+正式解析器使用递归下降和优先级攀升；这些表用于展示文法和验证 LL(1) 性质，不会替换 AST 构造代码。AST 节点及孩子顺序未改变，因此语义分析无须随文法的等价整理重写。
 
 ## 重新生成与验收
 
 ```powershell
 python tools/generate_parser_tables.py --data build/语法表格数据.json
 python tools/generate_parser_tables.py --grammar-data build/文法表数据.json
+python tools/generate_design_tables.py --data build/设计表格 --driver build/ninja/workbench_driver.exe
+# Excel 导出方式见实验设计/表格总览.md。
 python tools/generate_parser_tables.py --check
 python tools/test_parser_tables.py build/ninja/workbench_driver.exe
+python tools/generate_design_tables.py --check --driver build/ninja/workbench_driver.exe
 ```
 
-`--data` 更新 BNF、Markdown 和综合数据；`--grammar-data` 生成独立文法数据。中间数据放在被忽略的 `build` 目录。
+文法与集合来自同一份产生式。测试同时使用独立 Earley 识别器、生成的 LL(1) 预测表和真实解析器核对声明边界。
