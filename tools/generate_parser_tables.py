@@ -140,10 +140,10 @@ CONSTRAINTS = [
 AST = [
     ('Program', 'run', '—', '顶层声明与定义，按源码顺序', '零个或多个'),
     ('FunctionDef', 'declaration', '函数名；完整函数类型', 'ParamDecl 列表，最后一个必须是 Block', '至少一个'),
-    ('ParamDecl', 'declarator', '形参名；形参声明类型', '无', '零个'),
+    ('ParamDecl', 'reduce', '形参名；形参声明类型', '无', '零个'),
     ('VarDecl', 'declaration', '变量名；声明类型', '可选的初始化表达式', '零个或一个'),
     ('MemberDecl', 'declaration', '成员名；声明类型', '无；成员初始化被拒绝', '零个'),
-    ('StructDef', 'specs', '结构体标签名', 'MemberDecl，按声明顺序', '一个或多个'),
+    ('StructDef', 'reduce', '结构体标签名', 'MemberDecl，按声明顺序', '一个或多个'),
     ('Block', 'block', '—', '先声明再语句，均按源码顺序', '零个或多个'),
     ('ExprStmt', 'statement', '—', '表达式', '一个'),
     ('If', 'statement', '—', '条件、真分支块、可选的假分支块', '两个或三个'),
@@ -169,7 +169,7 @@ AST = [
 RECOVERY = [
     ('输入协议', 'parse', '必须且只能有一个末尾 END_OF_FILE；缺失、提前或重复均拒绝。', 'PARSE_TOKEN_STREAM'),
     ('类型生命周期', 'parse', '直接调用前建立 TypeArenaScope，类型管理器保留到 AST 用完；节点由 ParseResult.arena 统一释放。', '接口约定'),
-    ('普通语法错误', 'report', '记录当前位置、错误码和中文消息；首个错误之后停用 AST 动作，继续识别并收集错误。', 'Error'),
+    ('普通语法错误', 'report', '记录当前位置、错误码和中文消息；首个错误之后停用语义值栈和 AST 动作，继续识别并收集错误。', 'Error'),
     ('非终结符恢复', 'recover', '跳到当前行有效预测项时重试；遇到 FOLLOW 或文件结束时弹出当前非终结符。', '预测表 / FOLLOW'),
     ('终结符恢复', 'recover', '在分号、闭括号和文件结束前按缺失终结符处理，否则跳过当前输入再匹配。', '每步弹栈或推进'),
     ('错误上限', 'stopped', '累计 20 条诊断后停止；第 20 条追加“错误过多，停止本阶段”。', '20 条'),
@@ -380,7 +380,7 @@ def build_payload():
     bnf = '# MiniC 的 LL(1) 文法\n# 开始符号：程序；结束标记：END_OF_FILE；空串：ε\n# 词法值、赋值左部形状和语义检查见《当前文法与约束.md》。\n'
     bnf += ''.join(f'{row["id"]}: {row["lhs"]} -> {" ".join(row["rhs"]) or EPSILON}\n' for row in rows)
     document = '# 当前文法与约束\n\n' + count + '\n\n'
-    document += '正式解析器采用分析栈和 LL(1) 预测表。`tools/generate_parser_tables.py` 中的 GRAMMAR 同时生成运行表、FIRST/FOLLOW、SELECT 与 Excel 资料；产生式完成匹配后执行 AST 动作，保持节点和孩子顺序。文法直接区分函数定义、变量和成员声明；只允许一维数组、非空具名结构体和具名形参，不接受函数原型、裸类型声明或嵌套声明符。\n\n'
+    document += '正式解析器采用分析栈、语义值栈和 LL(1) 预测表。`tools/generate_parser_tables.py` 中的 GRAMMAR 同时生成运行表、FIRST/FOLLOW、SELECT 与 Excel 资料；产生式完成后消费右部语义值并压回一个结果，直接构造 AST，保持节点和孩子顺序。文法直接区分函数定义、变量和成员声明；只允许一维数组、非空具名结构体和具名形参，不接受函数原型、裸类型声明或嵌套声明符。\n\n'
     document += '开始符号为“程序”；空源码允许，`END_OF_FILE` 是输入结束标记，不在产生式右部。FIRST 的可空性单独显示，FOLLOW 不含 ε。预测表采用非空格清单，遗漏的组合为错误格；同一格出现两个候选式时生成器立即报错。文法不代替字面量值、赋值左部形状和语义检查。\n\n'
     document += '## 文法\n\n```bnf\n' + bnf + '```\n\n## 上下文约束\n\n| 编号 | 类别 | 条件 | 实现 |\n|---|---|---|---|\n'
     document += ''.join(f'| {i} | {title} | {text} | `{function}()` |\n' for i, title, function, text, _ in CONSTRAINTS)
@@ -423,7 +423,7 @@ def overview(payload):
 
 函数定义、变量、成员、单层数组和非空结构体的形状直接写在产生式中。字面量数值、赋值左部形状、名字和类型检查仍由对应阶段完成。
 
-正式解析器使用分析栈和 LL(1) 预测表；运行表和这些资料从同一份文法生成。AST 在产生式匹配完成后组合，节点及孩子顺序未改变，语义分析继续使用原接口。
+正式解析器使用分析栈、语义值栈和 LL(1) 预测表；运行表和这些资料从同一份文法生成。产生式完成后直接消费右部结果并压回一个语义值，不建立中间匹配树。AST 节点及孩子顺序未改变，语义分析继续使用原接口。
 
 ## 重新生成与验收
 
