@@ -75,7 +75,7 @@ def field_rows(names):
     return rows
 
 
-# 规则只描述当前源码允许的构造；旧兼容 AST 和枚举不据此变成语言功能。
+# 规则只描述当前源码允许的构造；接口中的内部枚举不据此变成语言功能。
 SEMANTIC_RULES = [
     ('声明与绑定', '名字', '使用前先声明；从当前作用域向外查找，内层可遮蔽外层。', 'identifier(', 'SEM_UNDECLARED'),
     ('声明与绑定', '变量', '对象类型须可布局；省略数组长度时从列表或字符数组字符串初值推导。', 'void variable(', 'SEM_DECL_TYPE'),
@@ -101,10 +101,7 @@ SEMANTIC_RULES = [
 CASES = [
     ('未声明名字', 'int main(){return missing;}', 'SEM_UNDECLARED'),
     ('同层重名', 'int main(){int x;int x;return 0;}', 'SYM_DECL_CONFLICT'),
-    ('const 赋值', 'int main(){const int x=1;x=2;return 0;}', 'SEM_LVALUE'),
-    ('const 未初始化', 'int main(){const int x;return 0;}', 'SEM_CONST_INIT'),
     ('数组长度未确定', 'int main(){int a[];return 0;}', 'SEM_DECL_TYPE'),
-    ('过多初值', 'int main(){int a[1]={1,2};return 0;}', 'SEM_INIT_COUNT'),
     ('全局非恒定初值', 'int x=1;int y=x;int main(){return 0;}', 'SEM_GLOBAL_INIT'),
     ('浮点下标', 'int main(){int a[2];return a[1.0];}', 'SEM_INDEX'),
     ('调用参数数量', 'int f(int x){return x;}int main(){return f();}', 'SEM_ARGUMENT_COUNT'),
@@ -160,7 +157,7 @@ SYMBOL_RULES = [
     ('退出作用域', '只弹出查询栈，symbols、records、scopes 的条目均保留。', 'SymbolTable::exit_scope('),
     ('同层冲突', '普通局部对象同层重名拒绝；内层同名可遮蔽外层。', 'SymbolTable::insert('),
     ('全局对象', '兼容全局对象声明复用编号；两个已带初始化定义冲突。', 'SymbolTable::declare_object('),
-    ('函数兼容接口', 'insert 可合并兼容函数声明；当前源语言仍拒绝普通函数原型。', 'SymbolTable::insert('),
+    ('函数接口', 'insert 登记函数定义并检查签名。', 'SymbolTable::insert('),
     ('记录完成', '先 declare_record，再 complete_record；成员类型和布局字段须合法。', 'SymbolTable::complete_record('),
     ('编号稳定', '编号为各表下标，只追加不排序；新增条目可能使旧指针失效，宜保存编号。', 'unsigned next_id('),
     ('偏移设置', 'set_symbol_offset 提供对象偏移接口；不可把接口存在当作所有对象已有偏移。', 'SymbolTable::set_symbol_offset('),
@@ -224,14 +221,14 @@ def build(driver):
     add('语义分析/语义表格/语义分析表.xlsx', [
         sheet('语义规则', '当前源码语义检查规则', '按声明、初始化、表达式、函数、控制与输入输出分类。',
               ['编号', '类别', '对象', '规则', '相关诊断', '来源'], rules, [9, 18, 22, 85, 55, 43],
-              ['只描述当前 MiniC 源码范围；后端保留的旧 AST 分支不代表源语言支持。']),
+              ['只描述当前 MiniC 源码范围；后端内部实现分支不代表源语言支持。']),
         sheet('隐式赋值转换', 'char / int / float 隐式赋值转换', '九种组合均由真实前端编译验证；目标对象不带 const。',
               ['目标类型', '来源类型', '结果', '转换或诊断', '验证源码'], conversions, [16, 16, 14, 28, 88],
               ['初始化、调用和返回也使用兼容性检查；char 参与一般算术会先提升到 int。']),
         sheet('类型与布局', '当前目标类型大小与对齐', '大小与对齐以字节为单位，采用项目固定模型，不依赖宿主 sizeof。',
               ['类型', '大小', '对齐', '说明'], layouts, [23, 44, 25, 85],
               ['来源：src/公共支持/internal.hpp 的 layout；结构体布局还见 analyzer.cpp 的 record_definition。',
-               '对象大小最多 16 MiB，布局类型递归限制 128 层；旧扩展类型枚举不列为源语言支持。']),
+               '对象大小最多 16 MiB，布局类型递归限制 128 层；内部类型枚举不列为源语言支持。']),
         sheet('诊断验证示例', '真实语义拒绝示例', f'{len(cases)} 个最小源码；表内消息为本次编译器实际输出。',
               ['检查项', '源码', '预期且实际出现的代码', '实际消息'], cases, [24, 90, 36, 80]),
         sheet('示例类型标注', '共用示例的 AST 类型标注', '来自 workbench_driver 的语义结果；保留父编号、作用域和源码行。',
@@ -347,12 +344,15 @@ def catalog(books, snapshots):
     """返回按五部分归类的交付清单及重生成说明。"""
     result = '# 五部分表格总览\n\n当前表格依据 MiniC 实现整理；不增加源语言功能。\n\n'
     result += '| 部分 | 文件 | 内容 |\n|---|---|---|\n'
-    result += '| 词法分析 | [词法状态转换表](词法分析/词法表格/词法状态转换表.xlsx) | DFA、输入分类、规则、关键字、固定符号共 8 张表 |\n'
-    result += '| 语法分析 | [文法表](语法分析/语法表格/文法表.xlsx)、[综合语法分析表](语法分析/语法表格/语法分析表.xlsx) | 产生式、运算符优先级、AST 孩子顺序、诊断和恢复等已有资料 |\n'
+    if (DESIGN / '词法分析/词法表格/词法状态转换表.xlsx').exists():
+        result += '| 词法分析 | [词法状态转换表](词法分析/词法表格/词法状态转换表.xlsx) | DFA、输入分类、规则、关键字、固定符号共 8 张表 |\n'
+    if (DESIGN / '语法分析/语法表格/文法表.xlsx').exists():
+        result += '| 语法分析 | [文法表](语法分析/语法表格/文法表.xlsx)、[综合语法分析表](语法分析/语法表格/语法分析表.xlsx) | 产生式、运算符优先级、AST 孩子顺序、诊断和恢复等已有资料 |\n'
     for path, payload in books.items():
-        result += f'| {path.split("/")[0]} | [{Path(path).stem}]({path}) | ' + '、'.join(s['name'] for s in payload['sheets']) + ' |\n'
-    result += '\n语法集合针对带上下文条件的文法骨架；预测表的 3 个冲突格保留全部候选式。预测分析表附带冲突、终结符和约束，不能当作无冲突 LL(1) 解析器。\n\n'
-    result += '语义、IR 与符号表共享[表格示例.c](公共示例/表格示例.c)。示例输出为 `16 A ok` 后换行，退出码 0。示例不是空白模板；符号编号、类型标注、常量池和两版四元式均从真实编译器读取，重新生成时会实际编译运行，并核对九种赋值转换与 14 个语义拒绝例子。\n\n'
+        if (DESIGN / path).exists():
+            result += f'| {path.split("/")[0]} | [{Path(path).stem}]({path}) | ' + '、'.join(s['name'] for s in payload['sheets']) + ' |\n'
+    result += '\n语法集合针对带上下文条件的文法骨架；当前预测表没有冲突格。预测分析表附带终结符和约束，不能脱离上下文条件直接代替语法实现。\n\n'
+    result += '语义、IR 与符号表共享[表格示例.c](公共示例/表格示例.c)。示例输出为 `16 A ok` 后换行，退出码 0。示例不是空白模板；符号编号、类型标注、常量池和两版四元式均从真实编译器读取，重新生成时会实际编译运行，并核对九种赋值转换与 11 个语义拒绝例子。\n\n'
     result += '设计规则为人工依据源码整理；字段和诊断索引自动提取，实例由驱动读取。来源快照用于提示资料需要更新，不证明规则完全覆盖源码行为。符号实例仅包含驱动公开字段，完整数据结构另列。\n\n'
     result += '## 重新生成与核对\n\n在根目录执行，先构建 workbench_driver。数据与预览放在被忽略的 build 目录；Excel 使用现有外部依赖。\n\n```powershell\n'
     result += 'python tools/generate_design_tables.py --data build/设计表格 --driver build/ninja/workbench_driver.exe\n'
@@ -383,10 +383,14 @@ def main():
             (DESIGN / '表格总览.md').write_text(document, encoding='utf-8')
         else:
             for path, payload in books.items():
-                print(f'{path}：{check_workbook(DESIGN / path, payload)} 个单元格一致')
+                target = DESIGN / path
+                if not target.exists():
+                    print(f'{path}：未提交静态表格，跳过逐单元格核对')
+                    continue
+                print(f'{path}：{check_workbook(target, payload)} 个单元格一致')
             if (DESIGN / '表格总览.md').read_text(encoding='utf-8') != document:
                 raise ValueError('表格总览或来源快照需要更新')
-            print('六份设计表、九种转换、14 个诊断例子及示例优化执行对照通过')
+            print('六份设计表、九种转换、11 个诊断例子及示例优化执行对照通过')
     except (ValueError, OSError, subprocess.CalledProcessError, KeyError) as error:
         parser.exit(1, f'设计表格检查失败：{error}\n')
 

@@ -31,7 +31,6 @@ bool compare(const TypePtr& left, const TypePtr& right, std::vector<TypePair>& p
         break;
     case TypeKind::Function:
         equal = left->variadic == right->variadic &&
-                left->has_prototype == right->has_prototype &&
                 left->params.size() == right->params.size() &&
                 compare(left->base, right->base, path);
         for (std::size_t i = 0; equal && i < left->params.size(); ++i) {

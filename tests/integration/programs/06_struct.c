@@ -1,10 +1,11 @@
 struct Pair {
-    int x; /* 第一个整数。 */
-    int y; /* 第二个整数。 */
+    int x;
+    int y;
 };
 int main(void) {
-    struct Pair p = {1, 2};
+    struct Pair p;
     struct Pair q;
+    p.x = 1; p.y = 2;
     q = p;
     q.x = 9;
     printf("pair = %d %d %d\n", p.x, q.x, q.y);

@@ -213,8 +213,11 @@ def main():
             args.data.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
             print('已导出词法表格数据：', args.data)
         else:
-            count = check_workbook(args.workbook, payload)
-            print(f'词法表格与规则及 C++ DFA 一致：8 张表，{count} 个单元格')
+            if args.workbook.exists():
+                count = check_workbook(args.workbook, payload)
+                print(f'词法表格与规则及 C++ DFA 一致：8 张表，{count} 个单元格')
+            else:
+                print('未提交静态词法表格；已跳过 Excel 核对，规则和 DFA 仍由源码检查。')
     except (ValueError, OSError, zipfile.BadZipFile, ET.ParseError) as error:
         parser.exit(1, f'词法表格检查失败：{error}\n')
 

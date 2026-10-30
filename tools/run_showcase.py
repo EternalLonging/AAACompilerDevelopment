@@ -57,7 +57,7 @@ def main():
         execute("01_run", "01_pipeline.c", "run", data="5\n", expected="sum = 15\n")
         execute("02_run", "02_records.c", "run",
                 expected="Alice: 90\nBob: 55\nChen: 80\npassed = 2\naverage = 75.000000\n")
-        execute("02_symbols", "02_records.c", "symbols", contains=("Student", "name", "score"))
+        execute("02_symbols", "02_records.c", "symbols", contains=("Student", "score"))
         execute("03_run", "03_functions.c", "run", expected="counter = 1 1\ntwice = 12\n")
         execute("04_semantic_error", "04_semantic_error.c", "run", expected="", code=1,
                 errors=("[语义/错误]", "SEM_UNDECLARED", "04_semantic_error.c:3:5"))

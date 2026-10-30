@@ -1,4 +1,4 @@
-"""从当前递归下降实现整理文法骨架，推导集合并核对语法资料。"""
+"""为当前 LL(1) 教学子集推导文法集合并核对语法资料。"""
 from __future__ import annotations
 
 import argparse
@@ -22,43 +22,38 @@ END = 'END_OF_FILE'
 
 # 每组记录实现函数；右部的英文大写名字直接使用 TokenType。
 # 这是带约束的文法骨架；限制见 CONSTRAINTS，不把它当成独立识别器。
-GRAMMAR = '''
-@run
+GRAMMAR = '''@run
 程序 -> 外部序列
-外部序列 -> 声明 外部序列 | ε
+外部序列 -> 外部声明 外部序列 | ε
 @declaration
-声明 -> 说明符序列 声明尾
-声明尾 -> SEMI | 声明符 声明后续
-声明后续 -> 块 | 初值可选 声明逗号续 SEMI
+外部声明 -> 类型 外部声明后
+外部声明后 -> 声明符 外部声明尾 | SEMI
+外部声明尾 -> 块 | 初值可选 声明逗号续 SEMI
+声明 -> 类型 声明后
+声明后 -> 声明符 初值可选 声明逗号续 SEMI | SEMI
 声明逗号续 -> COMMA 声明符 初值可选 声明逗号续 | ε
 初值可选 -> ASSIGN 初值 | ε
 @specs
-说明符序列 -> 说明符 说明符续
-说明符续 -> 说明符 说明符续 | ε
-说明符 -> KW_CONST | KW_VOID | KW_CHAR | KW_INT | KW_FLOAT | 结构说明
-结构说明 -> KW_STRUCT 标签可选 结构体可选
-标签可选 -> ID | ε
-结构体可选 -> LBRACE 成员序列 RBRACE | ε
-成员序列 -> 成员声明 成员续
-成员续 -> 成员声明 成员续 | ε
+类型 -> KW_VOID | KW_CHAR | KW_INT | KW_FLOAT | 结构类型
+结构类型 -> KW_STRUCT ID 结构体定义可选
+结构体定义可选 -> LBRACE 成员序列 RBRACE | ε
+成员序列 -> 成员声明 成员序列 | ε
 @declaration
-成员声明 -> 说明符序列 声明符 成员逗号续 SEMI
-成员逗号续 -> COMMA 声明符 成员逗号续 | ε
+成员声明 -> 成员类型 声明符 成员声明逗号续 SEMI
+成员类型 -> KW_CHAR | KW_INT | KW_FLOAT | 结构类型
+成员声明逗号续 -> COMMA 声明符 成员声明逗号续 | ε
 @declarator
-声明符 -> 直接声明符 声明后缀序列
-直接声明符 -> ID | LPAREN 声明符 RPAREN
+声明符 -> ID 声明后缀序列
 声明后缀序列 -> 声明后缀 声明后缀序列 | ε
 声明后缀 -> LBRACKET 界限可选 RBRACKET | LPAREN 形参表可选 RPAREN
 界限可选 -> INT_LITERAL | ε
 形参表可选 -> KW_VOID | 形参序列 | ε
 形参序列 -> 形参 形参续
 形参续 -> COMMA 形参 形参续 | ε
-形参 -> 说明符序列 抽象声明符
-抽象声明符 -> 直接声明符 声明后缀序列 | 声明后缀序列
+形参 -> 形参类型 声明符
+形参类型 -> KW_CHAR | KW_INT | KW_FLOAT | 结构类型
 @initializer
-初值 -> 赋值式 | LBRACE 初值 初值列表续 RBRACE
-初值列表续 -> COMMA 初值逗号后 | ε
-初值逗号后 -> 初值 初值列表续 | ε
+初值 -> 赋值式
 @block
 块 -> LBRACE 局部声明序列 语句序列 RBRACE
 局部声明序列 -> 声明 局部声明序列 | ε
@@ -98,31 +93,22 @@ GRAMMAR = '''
 
 # 编号用于把文法骨架中的上下文条件定位到实现，不能由 FIRST/FOLLOW 代替。
 CONSTRAINTS = [
-    ('C01', '类型说明', 'specs', '必须且只能出现一个基础类型；const 可重复，可在类型前后出现。单独 const 不构成类型。', 'PARSE_SPECIFIERS'),
-    ('C02', '仅类型声明', 'declaration', '只有本条实际带完整 struct 定义时才能省略声明符；struct S; 被拒绝。', 'PARSE_RECORD_FORWARD / PARSE_DECLARATOR'),
-    ('C03', '函数定义', 'declaration', '声明符为函数且后接块时，只能在顶层并作为本条第一个声明符；函数声明和原型被拒绝。', 'PARSE_FUNCTION / PARSE_FUNCTION_DECL_REMOVED'),
-    ('C04', '定义形参', 'declaration', '函数定义中的每个形参都必须具名。空列表或单独 void 表示无形参。', 'PARSE_PARAMETER'),
-    ('C05', '结构体', 'specs', '定义必须具名且至少有一个成员；标签解析与先定义要求在语义阶段完成。', 'PARSE_RECORD_ANONYMOUS / PARSE_RECORD'),
-    ('C06', '结构体成员', 'declaration', '成员须有名字，不能有初始化、函数或位域；成员类型不能内联定义 struct。', 'PARSE_MEMBER / PARSE_INITIALIZER'),
-    ('C07', '数组', 'declarator', '同一声明符最多一层数组；已写出的长度须为正整数字面量、无 U/L 后缀且可表示，省略长度交给语义推导或拒绝。', 'PARSE_ARRAY_DIMENSION / PARSE_ARRAY_BOUND'),
-    ('C08', '类型层次', 'build_type', '函数不能返回数组或函数；数组元素不能是函数或 void。', 'PARSE_DECLARATOR'),
-    ('C09', '形参类型', 'declarator', '形参不能内联定义记录类型、不能按值传 struct、不能是独立 void；不支持省略号。', 'PARSE_PARAMETER / PARSE_FUNCTION_REMOVED'),
-    ('C10', '函数返回', 'declaration', '不支持 struct 返回值。变量声明中的 void 等合法性仍由语义阶段检查。', 'PARSE_FUNCTION_REMOVED'),
-    ('C11', '块与控制体', 'block', '同一块中声明在语句前；if、else、while、for 的体必须为块。else if 要嵌入 else 的块。', 'PARSE_DECLARATION_ORDER / PARSE_EXPECTED'),
-    ('C12', 'for 初始化', 'statement', '三部分可为空；初始化只能是表达式，不能是声明。', 'PARSE_FOR_DECLARATION'),
-    ('C13', '赋值目标', 'expression', '赋值左部须具一元表达式形状或来自括号；a+b=1 语法拒绝，(a+b)=1 通过语法后由语义检查左值。', 'PARSE_ASSIGNMENT_TARGET'),
-    ('C14', '表达式树', 'expression', '尾部递归只是消除左递归的文法写法；实现把二元运算折叠为左结合，赋值右结合。', '—'),
-    ('C15', '取地址与调用', 'unary', '前缀 & 在语法阶段接受，语义仅允许 scanf 输入寻址；调用与下标先构造 AST，再检查直接调用和一维对象。', '语义检查'),
-    ('C16', '字面量', 'unary', '整数 U/L 后缀和浮点 L 后缀语法拒绝；相邻字符串合并原文，宽字符等解码限制由语义检查。', 'PARSE_TYPE_REMOVED'),
-    ('C17', '范围外构造', 'statement', '不支持指针、扩展类型、存储类别、typedef、union/enum、do/switch/goto/标签、位运算、移位、复合赋值、三目、自增自减、sizeof 和强制转换。', '见语法诊断表'),
-    ('C18', '循环跳转', 'statement', 'break/continue 的位置由语义检查；文法只识别关键字与分号。', '语义检查'),
+    ('C01', '类型范围', 'specs', '只接受 void、char、int、float 和带标签的 struct。', 'PARSE_SPECIFIERS'),
+    ('C02', '声明符', 'declarator', '声明符从标识符开始，支持一维数组层和普通函数层。', 'PARSE_DECLARATOR'),
+    ('C03', '函数定义', 'declaration', '函数定义直接包含参数列表和函数体。', 'PARSE_FUNCTION'),
+    ('C04', '函数参数', 'declarator', '参数必须使用支持的类型；函数定义中的参数必须具名。', 'PARSE_PARAMETER'),
+    ('C05', '结构体', 'specs', 'struct 必须带标签和至少一个成员。', 'PARSE_RECORD'),
+    ('C06', '块与控制体', 'block', '声明必须位于语句之前；if、while、for 的控制体必须是块。', 'PARSE_DECLARATION_ORDER'),
+    ('C07', '表达式', 'expression', '表达式按优先级分层，赋值右结合，其他二元运算左结合。', '—'),
+    ('C08', '初始化', 'initializer', '变量初始化使用一个赋值式。', 'PARSE_INITIALIZER'),
+    ('C09', '错误恢复', 'recover', '语法错误后跳到分号、块结束或下一个声明开头继续分析。', 'PARSE_EXPECTED'),
 ]
 
 AST = [
     ('Program', 'run', '—', '顶层声明与定义，按源码顺序', '零个或多个'),
-    ('FunctionDef', 'declaration', '函数名；完整函数声明类型', 'ParamDecl 列表，最后一个必须是 Block', '至少一个'),
+    ('FunctionDef', 'declaration', '函数名；完整函数类型', 'ParamDecl 列表，最后一个必须是 Block', '至少一个'),
     ('ParamDecl', 'declarator', '形参名；形参声明类型', '无', '零个'),
-    ('VarDecl', 'declaration', '变量名；声明类型', '可选的初始化表达式或 InitList', '零个或一个'),
+    ('VarDecl', 'declaration', '变量名；声明类型', '可选的初始化表达式', '零个或一个'),
     ('MemberDecl', 'declaration', '成员名；声明类型', '无；成员初始化被拒绝', '零个'),
     ('StructDef', 'specs', '结构体标签名', 'MemberDecl，按声明顺序', '一个或多个'),
     ('Block', 'block', '—', '先声明再语句，均按源码顺序', '零个或多个'),
@@ -140,7 +126,6 @@ AST = [
     ('Call', 'postfix', '直接调用时保留函数名', '被调表达式、实参 0、实参 1、…', '至少一个'),
     ('ArrayAccess', 'postfix', '—', '数组表达式、下标表达式', '两个'),
     ('MemberAccess', 'postfix', '成员名', '对象表达式；只接受点号访问', '一个'),
-    ('InitList', 'initializer', '—', '初始化项，按源码顺序', '一个或多个'),
     ('Identifier', 'unary', '标识符原文', '无', '零个'),
     ('IntLiteral', 'unary', '整数字面量原文', '无', '零个'),
     ('FloatLiteral', 'unary', '浮点字面量原文', '无', '零个'),
@@ -350,7 +335,7 @@ def build_payload():
         sheet('运算符优先级', '表达式优先级与结合性', '二元优先级数值直接读取 precedence()，数值越大越先结合。前缀、后缀不虚构代码数值。',
               ['代码优先级', '运算符', 'Token 种别', '结合方式', 'AST 节点', '源码位置'], priority_rows, [16, 20, 57, 40, 45, 43],
               ['一般后缀先于前缀，前缀先于二元运算；括号中的表达式单独解析。逗号仅分隔参数、声明或初值，不是表达式运算符。']),
-        sheet('AST孩子顺序', '语法阶段实际生成的 AST', '只列 parser.cpp 使用的节点；ImplicitCast 由语义生成，旧预留枚举不代表源码支持。',
+        sheet('AST孩子顺序', '语法阶段实际生成的 AST', '只列 parser.cpp 使用的节点；ImplicitCast 由语义阶段生成。',
               ['节点', '名字或声明类型', '孩子顺序', '孩子数量', '源码位置'], [[name, text, children, number, references[function]] for name, function, text, children, number in AST], [27, 57, 84, 18, 43]),
         sheet('语法约束', '文法之外的上下文条件', '骨架文法需与这些条件一起阅读；单独接受骨架不能说明源码已通过语法或语义。',
               ['编号', '类别', '条件', '诊断或阶段', '源码位置'], [[i, title, text, codes, references[function]] for i, title, function, text, codes in CONSTRAINTS], [12, 22, 115, 62, 43]),
@@ -410,10 +395,12 @@ def main():
             for name, expected in [('当前文法.bnf', bnf), ('当前文法与约束.md', document)]:
                 if (OUTPUT / name).read_text(encoding='utf-8') != expected:
                     raise ValueError(name + ' 需要重新核对并生成')
-            count = check_workbook(TARGET, payload)
-            print(f'语法资料一致：{len(payload["sheets"])} 张表，{count} 个单元格')
-            grammar_count = check_workbook(GRAMMAR_TARGET, grammar_payload(payload))
-            print(f'独立文法表一致：1 张表，{grammar_count} 个单元格')
+            if TARGET.exists():
+                count = check_workbook(TARGET, payload)
+                print(f'语法资料一致：{len(payload["sheets"])} 张表，{count} 个单元格')
+            if GRAMMAR_TARGET.exists():
+                grammar_count = check_workbook(GRAMMAR_TARGET, grammar_payload(payload))
+                print(f'独立文法表一致：1 张表，{grammar_count} 个单元格')
     except (ValueError, OSError, KeyError, zipfile.BadZipFile, ET.ParseError) as error:
         parser.exit(1, f'语法资料检查失败：{error}\n')
 

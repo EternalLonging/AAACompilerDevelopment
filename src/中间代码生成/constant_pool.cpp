@@ -21,7 +21,7 @@ bool integer_kind(TypeKind kind) {
 // 复制合法类型，避免调用者修改原对象后改变已登记常量的类型。
 TypePtr snapshot_type(const TypePtr& type) {
     if (!type || type->base || type->array_length || !type->params.empty() ||
-        type->variadic || !type->has_prototype || !type->name.empty() ||
+        type->variadic || !type->name.empty() ||
         type->record_id != invalid_id) {
         throw std::invalid_argument("常量标量类型的字段不符合合同");
     }
@@ -76,7 +76,7 @@ ConstantId ConstantPool::intern(TypePtr type, ConstantValue value,
         if (!bytes || !type->base || type->base->kind != TypeKind::Char ||
             type->is_unsigned || !type->array_length ||
             *type->array_length == 0 || *type->array_length - 1 != bytes->size() ||
-            !type->params.empty() || type->variadic || !type->has_prototype ||
+            !type->params.empty() || type->variadic ||
             !type->name.empty() || type->record_id != invalid_id) {
             throw std::invalid_argument("字符串常量需要长度包含终止零的窄 char[N] 类型");
         }

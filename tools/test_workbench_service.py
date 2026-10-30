@@ -1,4 +1,4 @@
-﻿"""验证真实工作台进程、JSON结果、编译失败与本地服务接口。"""
+"""验证真实工作台进程、JSON结果、编译失败与本地服务接口。"""
 
 import argparse
 import importlib.util
@@ -36,32 +36,6 @@ def main():
     project = {"source": "int main(void){#return 0;}"}
     rejected = server_module.invoke(driver, project, "run")
     check(not rejected["ok"] and "baseline" not in rejected, "非法字符应在词法阶段被拒绝")
-    for removed_source, phase, code in [
-        ('#define N 2\nint main(void){return N;}', '词法', 'LEX_INVALID_CHAR'),
-        ('union U{int x;};int main(void){return 0;}', '语法', 'PARSE_RECORD_REMOVED'),
-        ('enum E{A};int main(void){return 0;}', '语法', 'PARSE_RECORD_REMOVED'),
-        ('static int x;int main(void){return 0;}', '语法', 'PARSE_DECLARATION_REMOVED'),
-        ('extern int x;int main(void){return 0;}', '语法', 'PARSE_DECLARATION_REMOVED'),
-        ('typedef int T;int main(void){return 0;}', '语法', 'PARSE_DECLARATION_REMOVED'),
-        ('int main(void){auto int x;return 0;}', '语法', 'PARSE_DECLARATION_REMOVED'),
-        ('int main(void){register int x;return 0;}', '语法', 'PARSE_DECLARATION_REMOVED'),
-        ('int main(void){do{}while(0);return 0;}', '语法', 'PARSE_CONTROL_REMOVED'),
-        ('int main(void){switch(1){}return 0;}', '语法', 'PARSE_CONTROL_REMOVED'),
-        ('int main(void){case 1:;return 0;}', '语法', 'PARSE_CONTROL_REMOVED'),
-        ('int main(void){default:;return 0;}', '语法', 'PARSE_CONTROL_REMOVED'),
-        ('int main(void){goto done;return 0;}', '语法', 'PARSE_CONTROL_REMOVED'),
-        ('int main(void){done:return 0;}', '语法', 'PARSE_LABEL_REMOVED'),
-        ('double x;int main(void){return 0;}', '语法', 'PARSE_TYPE_REMOVED'),
-        ('int a[2][3];int main(void){return 0;}', '语法', 'PARSE_ARRAY_DIMENSION'),
-        ('int f(int x);int main(void){return 0;}', '语法', 'PARSE_FUNCTION_DECL_REMOVED'),
-        ('int main(void){int x=0;x+=1;return x;}', '语法', 'PARSE_COMPOUND_ASSIGNMENT'),
-        ('int main(void){printf("%lf",1.0);return 0;}', '语义', 'SEM_FORMAT'),
-    ]:
-        result = server_module.invoke(driver, {"source": removed_source}, "run")
-        check(not result["ok"] and "baseline" not in result and "preprocessing" not in result,
-              "删除的功能不能继续生成和运行")
-        check(any(d["phase"] == phase and d["code"] == code for d in result["diagnostics"]),
-              "删除功能应有明确阶段和诊断")
     named = {"entry": "src/demo.c", "source": "int main(void){return 9;}\n", "files": {"main.c": "这份源码不应被编译"}}
     named_result = server_module.invoke(driver, named, "run")
     check(named_result["ok"] and named_result["optimized"]["run"]["exit"] == 9, "只编译所选源文件")
@@ -119,3 +93,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

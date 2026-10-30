@@ -62,16 +62,11 @@ class Parser {
         // 离开这一层，恢复嵌套计数。
         ~Nest() { --parser.depth; }
     };
-    // 判断当前单词是否可以作为声明的类型或限定符。
+    // 判断当前单词是否可以作为声明的类型。
     bool specifier() const {
         switch (peek().type) {
-        case TT::KW_VOID: case TT::KW_CHAR: case TT::KW_INT: case TT::KW_FLOAT:
-        case TT::KW_CONST: case TT::KW_STRUCT:
-        // 这些关键字仍由词法阶段识别，便于给出“语言范围外”的提示。
-        case TT::KW_SHORT: case TT::KW_LONG: case TT::KW_DOUBLE:
-        case TT::KW_SIGNED: case TT::KW_UNSIGNED: case TT::KW_VOLATILE:
-        case TT::KW_STATIC: case TT::KW_EXTERN: case TT::KW_AUTO: case TT::KW_REGISTER:
-        case TT::KW_TYPEDEF: case TT::KW_UNION: case TT::KW_ENUM:
+        case TT::KW_VOID: case TT::KW_CHAR: case TT::KW_INT:
+        case TT::KW_FLOAT: case TT::KW_STRUCT:
             return true;
         default: return false;
         }
@@ -100,61 +95,40 @@ class Parser {
         std::vector<Node> definitions; // 声明中同时定义的结构体节点。
     };
 
-    // 读取类型说明和 const 限定符，返回声明的基础信息。
+    // 读取类型说明，返回声明的基础信息。
     Specs specs() {
         Nest nest(*this);
         Specs s;
         auto type = make_type_info();
-        bool explicit_type = false, saw = false;
-        while (specifier()) {
-            const auto token = peek();
-            saw = true;
-            switch (token.type) {
-            case TT::KW_CONST: take(); type->is_const = true; continue;
-            case TT::KW_STATIC: case TT::KW_EXTERN: case TT::KW_AUTO: case TT::KW_REGISTER:
-            case TT::KW_TYPEDEF:
-                fail("本项目不支持 static、extern、auto、register 和 typedef", "PARSE_DECLARATION_REMOVED");
-            case TT::KW_SHORT: case TT::KW_LONG: case TT::KW_DOUBLE:
-            case TT::KW_SIGNED: case TT::KW_UNSIGNED: case TT::KW_VOLATILE:
-                fail("MiniC 只支持 int、float、char 三种基础类型", "PARSE_TYPE_REMOVED");
-            case TT::KW_INT:
-                if (type->kind != TypeKind::Unknown)
-                    fail("冲突的基本类型", "PARSE_SPECIFIERS");
-                take(); type->kind = TypeKind::Int; explicit_type = true; continue;
-            default: break;
-            }
-            if (type->kind != TypeKind::Unknown)
-                fail("冲突的类型说明符", "PARSE_SPECIFIERS");
-            take(); explicit_type = true;
-            switch (token.type) {
-            case TT::KW_VOID: type->kind = TypeKind::Void; break;
-            case TT::KW_CHAR: type->kind = TypeKind::Char; break;
-            case TT::KW_FLOAT: type->kind = TypeKind::Float; break;
-            case TT::KW_UNION: case TT::KW_ENUM:
-                fail("本项目不支持 union 和 enum，请使用 struct 或普通变量", "PARSE_RECORD_REMOVED");
-            case TT::KW_STRUCT: {
-                type->kind = TypeKind::Struct;
-                if (at(TT::ID)) type->name = take().lexeme;
-                if (accept(TT::LBRACE)) {
-                    if (type->name.empty())
-                        fail("简单 struct 必须有标签名", "PARSE_RECORD_ANONYMOUS");
-                    auto def = node(NodeType::StructDef, token, type->name);
-                    while (!at(TT::RBRACE) && !at(TT::END_OF_FILE)) {
-                        auto members = declaration(false, true);
-                        for (auto& member : members) def->children.push_back(std::move(member));
-                    }
-                    if (def->children.empty()) fail("结构体定义不能为空", "PARSE_RECORD");
-                    expect(TT::RBRACE, "'}'"); finish(*def);
-                    s.definitions.push_back(std::move(def));
-                } else if (type->name.empty()) {
-                    fail("记录类型需要标签名和定义", "PARSE_RECORD");
+        const auto token = peek();
+        if (!specifier()) fail("声明需要明确的类型", "PARSE_SPECIFIERS");
+        take();
+        switch (token.type) {
+        case TT::KW_VOID: type->kind = TypeKind::Void; break;
+        case TT::KW_CHAR: type->kind = TypeKind::Char; break;
+        case TT::KW_INT: type->kind = TypeKind::Int; break;
+        case TT::KW_FLOAT: type->kind = TypeKind::Float; break;
+        case TT::KW_STRUCT: {
+            type->kind = TypeKind::Struct;
+            if (at(TT::ID)) type->name = take().lexeme;
+            if (accept(TT::LBRACE)) {
+                if (type->name.empty())
+                    fail("struct 定义必须有标签名", "PARSE_RECORD_ANONYMOUS");
+                auto def = node(NodeType::StructDef, token, type->name);
+                while (!at(TT::RBRACE) && !at(TT::END_OF_FILE)) {
+                    auto members = declaration(false, true);
+                    for (auto* member : members) def->children.push_back(member);
                 }
-                break;
+                if (def->children.empty()) fail("结构体定义不能为空", "PARSE_RECORD");
+                expect(TT::RBRACE, "'}'"); finish(*def);
+                s.definitions.push_back(def);
+            } else if (type->name.empty()) {
+                fail("struct 类型需要标签名和定义", "PARSE_RECORD");
             }
-            default: fail("需要类型说明符", "PARSE_SPECIFIERS");
-            }
+            break;
         }
-        if (!saw || !explicit_type) fail("声明需要明确的类型", "PARSE_SPECIFIERS");
+        default: fail("需要类型说明符", "PARSE_SPECIFIERS");
+        }
         s.type = type;
         return s;
     }
@@ -175,13 +149,8 @@ class Parser {
     Declarator declarator(bool abstract = false) {
         Nest nest(*this);
         Declarator d; d.range = peek().range;
-        if (at(TT::STAR)) fail("本项目不支持 C 语言指针声明", "PARSE_POINTER_REMOVED");
         if (at(TT::ID)) d.name = take().lexeme;
-        else if (at(TT::LPAREN) && (peek(1).type == TT::STAR || peek(1).type == TT::LPAREN ||
-                 peek(1).type == TT::ID)) {
-            take(); auto inner = declarator(abstract); expect(TT::RPAREN, "')'");
-            d.name = inner.name; d.layers = std::move(inner.layers);
-        } else if (!abstract) fail("声明符需要名字", "PARSE_DECLARATOR");
+        else if (!abstract) fail("声明符需要名字", "PARSE_DECLARATOR");
         while (at(TT::LBRACKET) || at(TT::LPAREN)) {
             if (d.layers.size() >= 128) fail("声明符嵌套过深", "PARSE_DEPTH", Level::Fatal);
             Layer layer;
@@ -209,7 +178,6 @@ class Parser {
                     if (at(TT::KW_VOID) && peek(1).type == TT::RPAREN) take();
                     else if (!at(TT::RPAREN)) {
                         do {
-                            if (at(TT::ELLIPSIS)) fail("MiniC 不支持用户变参函数", "PARSE_FUNCTION_REMOVED");
                             const auto start = peek();
                             auto ps = specs();
                             if (!ps.definitions.empty()) fail("请先单独声明形参使用的记录类型", "PARSE_PARAMETER");
@@ -217,7 +185,7 @@ class Parser {
                             auto param = node(NodeType::ParamDecl, start, pd.name);
                             param->declared_type = build_type(ps.type, pd);
                             if (param->declared_type->kind == TypeKind::Struct)
-                                fail("简单 struct 不支持按值传参，可传递普通成员或一维数组", "PARSE_FUNCTION_REMOVED");
+                                fail("struct 不能作为函数参数", "PARSE_FUNCTION");
                             if (param->declared_type->kind == TypeKind::Void)
                                 fail("void 只能单独表示空形参列表", "PARSE_PARAMETER");
                             finish(*param);
@@ -271,13 +239,13 @@ class Parser {
             auto d = declarator();
             const auto type = build_type(s.type, d);
             const bool function = type->kind == TypeKind::Function;
-            if (member && (function || at(TT::COLON)))
-                fail("成员不支持函数声明或位域", "PARSE_MEMBER");
+            if (member && function)
+                fail("成员不支持函数或位域", "PARSE_MEMBER");
             auto n = node(member ? NodeType::MemberDecl : function ? NodeType::FunctionDef : NodeType::VarDecl, start, d.name);
             n->declared_type = type;
             if (function) {
                 if (type->base->kind == TypeKind::Struct)
-                    fail("简单 struct 不支持作为函数返回值", "PARSE_FUNCTION_REMOVED");
+                    fail("struct 不能作为函数返回值", "PARSE_FUNCTION");
                 n->children = std::move(d.layers.front().params);
                 if (at(TT::LBRACE)) {
                     if (!external) fail("函数定义只能出现在顶层", "PARSE_FUNCTION");
@@ -289,7 +257,7 @@ class Parser {
                     finish(*n); nodes.push_back(std::move(n));
                     return nodes;
                 }
-                fail("MiniC 只支持函数定义，不支持函数声明或原型", "PARSE_FUNCTION_DECL_REMOVED");
+                fail("函数必须带函数体", "PARSE_FUNCTION");
             }
             if (accept(TT::ASSIGN)) {
                 if (member || function)
@@ -303,15 +271,10 @@ class Parser {
         if (!nodes.empty()) finish(*nodes.back());
         return nodes;
     }
-    // 读取初始化表达式或花括号列表，返回初始化节点。
+    // 读取一个赋值式初始化。
     Node initializer() {
         Nest nest(*this);
-        if (!at(TT::LBRACE)) return expression(2);
-        const auto start = take(); auto n = node(NodeType::InitList, start);
-        if (at(TT::RBRACE)) fail("初始化列表不能为空", "PARSE_INITIALIZER");
-        do { n->children.push_back(initializer()); }
-        while (accept(TT::COMMA) && !at(TT::RBRACE));
-        expect(TT::RBRACE, "'}'"); finish(*n); return n;
+        return expression(2);
     }
     // 恢复到当前块的下一个分号；跳过完整的内嵌花括号，保证每次推进。
     void recover(std::size_t before, bool external) {
@@ -363,12 +326,6 @@ class Parser {
         const auto start = peek();
         if (at(TT::LBRACE)) return block();
         if (accept(TT::SEMI)) return node(NodeType::Empty, start);
-        if (at(TT::ID) && peek(1).type == TT::COLON) {
-            fail("本项目不支持语句标签", "PARSE_LABEL_REMOVED");
-        }
-        if (at(TT::KW_DO) || at(TT::KW_SWITCH) || at(TT::KW_CASE) ||
-            at(TT::KW_DEFAULT) || at(TT::KW_GOTO))
-            fail("本项目不支持 do-while、switch/case/default 和 goto", "PARSE_CONTROL_REMOVED");
         if (accept(TT::KW_IF)) {
             auto n = node(NodeType::If, start); n->children.push_back(condition());
             n->children.push_back(block());
@@ -441,18 +398,6 @@ class Parser {
             n->children.push_back(expression(priority == 2 ? priority : priority + 1));
             finish(*n); left = std::move(n); shape = false;
         }
-        switch (peek().type) {
-        case TT::PLUS_ASSIGN: case TT::MINUS_ASSIGN: case TT::STAR_ASSIGN:
-        case TT::SLASH_ASSIGN: case TT::PERCENT_ASSIGN: case TT::AND_ASSIGN:
-        case TT::OR_ASSIGN: case TT::XOR_ASSIGN: case TT::SHIFT_LEFT_ASSIGN:
-        case TT::SHIFT_RIGHT_ASSIGN:
-            fail("MiniC 只支持 = 赋值，不支持复合赋值", "PARSE_COMPOUND_ASSIGNMENT");
-        case TT::AMP: case TT::BIT_OR: case TT::BIT_XOR: case TT::SHIFT_LEFT: case TT::SHIFT_RIGHT:
-            fail("MiniC 不支持位运算和移位", "PARSE_OPERATOR_REMOVED");
-        case TT::QUESTION:
-            fail("MiniC 不支持三目运算符", "PARSE_OPERATOR_REMOVED");
-        default: break;
-        }
         parenthesized = false;
         return left;
     }
@@ -461,24 +406,16 @@ class Parser {
     Node unary() {
         Nest nest(*this);
         const auto start = peek(); parenthesized = false;
-        if (at(TT::STAR)) fail("本项目不支持解引用", "PARSE_POINTER_REMOVED");
-        if (accept(TT::KW_SIZEOF))
-            fail("MiniC 不支持 sizeof", "PARSE_OPERATOR_REMOVED");
         switch (start.type) {
         case TT::PLUS: case TT::MINUS: case TT::NOT: case TT::AMP: {
             take(); auto n = node(NodeType::UnaryOp, start,
                 start.lexeme);
             n->children.push_back(unary()); finish(*n); parenthesized = false; return n;
         }
-        case TT::BIT_NOT: case TT::PLUS_PLUS: case TT::MINUS_MINUS:
-            fail("MiniC 不支持按位取反和自增自减", "PARSE_OPERATOR_REMOVED");
         default: break;
         }
         if (at(TT::LPAREN)) {
             take();
-            if (specifier()) {
-                fail("MiniC 不支持显式类型转换", "PARSE_OPERATOR_REMOVED");
-            }
             auto n = expression(); expect(TT::RPAREN, "')'");
             n->range.begin = start.range.begin; finish(*n);
             n = postfix(std::move(n)); parenthesized = true; return n;
@@ -489,11 +426,11 @@ class Parser {
             n = node(NodeType::Identifier, take(), start.lexeme); break;
         case TT::INT_LITERAL:
             if (start.lexeme.find_first_of("uUlL") != std::string::npos)
-                fail("整数常量只支持 int，不支持 U 和 L 后缀", "PARSE_TYPE_REMOVED");
+                fail("整数常量不接受后缀", "PARSE_LITERAL");
             n = node(NodeType::IntLiteral, take(), start.lexeme); break;
         case TT::FLOAT_LITERAL:
             if (start.lexeme.back() == 'l' || start.lexeme.back() == 'L')
-                fail("浮点常量只支持 float，不支持 L 后缀", "PARSE_TYPE_REMOVED");
+                fail("浮点常量不接受 L 后缀", "PARSE_LITERAL");
             n = node(NodeType::FloatLiteral, take(), start.lexeme); break;
         case TT::CHAR_LITERAL: n = node(NodeType::CharLiteral, take(), start.lexeme); break;
         case TT::STRING_LITERAL: {
@@ -509,8 +446,7 @@ class Parser {
     }
     // 在已有表达式后读取调用、下标或成员访问，返回最终节点。
     Node postfix(Node base) {
-        while (at(TT::LPAREN) || at(TT::LBRACKET) || at(TT::DOT) || at(TT::ARROW) ||
-               at(TT::PLUS_PLUS) || at(TT::MINUS_MINUS)) {
+        while (at(TT::LPAREN) || at(TT::LBRACKET) || at(TT::DOT)) {
             const auto op = take(); Node n;
             if (op.type == TT::LPAREN) {
                 n = node(NodeType::Call, op, base->kind == NodeType::Identifier ? base->name : "");
@@ -520,13 +456,10 @@ class Parser {
             } else if (op.type == TT::LBRACKET) {
                 n = node(NodeType::ArrayAccess, op); n->children.push_back(std::move(base));
                 n->children.push_back(expression()); expect(TT::RBRACKET, "']'");
-            } else if (op.type == TT::DOT || op.type == TT::ARROW) {
+            } else {
                 const auto member = expect(TT::ID, "成员名字");
                 n = node(NodeType::MemberAccess, op, member.lexeme);
-                if (op.type == TT::ARROW) fail("本项目不支持 ->，请用结构体对象的 . 访问成员", "PARSE_POINTER_REMOVED");
-                n->children.push_back(std::move(base));
-            } else {
-                fail("MiniC 不支持自增自减", "PARSE_OPERATOR_REMOVED");
+                n->children.push_back(base);
             }
             n->range.begin = n->children.front()->range.begin;
             n->range.file = n->children.front()->range.file;
@@ -569,3 +502,4 @@ ParseResult parse(const std::vector<Token>& tokens) {
     return Parser(tokens).run();
 }
 }
+

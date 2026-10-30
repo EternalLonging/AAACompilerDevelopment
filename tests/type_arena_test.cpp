@@ -62,7 +62,7 @@ void comparison_tests() {
 void compilation_tests() {
     std::vector<CompilationResult> results;
     for (int i = 0; i < 16; ++i) {
-        auto result = compile("int inc(int x){return x+1;} int main(void){int a[2]={3,5};"
+        auto result = compile("int inc(int x){return x+1;} int main(void){int a[2];a[0]=3;a[1]=5;"
                               "return inc(a[1]);}");
         require(result.ok() && result.types.size() > 0, "编译结果必须持有类型对象");
         results.push_back(std::move(result));

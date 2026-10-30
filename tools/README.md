@@ -5,7 +5,6 @@
 | 词法分析 | [generate_lexer_dfa.py](generate_lexer_dfa.py) | 从词法规则生成 C++ DFA；`--check` 检查是否过期 |
 | 词法分析 | [generate_lexer_tables.py](generate_lexer_tables.py)、[generate_lexer_tables.mjs](generate_lexer_tables.mjs) | 推导并生成中文 Excel；`--check` 逐单元格核对已提交表格 |
 | 词法分析 | [check_lexer_patterns.py](check_lexer_patterns.py)、[test_lexer_dfa.py](test_lexer_dfa.py) | 正则规则检查、独立对照真实扫描器 |
-| 词法分析 | [generate_reference_lexer_diagram.py](generate_reference_lexer_diagram.py) | 生成或核对已确认的单张总图 |
 | 语法分析 | [generate_parser_tables.py](generate_parser_tables.py) | 整理当前文法并推导 FIRST/FOLLOW/SELECT、预测格；`--check` 核对交付资料 |
 | 语法分析 | [test_parser_tables.py](test_parser_tables.py) | 手算集合对照、损坏文件拒绝、真实语法样例的独立 Earley 覆盖 |
 | 五部分设计 | [generate_design_tables.py](generate_design_tables.py) | 生成集合、预测、语义、IR 与符号表六份 Excel 数据；真实编译验证示例与转换规则，逐格核对成品 |
@@ -16,4 +15,4 @@
 | 总控与展示 | [workbench_driver.cpp](workbench_driver.cpp)、[workbench_server.py](workbench_server.py) | 工作台数据驱动和本地服务 |
 | 总控与展示 | [test_workbench_service.py](test_workbench_service.py)、[test_workbench_browser.py](test_workbench_browser.py) | 服务与浏览器交互检查 |
 
-`资源/词法参考布局.drawio` 是生成器使用的布局模板，供当前词法图生成和验证；展示成品统一放在[状态转换图目录](../实验设计/词法分析/状态转换图/README.md)。工具保留英文文件名，以便现有脚本调用；用途按中文归类。
+工具统一从源码规则生成 DFA 和检查表格；工具保留英文文件名，以便现有脚本调用；用途按中文归类。

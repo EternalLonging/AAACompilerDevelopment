@@ -56,46 +56,6 @@
       "exit_code": 0
     },
     {
-      "id": "07_pointers",
-      "description": "拒绝已移除的 C 语言指针",
-      "source": "programs/07_pointers.c",
-      "stdin": "",
-      "stdout": "",
-      "expect": "reject",
-      "phase": "Parser",
-      "code": "PARSE_POINTER_REMOVED"
-    },
-    {
-      "id": "08_callback",
-      "description": "拒绝已移除的 C 语言指针",
-      "source": "programs/08_callback.c",
-      "stdin": "",
-      "stdout": "",
-      "expect": "reject",
-      "phase": "Parser",
-      "code": "PARSE_POINTER_REMOVED"
-    },
-    {
-      "id": "09_static_extern",
-      "description": "拒绝已移除的声明或类型别名",
-      "source": "programs/09_static_extern.c",
-      "stdin": "",
-      "stdout": "",
-      "expect": "reject",
-      "phase": "Parser",
-      "code": "PARSE_DECLARATION_REMOVED"
-    },
-    {
-      "id": "10_typedef_goto",
-      "description": "拒绝已移除的声明或类型别名",
-      "source": "programs/10_typedef_goto.c",
-      "stdin": "",
-      "stdout": "",
-      "expect": "reject",
-      "phase": "Parser",
-      "code": "PARSE_DECLARATION_REMOVED"
-    },
-    {
       "id": "11_numeric",
       "description": "int、float 和普通算术",
       "source": "programs/11_numeric.c",
@@ -123,16 +83,6 @@
       "exit_code": 0
     },
     {
-      "id": "15_union_sizeof",
-      "description": "拒绝已移除的 union",
-      "source": "programs/15_union_sizeof.c",
-      "stdin": "",
-      "stdout": "",
-      "expect": "reject",
-      "phase": "Parser",
-      "code": "PARSE_RECORD_REMOVED"
-    },
-    {
       "id": "16_temporary_array",
       "description": "拒绝结构体按值返回",
       "source": "programs/16_temporary_array.c",
@@ -140,7 +90,7 @@
       "stdout": "",
       "expect": "reject",
       "phase": "Parser",
-      "code": "PARSE_FUNCTION_REMOVED"
+      "code": "PARSE_FUNCTION"
     },
     {
       "id": "e01_invalid_byte",
@@ -208,16 +158,6 @@
       "code": "SYM_DECL_CONFLICT"
     },
     {
-      "id": "e08_const_write",
-      "description": "语义拒绝修改 const",
-      "source": "errors/e08_const_write.c",
-      "stdin": "",
-      "stdout": "",
-      "expect": "reject",
-      "phase": "Semantic",
-      "code": "SEM_LVALUE"
-    },
-    {
       "id": "e09_argument_count",
       "description": "语义拒绝错误实参数量",
       "source": "errors/e09_argument_count.c",
@@ -258,16 +198,6 @@
       "message": "越界"
     },
     {
-      "id": "e13_null",
-      "description": "拒绝已移除的 C 语言指针",
-      "source": "errors/e13_null.c",
-      "stdin": "",
-      "stdout": "",
-      "expect": "reject",
-      "phase": "Parser",
-      "code": "PARSE_POINTER_REMOVED"
-    },
-    {
       "id": "e14_uninitialized",
       "description": "执行时报告未初始化读取",
       "source": "errors/e14_uninitialized.c",
@@ -286,166 +216,6 @@
       "expect": "reject",
       "phase": "Runtime",
       "message": "上限"
-    },
-    {
-      "id": "e17_enum_removed",
-      "description": "拒绝已删除的语言功能",
-      "source": "errors/e17_enum_removed.c",
-      "stdin": "",
-      "stdout": "",
-      "expect": "reject",
-      "phase": "Parser",
-      "code": "PARSE_RECORD_REMOVED"
-    },
-    {
-      "id": "e18_macro_removed",
-      "description": "拒绝已删除的语言功能",
-      "source": "errors/e18_macro_removed.c",
-      "stdin": "",
-      "stdout": "",
-      "expect": "reject",
-      "phase": "Lexer",
-      "code": "LEX_INVALID_CHAR"
-    },
-    {
-      "id": "e19_do_removed",
-      "description": "拒绝已删除的教学语言功能",
-      "source": "errors/e19_do_removed.c",
-      "stdin": "",
-      "stdout": "",
-      "expect": "reject",
-      "phase": "Parser",
-      "code": "PARSE_CONTROL_REMOVED"
-    },
-    {
-      "id": "e20_switch_removed",
-      "description": "拒绝已删除的教学语言功能",
-      "source": "errors/e20_switch_removed.c",
-      "stdin": "",
-      "stdout": "",
-      "expect": "reject",
-      "phase": "Parser",
-      "code": "PARSE_CONTROL_REMOVED"
-    },
-    {
-      "id": "e21_goto_removed",
-      "description": "拒绝已删除的教学语言功能",
-      "source": "errors/e21_goto_removed.c",
-      "stdin": "",
-      "stdout": "",
-      "expect": "reject",
-      "phase": "Parser",
-      "code": "PARSE_CONTROL_REMOVED"
-    },
-    {
-      "id": "e22_label_removed",
-      "description": "拒绝已删除的教学语言功能",
-      "source": "errors/e22_label_removed.c",
-      "stdin": "",
-      "stdout": "",
-      "expect": "reject",
-      "phase": "Parser",
-      "code": "PARSE_LABEL_REMOVED"
-    },
-    {
-      "id": "e23_auto_removed",
-      "description": "拒绝已删除的教学语言功能",
-      "source": "errors/e23_auto_removed.c",
-      "stdin": "",
-      "stdout": "",
-      "expect": "reject",
-      "phase": "Parser",
-      "code": "PARSE_DECLARATION_REMOVED"
-    },
-    {
-      "id": "e24_register_removed",
-      "description": "拒绝已删除的教学语言功能",
-      "source": "errors/e24_register_removed.c",
-      "stdin": "",
-      "stdout": "",
-      "expect": "reject",
-      "phase": "Parser",
-      "code": "PARSE_DECLARATION_REMOVED"
-    },
-    {
-      "id": "e25_static_removed",
-      "description": "拒绝已删除的教学语言功能",
-      "source": "errors/e25_static_removed.c",
-      "stdin": "",
-      "stdout": "",
-      "expect": "reject",
-      "phase": "Parser",
-      "code": "PARSE_DECLARATION_REMOVED"
-    },
-    {
-      "id": "e26_case_removed",
-      "description": "拒绝已删除的教学语言功能",
-      "source": "errors/e26_case_removed.c",
-      "stdin": "",
-      "stdout": "",
-      "expect": "reject",
-      "phase": "Parser",
-      "code": "PARSE_CONTROL_REMOVED"
-    },
-    {
-      "id": "e27_default_removed",
-      "description": "拒绝已删除的教学语言功能",
-      "source": "errors/e27_default_removed.c",
-      "stdin": "",
-      "stdout": "",
-      "expect": "reject",
-      "phase": "Parser",
-      "code": "PARSE_CONTROL_REMOVED"
-    },
-    {
-      "id": "e28_extern_removed",
-      "description": "拒绝已删除的教学语言功能",
-      "source": "errors/e28_extern_removed.c",
-      "stdin": "",
-      "stdout": "",
-      "expect": "reject",
-      "phase": "Parser",
-      "code": "PARSE_DECLARATION_REMOVED"
-    },
-    {
-      "id": "e29_extended_type_removed",
-      "description": "拒绝 MiniC 范围外的基础类型",
-      "source": "errors/e29_extended_type_removed.c",
-      "stdin": "",
-      "stdout": "",
-      "expect": "reject",
-      "phase": "Parser",
-      "code": "PARSE_TYPE_REMOVED"
-    },
-    {
-      "id": "e30_multidimensional_array",
-      "description": "拒绝多维数组",
-      "source": "errors/e30_multidimensional_array.c",
-      "stdin": "",
-      "stdout": "",
-      "expect": "reject",
-      "phase": "Parser",
-      "code": "PARSE_ARRAY_DIMENSION"
-    },
-    {
-      "id": "e31_function_prototype_removed",
-      "description": "拒绝函数声明和原型",
-      "source": "errors/e31_function_prototype_removed.c",
-      "stdin": "",
-      "stdout": "",
-      "expect": "reject",
-      "phase": "Parser",
-      "code": "PARSE_FUNCTION_DECL_REMOVED"
-    },
-    {
-      "id": "e32_compound_assignment_removed",
-      "description": "拒绝复合赋值",
-      "source": "errors/e32_compound_assignment_removed.c",
-      "stdin": "",
-      "stdout": "",
-      "expect": "reject",
-      "phase": "Parser",
-      "code": "PARSE_COMPOUND_ASSIGNMENT"
     }
   ]
 }

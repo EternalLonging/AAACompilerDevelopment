@@ -97,24 +97,7 @@ class Generator {
     }
 
     void initialize(const std::string& destination, const TypePtr& target, const ASTNode& init) {
-        if (init.kind == NodeType::InitList) {
-            for (std::size_t i = 0; i < init.children.size(); ++i) {
-                if (detail::numeric(target) || target->kind == TypeKind::Address) { initialize(destination, target, child(init, i)); continue; }
-                TypePtr element = nullptr;
-                std::string selected;
-                if (target->kind == TypeKind::Array) {
-                    element = target->base;
-                    selected = temporary(detail::address_type(element));
-                    emit("indexaddr", destination, integer(static_cast<long long>(i)), selected, init.range);
-                } else {
-                    const auto& member = symbols_.records.at(target->record_id).members.at(i);
-                    element = member.type;
-                    selected = temporary(detail::address_type(element));
-                    emit("memberaddr", destination, std::to_string(*member.offset), selected, init.range);
-                }
-                initialize(selected, element, child(init, i));
-            }
-        } else if (target->kind == TypeKind::Array && init.kind == NodeType::StringLiteral) {
+        if (target->kind == TypeKind::Array && init.kind == NodeType::StringLiteral) {
             const auto& text = constant_get<std::string>(init.value);
             for (std::size_t i = 0; i < text.size(); ++i) {
                 const auto selected = temporary(detail::address_type(target->base));
@@ -124,7 +107,9 @@ class Generator {
                 const auto byte_value = constant_operand(constants_.intern(detail::type(TypeKind::Char), character, std::to_string(character), init.range));
                 emit("store", byte_value, "-", selected, init.range);
             }
-        } else emit("store", expression(init), "-", destination, init.range);
+        } else {
+            emit("store", expression(init), "-", destination, init.range);
+        }
     }
 
     std::string expression(const ASTNode& node) {
@@ -135,7 +120,7 @@ class Generator {
         std::string result;
         // 仅折叠无副作用且不会溢出/除零的数值常量表达式。
         if (options_.constant_folding && (node.kind == NodeType::BinaryOp || node.kind == NodeType::UnaryOp ||
-            node.kind == NodeType::ImplicitCast || node.kind == NodeType::Cast)) {
+            node.kind == NodeType::ImplicitCast)) {
             if (const auto value = detail::folded_value(node)) {
                 --depth_;
                 return constant_operand(constants_.intern(node.type, *value, "<折叠常量>", node.range));
@@ -146,18 +131,6 @@ class Generator {
             result = temporary(node.type);
             emit("load", address(node), "-", result, node.range);
             break;
-        case NodeType::Conditional: {
-            count(node, 3, 3);
-            const auto no = label(), end = label();
-            result = temporary(node.type);
-            emit("jz", expression(child(node, 0)), "-", no, node.range);
-            emit("=", expression(child(node, 1)), "-", result, node.range);
-            emit("jmp", "-", "-", end, node.range);
-            mark(no, node.range);
-            emit("=", expression(child(node, 2)), "-", result, node.range);
-            mark(end, node.range);
-            break;
-        }
         case NodeType::Identifier:
             count(node, 0, 0);
             binding(node);
@@ -169,7 +142,7 @@ class Generator {
             count(node, 0, 0);
             result = constant_operand(constants_.intern(node.type, node.value, node.name, node.range));
             break;
-        case NodeType::ImplicitCast: case NodeType::Cast: {
+        case NodeType::ImplicitCast: {
             count(node, 1, 1);
             if (child(node, 0).type->kind == TypeKind::Array && child(node, 0).kind != NodeType::StringLiteral && node.type->kind == TypeKind::Address) {
                 result = temporary(node.type); emit("decay", address(child(node, 0)), "-", result, node.range); break;
@@ -209,21 +182,8 @@ class Generator {
             const auto& target = child(node, 0);
             if (target.category != ValueCategory::LValue) throw std::runtime_error("赋值目标必须是左值");
             const auto destination = address(target);
-            std::string original;
-            if (node.name != "=") {
-                original = temporary(target.type);
-                emit("load", destination, "-", original, node.range);
-            }
             const auto source = expression(child(node, 1));
-            if (node.name == "=") emit("store", source, "-", destination, node.range);
-            else {
-                if (node.name != "+=" && node.name != "-=" && node.name != "*=" && node.name != "/=" && node.name != "%=" &&
-                    node.name != "&=" && node.name != "|=" && node.name != "^=" && node.name != "<<=" && node.name != ">>=")
-                    throw std::runtime_error("不支持的复合赋值");
-                const auto value = temporary(node.type);
-                emit(node.name.substr(0, node.name.size() - 1), original, source, value, node.range);
-                emit("store", value, "-", destination, node.range);
-            }
+            emit("store", source, "-", destination, node.range);
             result = temporary(node.type);
             emit("load", destination, "-", result, node.range);
             break;
@@ -290,7 +250,7 @@ class Generator {
             if (!node.children.empty()) {
                 const auto selected = temporary(detail::address_type(node.type));
                 emit("addr", destination, "-", selected, node.range);
-                if (detail::aggregate(node.type) && (child(node, 0).kind == NodeType::InitList || child(node, 0).kind == NodeType::StringLiteral))
+                if (detail::aggregate(node.type) && child(node, 0).kind == NodeType::StringLiteral)
                     emit("zero", "-", "-", destination, node.range);
                 initialize(selected, node.type, child(node, 0));
             }
@@ -370,8 +330,6 @@ public:
                     statement(node);
                 } else if (node.kind == NodeType::StructDef) {
                     if (node.record_id >= symbols_.records.size()) throw std::runtime_error("结构体缺少记录绑定");
-                } else if (node.kind == NodeType::FunctionDecl) {
-                    if (binding(node).kind != SymbolKind::Function) throw std::runtime_error("函数声明绑定无效");
                 } else if (node.kind == NodeType::FunctionDef) {
                     const auto& entry = binding(node);
                     if (!entry.is_defined || entry.kind != SymbolKind::Function) throw std::runtime_error("函数定义绑定无效");
