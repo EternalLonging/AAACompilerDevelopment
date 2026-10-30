@@ -55,7 +55,7 @@ const char* node_name(NodeType type) {
 std::string type_text(const TypePtr& type, std::size_t depth = 0) {
     if (!type) return "未标注";
     if (depth > 64) return "类型过深";
-    static const char* names[] = {"Unknown", "Error", "void", "char", "short", "int", "long", "float", "double", "long double",
+    static const char* names[] = {"Unknown", "Error", "void", "char", "int", "float",
                                  "address", "array", "function", "struct"};
     const auto index = static_cast<std::size_t>(type->kind);
     std::string value = index < sizeof(names) / sizeof(names[0]) ? names[index] : "InvalidType";
@@ -72,7 +72,6 @@ std::string type_text(const TypePtr& type, std::size_t depth = 0) {
         value += ")";
     } else if (type->kind == TypeKind::Struct)
         value += " " + type->name + "#" + std::to_string(type->record_id);
-    if (type->is_unsigned) value = "unsigned " + value;
     if (type->is_const) value = "const " + value;
     return value;
 }
@@ -140,7 +139,6 @@ void print_ir(const IRProgram& program, const SymbolTableData& symbols, std::ost
         switch (constant.value.kind) {
         case ConstantKind::Empty: output << "未解码"; break;
         case ConstantKind::Integer: output << constant.value.integer; break;
-        case ConstantKind::Unsigned: output << constant.value.unsigned_integer; break;
         case ConstantKind::Floating: output << constant.value.floating; break;
         case ConstantKind::Text: output << escaped(constant.value.text); break;
         }

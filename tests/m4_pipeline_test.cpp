@@ -1,5 +1,6 @@
 #include "minic/modules.hpp"
 #include <iostream>
+#include <limits>
 #include <sstream>
 #include <stdexcept>
 using namespace minic;
@@ -20,6 +21,15 @@ int main() {
         execute("int sum(int a[],int n){int i=0,s=0;for(i=0;i<n;i=i+1){s=s+a[i];}return s;}int main(void){int a[3];a[0]=1;a[1]=2;a[2]=3;return sum(a,3);}", 6);
         execute("struct S{int x;char c;};int main(void){struct S s;struct S t;s.x=7;s.c='a';t=s;t.x=9;return s.x+t.x;}", 16);
         execute("int main(void){int n;float f;char c;char s[6];scanf(\"%d %f %c %s\",&n,&f,&c,s);printf(\"%d %f %c %s %%\",n,f,c,s);return 0;}", 0, "12 1.250000 A hello %", "12 1.25 A hello");
+        // 手工损坏 IR 中的整数常量，应在执行前拒绝，避免越界转换。
+        auto compiled = compile("int main(void){return 1;}", "invalid-constant.c");
+        require(compiled.ok(), "常量边界测试程序应能编译");
+        for (const auto value : {std::numeric_limits<long long>::min(), std::numeric_limits<long long>::max()}) {
+            compiled.ir->program.constants.entries.at(0).value = ConstantValue{value};
+            std::istringstream in; std::ostringstream out;
+            const auto result = run(compiled.ir->program, compiled.semantic->symbols, in, out);
+            require(!result.ok() && result.executed_steps == 0, "越界整数常量应在执行前报错");
+        }
         std::cout << "MiniC 类型、数组、结构体、函数、输入输出和运行检查通过\n";
         return 0;
     } catch (const std::exception& error) { std::cerr << error.what() << '\n'; return 1; }

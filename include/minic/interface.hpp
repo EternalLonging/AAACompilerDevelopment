@@ -92,16 +92,14 @@ struct TypeInfo;
 using TypePtr = const TypeInfo*;
 
 // 常量值，使用显式标签保存整数、浮点或字符串。
-enum class ConstantKind { Empty, Integer, Unsigned, Floating, Text };
+enum class ConstantKind { Empty, Integer, Floating, Text };
 struct ConstantValue {
     ConstantKind kind = ConstantKind::Empty;
     long long integer = 0;
-    unsigned long long unsigned_integer = 0;
     double floating = 0;
     std::string text;
     ConstantValue() = default;
     ConstantValue(long long value) : kind(ConstantKind::Integer), integer(value) {}
-    ConstantValue(unsigned long long value) : kind(ConstantKind::Unsigned), unsigned_integer(value) {}
     ConstantValue(double value) : kind(ConstantKind::Floating), floating(value) {}
     ConstantValue(const std::string& value) : kind(ConstantKind::Text), text(value) {}
     ConstantValue(std::string&& value) : kind(ConstantKind::Text), text(std::move(value)) {}
@@ -112,12 +110,10 @@ template <typename T> T* constant_get_if(ConstantValue& value) {
     return const_cast<T*>(constant_get_if<T>(static_cast<const ConstantValue&>(value)));
 }
 template <> inline const long long* constant_get_if<long long>(const ConstantValue& value) { return value.kind == ConstantKind::Integer ? &value.integer : nullptr; }
-template <> inline const unsigned long long* constant_get_if<unsigned long long>(const ConstantValue& value) { return value.kind == ConstantKind::Unsigned ? &value.unsigned_integer : nullptr; }
 template <> inline const double* constant_get_if<double>(const ConstantValue& value) { return value.kind == ConstantKind::Floating ? &value.floating : nullptr; }
 template <> inline const std::string* constant_get_if<std::string>(const ConstantValue& value) { return value.kind == ConstantKind::Text ? &value.text : nullptr; }
 template <typename T> const T& constant_get(const ConstantValue& value);
 template <> inline const long long& constant_get<long long>(const ConstantValue& value) { return value.integer; }
-template <> inline const unsigned long long& constant_get<unsigned long long>(const ConstantValue& value) { return value.unsigned_integer; }
 template <> inline const double& constant_get<double>(const ConstantValue& value) { return value.floating; }
 template <> inline const std::string& constant_get<std::string>(const ConstantValue& value) { return value.text; }
 
@@ -225,14 +221,13 @@ struct ParseResult {
 // 类型类别；源码支持 void、char、int、float 和 struct。
 // Void 用于函数；Address 只供数组参数和输入输出使用。
 enum class TypeKind {
-    Unknown, Error, Void, Char, Short, Int, Long, Float, Double, LongDouble,
+    Unknown, Error, Void, Char, Int, Float,
     Address, Array, Function, Struct // Address 只供内部寻址，源码不能声明。
 };
 
 // C 类型信息。
 struct TypeInfo {
     TypeKind kind = TypeKind::Unknown; // 类型种类，如 int、float、数组、结构体。
-    bool is_unsigned = false; // 后端数值表示使用的无符号标记，源码不产生它。
     bool is_const = false; // 内部类型限定，源码教学子集不开放 const。
     TypePtr base = nullptr; // 内部地址的目标类型、数组的元素类型或函数的返回类型。
     MaybeValue<std::size_t> array_length; // 本层数组长度；为空表示尚未确定。

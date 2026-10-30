@@ -6,7 +6,6 @@
 
 #include <cctype>
 #include <cstring>
-#include <unordered_set>
 #include <iomanip>
 #include <sstream>
 #include <unordered_set>
@@ -74,20 +73,17 @@ template <> inline Aggregate*& get<Aggregate*>(Value& value) { return value.aggr
 template <typename T> const T& get(const Value& value) { return get<T>(const_cast<Value&>(value)); }
 
 struct RuntimeArena {
-    std::vector<Aggregate*> aggregates;
-    std::deque<std::string> strings;
+    std::vector<Aggregate*> aggregates; // 本次执行创建的数组和结构体对象。
+    std::deque<std::string> strings; // 保存字符串，使运行地址在执行结束前有效。
     ~RuntimeArena() { for (Aggregate* value : aggregates) delete value; }
     Aggregate* make_aggregate() { Aggregate* value = new Aggregate(); aggregates.push_back(value); return value; }
     const std::string* stable_string(const std::string& value) { strings.push_back(value); return &strings.back(); }
 };
-RuntimeArena runtime_arena;
-Aggregate* make_aggregate() { return runtime_arena.make_aggregate(); }
-Aggregate* copy_aggregate(const Aggregate& source) {
-    Aggregate* result = runtime_arena.make_aggregate();
+Aggregate* copy_aggregate(RuntimeArena& arena, const Aggregate& source) {
+    Aggregate* result = arena.make_aggregate();
     *result = source;
     return result;
 }
-const std::string* stable_string(const std::string& value) { return runtime_arena.stable_string(value); }
 
 struct Code {
     const std::vector<Quadruple>* quads = nullptr;
@@ -149,34 +145,27 @@ bool compatible_subobject(const TypePtr& target, const TypePtr& member, bool par
     return same_type(target, &qualified);
 }
 
-Value convert_value(const Value& value, const TypePtr& target) {
+Value convert_value(const Value& value, const TypePtr& target, RuntimeArena& arena) {
     if (!target) throw std::runtime_error("目标类型为空");
     if (detail::numeric(target)) {
         const double numeric = number(value);
         if (!std::isfinite(numeric)) throw std::runtime_error("不允许非有限数值");
-        if (detail::floating(target)) return target->kind == TypeKind::Float ? detail::checked_float(numeric) : numeric;
+        if (detail::floating(target)) return detail::checked_float(numeric);
         const double truncated = std::trunc(numeric);
-        const auto bits = detail::integer_bits(target);
-        const auto modulus = static_cast<unsigned long long>(1) << bits;
-        if (target->is_unsigned) {
-            if (holds<long long>(value)) return static_cast<long long>(static_cast<unsigned long long>(get<long long>(value)) % modulus);
-            if (truncated < 0 || truncated >= static_cast<double>(modulus)) throw std::runtime_error("浮点转无符号整数超出范围");
-            return static_cast<long long>(truncated);
-        }
-        const auto low = -(static_cast<long long>(1) << (bits - 1)), high = (static_cast<long long>(1) << (bits - 1)) - 1;
-        if (truncated < static_cast<double>(low) || truncated > static_cast<double>(high))
-            throw std::runtime_error("浮点转整数或整数结果超出范围");
-        return static_cast<long long>(truncated);
+        if (truncated < std::numeric_limits<int>::min() ||
+            truncated > std::numeric_limits<int>::max())
+            throw std::runtime_error("浮点转整数超出范围");
+        return detail::checked_integer(static_cast<long long>(truncated), target->kind);
     }
     if (target->kind == TypeKind::Address && target->base) {
         if (const auto* text = get_if<std::string>(&value); text && target->base->kind == TypeKind::Char)
-            return Address{0, invalid_id, 0, target->base, 0, text->size() + 1, stable_string(*text), {}};
+            return Address{0, invalid_id, 0, target->base, 0, text->size() + 1, arena.stable_string(*text), {}};
         if (const auto* address = get_if<Address>(&value)) {
             auto converted = *address; converted.type = target->base; return converted;
         }
     }
     if (detail::aggregate(target) && holds<Aggregate*>(value))
-        return copy_aggregate(*get<Aggregate*>(value));
+        return copy_aggregate(arena, *get<Aggregate*>(value));
     throw std::runtime_error("不支持的运行值转换");
 }
 
@@ -192,6 +181,7 @@ class Machine {
     std::unordered_set<SymbolId> globals_;
     std::unordered_map<std::string, Value> global_values_;
     std::vector<Frame> frames_; // 显式调用栈，递归不占用宿主 C++ 调用栈。
+    RuntimeArena arena_; // 本次执行的聚合对象和字符串，随 Machine 一起释放。
     unsigned long long next_frame_ = 1;
     RunResult result_;
     SourceRange location_;
@@ -415,11 +405,8 @@ class Machine {
             if (entry.id != i) throw std::runtime_error("常量池编号无效");
             checker.intern(entry.type, entry.value, entry.spelling, entry.range);
             if (detail::numeric(entry.type)) {
-                if (detail::floating(entry.type)) convert_value(constant_get<double>(entry.value), entry.type);
-                else if (entry.type->is_unsigned) {
-                    const auto value = constant_get<unsigned long long>(entry.value);
-                    if (value >= (static_cast<unsigned long long>(1) << detail::integer_bits(entry.type))) throw std::runtime_error("无符号常量超出范围");
-                } else convert_value(constant_get<long long>(entry.value), entry.type);
+                if (detail::floating(entry.type)) convert_value(constant_get<double>(entry.value), entry.type, arena_);
+                else convert_value(constant_get<long long>(entry.value), entry.type, arena_);
             } else if (!(entry.type->kind == TypeKind::Array && entry.type->base->kind == TypeKind::Char))
                 throw std::runtime_error("M1 常量池类型不受支持");
         }
@@ -463,7 +450,6 @@ class Machine {
         if (name.size() > 2 && name[1] == 'c') {
             const auto& constant = program_.constants.entries.at(operand_id(name, 'c'));
             if (const auto* value = constant_get_if<long long>(constant.value)) return *value;
-            if (const auto* value = constant_get_if<unsigned long long>(constant.value)) return static_cast<long long>(*value);
             if (const auto* value = constant_get_if<double>(constant.value)) return *value;
             if (const auto* value = constant_get_if<std::string>(constant.value)) return *value;
             throw std::runtime_error("常量值无效");
@@ -476,11 +462,11 @@ class Machine {
         return found->second;
     }
 
-    Value initial_value(const TypePtr& type, bool zero) const {
+    Value initial_value(const TypePtr& type, bool zero) {
         if (detail::aggregate(type)) {
-            auto object = make_aggregate(); object->zero = zero; return object;
+            auto object = arena_.make_aggregate(); object->zero = zero; return object;
         }
-        return zero ? convert_value(static_cast<long long>(0), type) : Value{};
+        return zero ? convert_value(static_cast<long long>(0), type, arena_) : Value{};
     }
 
     Value& root_value(const Address& address) {
@@ -529,16 +515,15 @@ class Machine {
                 if (address.type->kind != TypeKind::Char || !detail::numeric(root_type)) throw std::runtime_error("内部地址类型与根对象不兼容");
                 unsigned long long bits;
                 if (detail::integral(root_type)) bits = static_cast<unsigned long long>(get<long long>(root));
-                else if (root_type->kind == TypeKind::Float) { const auto value = static_cast<float>(get<double>(root)); unsigned word; std::memcpy(&word, &value, 4); bits = word; }
-                else { const auto value = get<double>(root); std::memcpy(&bits, &value, 8); }
+                else { const auto value = static_cast<float>(get<double>(root)); unsigned word; std::memcpy(&word, &value, 4); bits = word; }
                 const auto byte = static_cast<long long>((bits >> (8 * address.offset)) & 255);
-                return address.type->is_unsigned || byte < 128 ? byte : byte - 256;
+                return byte < 128 ? byte : byte - 256;
             }
             return root;
         }
         const auto object = get<Aggregate*>(root);
         if (detail::aggregate(address.type)) {
-            auto result = make_aggregate(); result->zero = object->zero;
+            auto result = arena_.make_aggregate(); result->zero = object->zero;
             const auto size = detail::layout(address.type, symbols_).size;
             for (const auto& cell : object->cells)
                 if (cell.first >= address.offset && cell.first - address.offset < size)
@@ -562,10 +547,12 @@ class Machine {
                 bits |= static_cast<unsigned long long>(byte == object->bytes.end() ? 0 : byte->second) << (8 * i);
             }
             if (detail::floating(address.type)) {
-                if (size == 4) { const auto word = static_cast<unsigned>(bits); float value; std::memcpy(&value, &word, 4); return convert_value(static_cast<double>(value), address.type); }
-                double value; std::memcpy(&value, &bits, 8); return convert_value(value, address.type);
+                const auto word = static_cast<unsigned>(bits);
+                float value;
+                std::memcpy(&value, &word, 4);
+                return convert_value(static_cast<double>(value), address.type, arena_);
             }
-            if (!address.type->is_unsigned && (bits & (static_cast<unsigned long long>(1) << (size * 8 - 1)))) return static_cast<long long>(bits) - static_cast<long long>(static_cast<unsigned long long>(1) << (size * 8));
+            if (bits & (static_cast<unsigned long long>(1) << (size * 8 - 1))) return static_cast<long long>(bits) - static_cast<long long>(static_cast<unsigned long long>(1) << (size * 8));
             return static_cast<long long>(bits);
         }
         const auto cell = object->cells.find(address.offset);
@@ -576,12 +563,12 @@ class Machine {
         for (std::size_t i = 0; i < detail::layout(address.type, symbols_).size; ++i)
             if (object->bytes.count(address.offset + i) || object->unknown.count(address.offset + i)) throw std::runtime_error("不能把数值表示读取为内部地址");
         if (!object->zero) throw std::runtime_error("读取尚未初始化的数组元素或结构体成员");
-        return convert_value(static_cast<long long>(0), address.type);
+        return convert_value(static_cast<long long>(0), address.type, arena_);
     }
 
     void store_address(const Address& address, const Value& value) {
         if (address.literal) throw std::runtime_error("不能修改字符串字面量");
-        auto converted = convert_value(value, address.type);
+        auto converted = convert_value(value, address.type, arena_);
         auto& root = root_value(address);
         if (address.temporary.empty() && !detail::aggregate(symbol(address.symbol).type)) {
             const auto root_type = symbol(address.symbol).type;
@@ -590,16 +577,17 @@ class Machine {
                     throw std::runtime_error("地址写入类型不兼容或原对象未初始化");
                 unsigned long long bits;
                 if (detail::integral(root_type)) bits = static_cast<unsigned long long>(get<long long>(root));
-                else if (root_type->kind == TypeKind::Float) { const auto value = static_cast<float>(get<double>(root)); unsigned word; std::memcpy(&word, &value, 4); bits = word; }
-                else { const auto value = get<double>(root); std::memcpy(&bits, &value, 8); }
+                else { const auto value = static_cast<float>(get<double>(root)); unsigned word; std::memcpy(&word, &value, 4); bits = word; }
                 bits = (bits & ~(static_cast<unsigned long long>(255) << (8 * address.offset))) | ((static_cast<unsigned long long>(get<long long>(converted)) & 255) << (8 * address.offset));
                 if (detail::floating(root_type)) {
-                    if (root_type->kind == TypeKind::Float) { const auto word = static_cast<unsigned>(bits); float value; std::memcpy(&value, &word, 4); root = convert_value(static_cast<double>(value), root_type); }
-                    else { double value; std::memcpy(&value, &bits, 8); root = convert_value(value, root_type); }
+                    const auto word = static_cast<unsigned>(bits);
+                    float value;
+                    std::memcpy(&value, &word, 4);
+                    root = convert_value(static_cast<double>(value), root_type, arena_);
                 } else {
                     const auto size = detail::integer_bits(root_type);
                     bits &= (static_cast<unsigned long long>(1) << size) - 1;
-                    root = !root_type->is_unsigned && (bits & (static_cast<unsigned long long>(1) << (size - 1))) ?
+                    root = (bits & (static_cast<unsigned long long>(1) << (size - 1))) ?
                         Value{static_cast<long long>(bits) - static_cast<long long>(static_cast<unsigned long long>(1) << size)} : Value{static_cast<long long>(bits)};
                 }
                 return;
@@ -616,8 +604,7 @@ class Machine {
             if (detail::numeric(address.type)) {
                 unsigned long long bits;
                 if (detail::integral(address.type)) bits = static_cast<unsigned long long>(get<long long>(converted));
-                else if (size == 4) { const auto value = static_cast<float>(get<double>(converted)); unsigned word; std::memcpy(&word, &value, 4); bits = word; }
-                else { const auto value = get<double>(converted); std::memcpy(&bits, &value, 8); }
+                else { const auto value = static_cast<float>(get<double>(converted)); unsigned word; std::memcpy(&word, &value, 4); bits = word; }
                 for (std::size_t i = 0; i < size; ++i) object->bytes[address.offset + i] = static_cast<unsigned char>(bits >> (8 * i));
             } else object->cells[address.offset] = std::move(converted);
             return;
@@ -652,7 +639,7 @@ class Machine {
             }
             else for (std::size_t i = 0; i < size; ++i) if (!object.bytes.count(offset + i)) object.unknown.insert(offset + i);
         } else if (type->kind == TypeKind::Address) {
-            if (!object.cells.count(offset)) object.cells[offset] = object.zero ? convert_value(static_cast<long long>(0), type) : Value{};
+            if (!object.cells.count(offset)) object.cells[offset] = object.zero ? convert_value(static_cast<long long>(0), type, arena_) : Value{};
         } else if (type->kind == TypeKind::Array) {
             const auto stride = detail::layout(type->base, symbols_).size;
             for (std::size_t i = 0; i < *type->array_length; ++i) materialize_default(object, type->base, offset + i * stride, depth + 1);
@@ -663,7 +650,7 @@ class Machine {
     }
 
     void write(const std::string& name, const Value& value, Frame& frame) {
-        auto converted = convert_value(value, destination_type(name, frame));
+        auto converted = convert_value(value, destination_type(name, frame), arena_);
         if (name.size() > 2 && name[1] == 's' && globals_.count(static_cast<SymbolId>(operand_id(name, 's'))))
             global_values_[name] = std::move(converted);
         else frame.values[name] = std::move(converted);
@@ -719,11 +706,11 @@ class Machine {
                 } else if (part.conversion == 'd') {
                     long long integer = 0;
                     if (!(input_ >> integer)) throw std::runtime_error("scanf 无法读取整数");
-                    input_value = convert_value(integer, expected);
+                    input_value = convert_value(integer, expected, arena_);
                 } else if (part.conversion == 'f') {
                     double floating = 0;
                     if (!(input_ >> floating)) throw std::runtime_error("scanf 无法读取浮点数");
-                    input_value = convert_value(floating, expected);
+                    input_value = convert_value(floating, expected, arena_);
                 } else {
                     char character = 0;
                     if (!input_.get(character)) throw std::runtime_error("scanf 无法读取字符");
@@ -781,7 +768,7 @@ class Machine {
             if (ir_function.symbol_id != function_id) continue;
             if (ir_function.parameters.size() != arguments.size()) throw std::runtime_error("实参数量不一致");
             for (std::size_t i = 0; i < arguments.size(); ++i)
-                frame.values[detail::symbol_name(ir_function.parameters[i])] = convert_value(arguments[i], symbol(ir_function.parameters[i]).type);
+                frame.values[detail::symbol_name(ir_function.parameters[i])] = convert_value(arguments[i], symbol(ir_function.parameters[i]).type, arena_);
         }
         frames_.push_back(std::move(frame));
     }
@@ -886,7 +873,7 @@ class Machine {
                 } else push(callee.id, arguments, q.result);
             } else if (q.op == "ret") {
                 const auto returned = q.arg1 == "-" ? Value{} :
-                    convert_value(read(q.arg1, frame), symbol(frame.code->function).type->base);
+                    convert_value(read(q.arg1, frame), symbol(frame.code->function).type->base, arena_);
                 const auto destination = frame.destination;
                 frames_.pop_back();
                 if (frames_.empty()) {
@@ -910,12 +897,6 @@ class Machine {
                 else if (q.op == "!=") value = static_cast<long long>(left != right);
                 else if (holds<long long>(left_value) && holds<long long>(right_value)) {
                     const auto a = get<long long>(left_value), b = get<long long>(right_value);
-                    const auto target = destination_type(q.result, frame);
-                    if (target->is_unsigned && q.op == "*") {
-                        const auto product = static_cast<unsigned long long>(a) * static_cast<unsigned long long>(b);
-                        write(q.result, static_cast<long long>(product & ((static_cast<unsigned long long>(1) << detail::integer_bits(target)) - 1)), frame);
-                        continue;
-                    }
                     if ((q.op == "/" || q.op == "%") && b == 0) throw std::runtime_error("整数除零");
                     if ((q.op == "/" || q.op == "%") && a == std::numeric_limits<int>::min() && b == -1)
                         throw std::runtime_error("整数除法溢出");
@@ -928,10 +909,9 @@ class Machine {
                     else if (q.op == "|") value = a | b;
                     else if (q.op == "^") value = a ^ b;
                     else if (q.op == "<<" || q.op == ">>") {
-                        if (b < 0 || b >= detail::integer_bits(target) || (q.op == "<<" && a < 0)) throw std::runtime_error("移位数量或左移操作数无效");
+                        if (b < 0 || b >= detail::integer_bits(destination_type(q.result, frame)) || (q.op == "<<" && a < 0)) throw std::runtime_error("移位数量或左移操作数无效");
                         const auto divisor = static_cast<long long>(1) << b;
-                        if (target->is_unsigned && q.op == "<<") value = static_cast<long long>((static_cast<unsigned long long>(a) << b) & 0xffffffffu);
-                        else value = q.op == "<<" ? a * divisor : (a >= 0 ? a / divisor : -((-a + divisor - 1) / divisor));
+                        value = q.op == "<<" ? a * divisor : (a >= 0 ? a / divisor : -((-a + divisor - 1) / divisor));
                     } else throw std::runtime_error("整型运算符无效");
                 } else {
                     if (q.op == "+") value = left + right;

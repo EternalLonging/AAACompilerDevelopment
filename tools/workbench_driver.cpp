@@ -62,7 +62,6 @@ std::string value_text(const minic::ConstantValue& value) {
     switch (value.kind) {
     case minic::ConstantKind::Empty: return "未解码";
     case minic::ConstantKind::Integer: out << value.integer; break;
-    case minic::ConstantKind::Unsigned: out << value.unsigned_integer; break;
     case minic::ConstantKind::Floating: out << value.floating; break;
     case minic::ConstantKind::Text: out << value.text; break;
     }
