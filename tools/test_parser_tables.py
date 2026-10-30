@@ -1,4 +1,4 @@
-"""核对集合推导的边界，并用独立 Earley 识别器检查文法骨架覆盖真实语法样例。"""
+"""核对集合推导的边界，并用独立 Earley 识别器检查教学文法覆盖真实语法样例。"""
 from __future__ import annotations
 
 from collections import defaultdict
@@ -10,7 +10,7 @@ import tempfile
 import xml.etree.ElementTree as ET
 import zipfile
 
-from generate_parser_tables import ROOT, TARGET, END, build_payload, derive, productions
+from generate_parser_tables import ROOT, TARGET, GRAMMAR_TARGET, END, build_payload, grammar_payload, derive, productions
 from generate_lexer_tables import NS, check_workbook
 
 
@@ -58,13 +58,36 @@ def accepts(tokens, rules):
     return ('开始', ('程序',), 1, 0) in chart[-1]
 
 
+def predicts(tokens, rules):
+    """用生成的 LL(1) 表独立识别 Token，核对 SELECT 和预测格。"""
+    grammar = derive(rules)
+    assert all(len(choices) == 1 for choices in grammar['table'].values())
+    by_id = {rule['id']: rule for rule in rules}
+    stack, stream, cursor = [END, '程序'], [*tokens, END], 0
+    while stack:
+        symbol = stack.pop()
+        if symbol not in grammar['names']:
+            if cursor >= len(stream) or symbol != stream[cursor]:
+                return False
+            cursor += 1
+            continue
+        choices = grammar['table'].get((symbol, stream[cursor]))
+        if not choices:
+            return False
+        stack.extend(reversed(by_id[choices[0]]['rhs']))
+    return cursor == len(stream)
+
+
 def workbook_checks():
     """损坏交付文件的副本，确认核对工具确实识别丢行、值变化和公式。"""
-    if not TARGET.exists():
+    source = TARGET if TARGET.exists() else GRAMMAR_TARGET
+    if not source.exists():
         print('未提交静态语法表格；已跳过 Excel 反向核对。')
         return
     payload, _, _ = build_payload()
-    with zipfile.ZipFile(TARGET) as book:
+    if source == GRAMMAR_TARGET:
+        payload = grammar_payload(payload)
+    with zipfile.ZipFile(source) as book:
         parts = {name: book.read(name) for name in book.namelist()}
     with tempfile.TemporaryDirectory(prefix='minic-parser-tables-') as folder:
         for corruption in ['missing_row', 'changed_value', 'formula']:
@@ -95,12 +118,40 @@ def workbook_checks():
 
 
 def corpus_checks(driver):
-    """使用真实前端产生的 Token，检查有效源码属于骨架及典型结构错误被排除。"""
+    """使用真实前端产生的 Token，检查有效源码属于文法及典型结构错误被排除。"""
     rules = productions()
     fixtures = ROOT / 'tests/integration'
     cases = json.loads((fixtures / 'manifest.json').read_text(encoding='utf-8'))['cases']
     sources = [(case['id'], (fixtures / case['source']).read_text(encoding='utf-8'), None, None) for case in cases]
     sources += [('empty', '', True, True)]
+    # 文法自身须表达这些结构限制，不能只依赖解析器的事后拒绝。
+    sources += [(name, source, False, False) for name, source in [
+        ('bare_type', 'int;'),
+        ('bare_local_type', 'int main(void){float;return 0;}'),
+        ('prototype', 'int f(int x);'),
+        ('local_prototype', 'int main(void){int f(int x);return 0;}'),
+        ('array_dimensions', 'int a[2][3];'),
+        ('parameter_dimensions', 'int f(int a[2][3]){return 0;}'),
+        ('empty_record', 'struct S{};'),
+        ('record_forward', 'struct S;'),
+        ('anonymous_record', 'struct {int x;} s;'),
+        ('record_function', 'struct S{int f();};'),
+        ('inline_member_record', 'struct S{struct T{int x;} t;};'),
+        ('unnamed_parameter', 'int f(int){return 0;}'),
+        ('function_parameter', 'int f(int callback()){return 0;}'),
+        ('record_parameter', 'struct S{int x;};int f(struct S s){return 0;}'),
+        ('void_variable', 'void x;'),
+        ('void_member', 'struct S{void x;};'),
+    ]]
+    sources += [(name, source, True, True) for name, source in [
+        ('declaration_lists', 'int a[3],b=2;float f(float x){return x;}'),
+        ('record_objects', 'struct S{int x;char c[4];} a,b[2];'),
+        ('local_records', 'int main(void){struct S{int x;};struct S s;s.x=1;return s.x;}'),
+        ('record_array_parameter', 'struct S{int x;};int f(struct S a[]){return a[0].x;}'),
+        ('void_function', 'void f(void){return;}'),
+        ('empty_parameters', 'int f(){return 1;}'),
+        ('assignment_chain', 'int main(void){int a,b;a=b=3;return a+b;}'),
+    ]]
     accepted = 0
     with tempfile.TemporaryDirectory(prefix='minic-grammar-') as folder:
         path = Path(folder) / 'sample.c'
@@ -116,15 +167,16 @@ def corpus_checks(driver):
             tokens = [item['kind'] for item in actual['tokens']]
             assert tokens[-1] == END and END not in tokens[:-1]
             grammar_accepts = accepts(tokens[:-1], rules)
+            assert predicts(tokens[:-1], rules) == grammar_accepts, 'LL(1) 表与独立识别器不一致：' + name
             parser_accepts = bool(actual['ast'])
             if parser_accepts:
-                assert grammar_accepts, '文法骨架遗漏了实际接受的源码：' + name
+                assert grammar_accepts, '教学文法遗漏了实际接受的源码：' + name
                 accepted += 1
             if expected_grammar is not None:
-                assert grammar_accepts == expected_grammar, '骨架判定不符：' + name
+                assert grammar_accepts == expected_grammar, '文法判定不符：' + name
                 assert parser_accepts == expected_parser, '语法判定不符：' + name
     assert accepted > 10
-    print(f'真实语法样例覆盖通过：{accepted} 个语法接受样例，另核对结构错误与上下文约束边界')
+    print(f'真实语法样例覆盖通过：{accepted} 个语法接受样例，文法、LL(1) 表和解析器的声明边界一致')
 
 
 if __name__ == '__main__':

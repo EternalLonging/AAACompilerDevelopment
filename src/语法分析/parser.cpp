@@ -89,7 +89,7 @@ class Parser {
         if (height > 128) fail("语法树嵌套超过 128 层", "PARSE_DEPTH", Level::Fatal);
         heights[&n] = height;
     }
-    // 声明开头的类型和 const 限定符信息。
+    // 保存声明开头的基础类型和结构体定义。
     struct Specs {
         TypePtr type = nullptr; // 声明中的基础类型，例如 int 或 struct S。
         std::vector<Node> definitions; // 声明中同时定义的结构体节点。
@@ -184,8 +184,9 @@ class Parser {
                             auto pd = declarator(true);
                             auto param = node(NodeType::ParamDecl, start, pd.name);
                             param->declared_type = build_type(ps.type, pd);
-                            if (param->declared_type->kind == TypeKind::Struct)
-                                fail("struct 不能作为函数参数", "PARSE_FUNCTION");
+                            if (param->declared_type->kind == TypeKind::Struct ||
+                                param->declared_type->kind == TypeKind::Function)
+                                fail("形参只支持标量或一维数组", "PARSE_FUNCTION");
                             if (param->declared_type->kind == TypeKind::Void)
                                 fail("void 只能单独表示空形参列表", "PARSE_PARAMETER");
                             finish(*param);
@@ -239,6 +240,8 @@ class Parser {
             auto d = declarator();
             const auto type = build_type(s.type, d);
             const bool function = type->kind == TypeKind::Function;
+            if (!function && s.type->kind == TypeKind::Void)
+                fail("void 只能用于函数返回值或空形参列表", "PARSE_DECLARATOR");
             if (member && function)
                 fail("成员不支持函数或位域", "PARSE_MEMBER");
             auto n = node(member ? NodeType::MemberDecl : function ? NodeType::FunctionDef : NodeType::VarDecl, start, d.name);

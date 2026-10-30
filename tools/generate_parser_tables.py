@@ -21,51 +21,43 @@ EPSILON = 'ε'
 END = 'END_OF_FILE'
 
 # 每组记录实现函数；右部的英文大写名字直接使用 TokenType。
-# 这是带约束的文法骨架；限制见 CONSTRAINTS，不把它当成独立识别器。
+# 声明形状直接由产生式限制；类型检查、词法值和 AST 交接见 CONSTRAINTS。
 GRAMMAR = '''@run
-程序 -> 外部序列
-外部序列 -> 外部声明 外部序列 | ε
+程序 -> 外部声明 程序 | ε
 @declaration
-外部声明 -> 类型 外部声明后
-外部声明后 -> 声明符 外部声明尾 | SEMI
-外部声明尾 -> 块 | 初值可选 声明逗号续 SEMI
-声明 -> 类型 声明后
-声明后 -> 声明符 初值可选 声明逗号续 SEMI | SEMI
-声明逗号续 -> COMMA 声明符 初值可选 声明逗号续 | ε
-初值可选 -> ASSIGN 初值 | ε
+外部声明 -> 标量类型 ID 外部声明尾 | KW_VOID ID 函数尾 | KW_STRUCT ID 结构声明尾
+外部声明尾 -> 函数尾 | 对象尾
+函数尾 -> LPAREN 形参表可选 RPAREN 块
+局部声明 -> 标量类型 ID 对象尾 | KW_STRUCT ID 结构声明尾
+结构声明尾 -> LBRACE 成员声明 成员序列 RBRACE 定义后 | ID 对象尾
+定义后 -> ID 对象尾 | SEMI
+对象尾 -> 数组可选 初值可选 对象续 SEMI
+对象续 -> COMMA ID 数组可选 初值可选 对象续 | ε
+初值可选 -> ASSIGN 表达式 | ε
 @specs
-类型 -> KW_VOID | KW_CHAR | KW_INT | KW_FLOAT | 结构类型
-结构类型 -> KW_STRUCT ID 结构体定义可选
-结构体定义可选 -> LBRACE 成员序列 RBRACE | ε
+标量类型 -> KW_CHAR | KW_INT | KW_FLOAT
 成员序列 -> 成员声明 成员序列 | ε
 @declaration
-成员声明 -> 成员类型 声明符 成员声明逗号续 SEMI
-成员类型 -> KW_CHAR | KW_INT | KW_FLOAT | 结构类型
-成员声明逗号续 -> COMMA 声明符 成员声明逗号续 | ε
+成员声明 -> 成员类型 ID 数组可选 成员续 SEMI
+成员类型 -> 标量类型 | KW_STRUCT ID
+成员续 -> COMMA ID 数组可选 成员续 | ε
 @declarator
-声明符 -> ID 声明后缀序列
-声明后缀序列 -> 声明后缀 声明后缀序列 | ε
-声明后缀 -> LBRACKET 界限可选 RBRACKET | LPAREN 形参表可选 RPAREN
+数组可选 -> LBRACKET 界限可选 RBRACKET | ε
 界限可选 -> INT_LITERAL | ε
-形参表可选 -> KW_VOID | 形参序列 | ε
-形参序列 -> 形参 形参续
+形参表可选 -> KW_VOID | 形参 形参续 | ε
 形参续 -> COMMA 形参 形参续 | ε
-形参 -> 形参类型 声明符
-形参类型 -> KW_CHAR | KW_INT | KW_FLOAT | 结构类型
-@initializer
-初值 -> 赋值式
+形参 -> 标量类型 ID 数组可选 | KW_STRUCT ID ID LBRACKET 界限可选 RBRACKET
 @block
 块 -> LBRACE 局部声明序列 语句序列 RBRACE
-局部声明序列 -> 声明 局部声明序列 | ε
+局部声明序列 -> 局部声明 局部声明序列 | ε
 语句序列 -> 语句 语句序列 | ε
 @statement
 语句 -> 块 | SEMI | KW_IF LPAREN 表达式 RPAREN 块 否则可选 | KW_WHILE LPAREN 表达式 RPAREN 块 | KW_FOR LPAREN 表达式可选 SEMI 表达式可选 SEMI 表达式可选 RPAREN 块 | KW_RETURN 表达式可选 SEMI | KW_BREAK SEMI | KW_CONTINUE SEMI | 表达式 SEMI
 否则可选 -> KW_ELSE 块 | ε
 表达式可选 -> 表达式 | ε
 @expression
-表达式 -> 赋值式
-赋值式 -> 逻辑或式 赋值续
-赋值续 -> ASSIGN 赋值式 | ε
+表达式 -> 逻辑或式 赋值续
+赋值续 -> ASSIGN 表达式 | ε
 逻辑或式 -> 逻辑与式 逻辑或续
 逻辑或续 -> OR 逻辑与式 逻辑或续 | ε
 逻辑与式 -> 相等式 逻辑与续
@@ -87,21 +79,19 @@ GRAMMAR = '''@run
 @postfix
 表达后缀序列 -> 表达后缀 表达后缀序列 | ε
 表达后缀 -> LPAREN 实参可选 RPAREN | LBRACKET 表达式 RBRACKET | DOT ID
-实参可选 -> 赋值式 实参续 | ε
-实参续 -> COMMA 赋值式 实参续 | ε
+实参可选 -> 表达式 实参续 | ε
+实参续 -> COMMA 表达式 实参续 | ε
 '''
 
-# 编号用于把文法骨架中的上下文条件定位到实现，不能由 FIRST/FOLLOW 代替。
+# 编号用于定位仍需程序检查的规则，语义检查不能由 FIRST/FOLLOW 代替。
 CONSTRAINTS = [
-    ('C01', '类型范围', 'specs', '只接受 void、char、int、float 和带标签的 struct。', 'PARSE_SPECIFIERS'),
-    ('C02', '声明符', 'declarator', '声明符从标识符开始，支持一维数组层和普通函数层。', 'PARSE_DECLARATOR'),
-    ('C03', '函数定义', 'declaration', '函数定义直接包含参数列表和函数体。', 'PARSE_FUNCTION'),
-    ('C04', '函数参数', 'declarator', '参数必须使用支持的类型；函数定义中的参数必须具名。', 'PARSE_PARAMETER'),
-    ('C05', '结构体', 'specs', 'struct 必须带标签和至少一个成员。', 'PARSE_RECORD'),
-    ('C06', '块与控制体', 'block', '声明必须位于语句之前；if、while、for 的控制体必须是块。', 'PARSE_DECLARATION_ORDER'),
-    ('C07', '表达式', 'expression', '表达式按优先级分层，赋值右结合，其他二元运算左结合。', '—'),
-    ('C08', '初始化', 'initializer', '变量初始化使用一个赋值式。', 'PARSE_INITIALIZER'),
-    ('C09', '错误恢复', 'recover', '语法错误后跳到分号、块结束或下一个声明开头继续分析。', 'PARSE_EXPECTED'),
+    ('C01', '数组长度', 'declarator', 'INT_LITERAL 的值必须为可表示的正整数；对象长度推断和越界检查属于语义阶段。', 'PARSE_ARRAY_BOUND / 语义'),
+    ('C02', '字面量', 'unary', '整数不接受后缀，浮点不接受 L 后缀；字符和字符串由语义阶段解码。', 'PARSE_LITERAL / 语义'),
+    ('C03', '赋值左部', 'expression', '左部应符合一元表达式形状；是否为可修改左值由语义阶段检查。', 'PARSE_ASSIGNMENT_TARGET / 语义'),
+    ('C04', '名字和类型', 'declaration', '声明可见性、重名、结构体布局、赋值和调用类型兼容由语义阶段检查。', '语义'),
+    ('C05', '控制流', 'statement', 'break/continue 所在循环、return 所在函数和返回类型由语义阶段检查。', '语义'),
+    ('C06', 'AST 交接', 'finish', '重复后缀按从左到右建立 AST；节点类型、孩子顺序和类型归属保持公共接口约定。', 'AST'),
+    ('C07', '错误恢复', 'recover', '语法错误后跳到分号、块结束或下一个声明开头继续分析；错误输入不交付成功 AST。', 'PARSE_EXPECTED'),
 ]
 
 AST = [
@@ -227,17 +217,6 @@ def source_reference(function, source):
     return f'src/语法分析/parser.cpp:{line}'
 
 
-def conflict_reason(name):
-    """说明骨架文法的预测冲突如何由实际递归下降分支处理。"""
-    if name == '标签可选':
-        return 'specs 总是先消费 struct 后的 ID 作为标签；不把它解释成无标签对象声明。', 'specs'
-    if name == '形参表可选':
-        return 'declarator 查看 void 后一项：只有 void 后紧接右括号时才作为空形参列表。', 'declarator'
-    if name in {'抽象声明符', '声明后缀序列'}:
-        return 'declarator 查看左括号后的种别：ID、左括号或星号走分组分支；其余按函数后缀处理，星号随后拒绝。', 'declarator'
-    raise ValueError('新增预测冲突需要解释：' + name)
-
-
 def build_payload():
     """结合当前源码生成中文工作表、文法文件和范围说明。"""
     rows = productions()
@@ -257,6 +236,17 @@ def build_payload():
         reachable = updated
     if reachable != set(dfa['names']):
         raise ValueError('文法含不可达非终结符')
+    if len({(row['lhs'], tuple(row['rhs'])) for row in rows}) != len(rows):
+        raise ValueError('文法含重复产生式')
+    productive = set()
+    while True:
+        updated = productive | {row['lhs'] for row in rows if all(
+            symbol not in dfa['names'] or symbol in productive for symbol in row['rhs'])}
+        if updated == productive:
+            break
+        productive = updated
+    if productive != set(dfa['names']):
+        raise ValueError('文法含不能生成终结符串的非终结符')
     lexical = json.loads((ROOT / 'src/词法分析/词法规则.json').read_text(encoding='utf-8'))
     spelling = {token: word for word, token in lexical['keywords'].items()}
     spelling.update({rule['token']: rule['literal'] for rule in lexical['rules'] if 'literal' in rule})
@@ -274,8 +264,7 @@ def build_payload():
     for (name, token), choices in sorted(dfa['table'].items(), key=lambda pair: (dfa['names'].index(pair[0][0]), order[pair[0][1]])):
         table_rows.append([name, token, spelling[token], ' / '.join(choices), len(choices)])
         if len(choices) > 1:
-            reason, function = conflict_reason(name)
-            conflicts.append([name, token, ' / '.join(choices), reason, references[function]])
+            raise ValueError(f'文法不是 LL(1)：M[{name}, {token}] = {choices}')
     priority_rows = []
     precedence = source.split('static int precedence(TT type)', 1)[1].split('default: return 0;', 1)[0]
     for cases, value in re.findall(r'((?:\s*case TT::[A-Z_]+:)+) return (\d+);', precedence):
@@ -314,21 +303,21 @@ def build_payload():
                 'rows': values, 'widths': widths, 'notes': list(notes)}
 
     sheets = [
-        sheet('文法产生式', '当前语法文法骨架', count,
+        sheet('文法产生式', 'MiniC 的 LL(1) 文法', count,
               ['编号', '左部', '右部', '实现函数', '源码位置'],
               [[row['id'], row['lhs'], ' '.join(row['rhs']) or EPSILON, row['function'], references[row['function']]] for row in rows],
-              [12, 24, 100, 23, 43], ['约束见“语法约束”。实际使用递归下降和优先级分析，预测表用于教学推导。',
+              [12, 24, 100, 23, 43], ['实际使用递归下降和优先级分析；文法重写不改变 AST 节点及孩子顺序。',
                                      '开始符号为“程序”，ε 表示空串；END_OF_FILE 为输入结束标记，不放入产生式右部。']),
         sheet('FIRST与FOLLOW', '可空性与 FIRST / FOLLOW', '集合按 TokenType 顺序显示。FIRST 的 ε 单列为“可空”，FOLLOW 不含 ε。',
               ['非终结符', '可空', 'FIRST（不含 ε）', 'FOLLOW'],
               [[name, '是' if name in dfa['nullable'] else '否', tokens(dfa['first'][name]), tokens(dfa['follow'][name])] for name in dfa['names']],
               [24, 10, 90, 110]),
-        sheet('SELECT集', '每条产生式的 SELECT', '右部可空时，将左部 FOLLOW 加入 SELECT。多个候选式可命中同一预测格。',
+        sheet('SELECT集', '每条产生式的 SELECT', '右部可空时，将左部 FOLLOW 加入 SELECT。同一左部的候选式 SELECT 两两不相交。',
               ['编号', '左部', 'SELECT'], [[row['id'], row['lhs'], tokens(dfa['select'][row['id']])] for row in rows], [12, 24, 125]),
         sheet('预测分析表', '预测分析表（非空格）', '每行是一格 M[非终结符, 向前看 Token]；未列出的组合均为错误格。',
               ['非终结符', '向前看 Token', '拼写或类别', '候选产生式', '候选数'], table_rows, [24, 27, 22, 28, 12],
-              ['候选数大于 1 表示预测冲突，详见“冲突与处理”；不能直接作为无冲突表驱动解析器。']),
-        sheet('冲突与处理', '预测冲突与实际消歧', '保留全部冲突候选式。这里解释递归下降怎样决定，不改造 Token 类别掩盖冲突。',
+              ['每格只有一个产生式。出现冲突时生成器报错，不使用优先级覆盖或额外向前看消歧。']),
+        sheet('冲突与处理', '预测冲突检查', '当前没有预测冲突；出现冲突时生成失败，先修改文法再重新生成。',
               ['非终结符', '向前看 Token', '候选产生式', '实际处理', '源码位置'], conflicts, [24, 27, 28, 105, 43]),
         sheet('终结符', '当前文法使用的 Token', '只列当前文法和结束标记；词法识别但语法拒绝的种别不作为可用文法终结符。',
               ['Token 种别', '拼写或类别', '用途'], [[name, spelling[name], '输入结束标记' if name == END else '文法终结符'] for name in sorted(dfa['terminals'], key=lambda name: order[name])], [28, 27, 24]),
@@ -337,18 +326,18 @@ def build_payload():
               ['一般后缀先于前缀，前缀先于二元运算；括号中的表达式单独解析。逗号仅分隔参数、声明或初值，不是表达式运算符。']),
         sheet('AST孩子顺序', '语法阶段实际生成的 AST', '只列 parser.cpp 使用的节点；ImplicitCast 由语义阶段生成。',
               ['节点', '名字或声明类型', '孩子顺序', '孩子数量', '源码位置'], [[name, text, children, number, references[function]] for name, function, text, children, number in AST], [27, 57, 84, 18, 43]),
-        sheet('语法约束', '文法之外的上下文条件', '骨架文法需与这些条件一起阅读；单独接受骨架不能说明源码已通过语法或语义。',
+        sheet('语法约束', '语法结构以外的检查和 AST 约定', '结构限制已写入产生式；字面量值、赋值左部形状、名字、类型及控制流仍由相应阶段检查。',
               ['编号', '类别', '条件', '诊断或阶段', '源码位置'], [[i, title, text, codes, references[function]] for i, title, function, text, codes in CONSTRAINTS], [12, 22, 115, 62, 43]),
         sheet('语法诊断', '当前语法错误代码', '错误码与出现行号从源码提取。消息列保留所在行的字符串片段；动态消息按实际 Token 拼接。',
               ['错误代码', '级别', '消息片段', 'parser.cpp 行号'], diagnostic_rows, [42, 12, 150, 32]),
         sheet('恢复与接口', '输入、错误恢复与阶段交接', '错误恢复用于继续收集诊断；存在语法错误时不向后续阶段交付成功 AST。',
               ['项目', '实现函数', '行为', '结果或限制', '源码位置'], [[title, function, text, limit, references[function]] for title, function, text, limit in RECOVERY], [22, 22, 120, 30, 43]),
     ]
-    bnf = '# 当前语法文法骨架\n# 开始符号：程序；结束标记：END_OF_FILE；空串：ε\n# 约束见《当前文法与约束.md》，本文件不是独立解析器。\n'
+    bnf = '# MiniC 的 LL(1) 文法\n# 开始符号：程序；结束标记：END_OF_FILE；空串：ε\n# 词法值、赋值左部形状和语义检查见《当前文法与约束.md》。\n'
     bnf += ''.join(f'{row["id"]}: {row["lhs"]} -> {" ".join(row["rhs"]) or EPSILON}\n' for row in rows)
     document = '# 当前文法与约束\n\n' + count + '\n\n'
-    document += '依据当前 `parser.cpp` 整理。正式算法是递归下降和表达式优先级攀升；FIRST/FOLLOW/SELECT 与预测表只对本文的文法骨架计算。上下文约束、Token 原文限制和 AST 折叠规则仍由实现检查，不能仅凭预测表认定源码合法。\n\n'
-    document += '开始符号为“程序”；空源码允许，`END_OF_FILE` 是输入结束标记，不在产生式右部。FIRST 的可空性单独显示，FOLLOW 不含 ε。预测表采用非空格清单，遗漏的组合为错误格；冲突格保存所有候选式。\n\n'
+    document += '依据当前 `parser.cpp` 整理。正式算法仍是递归下降和表达式优先级攀升，AST 节点及孩子顺序保持不变。文法直接区分函数定义、变量和成员声明；只允许一维数组、非空具名结构体和具名形参，不接受函数原型、裸类型声明或嵌套声明符。\n\n'
+    document += '开始符号为“程序”；空源码允许，`END_OF_FILE` 是输入结束标记，不在产生式右部。FIRST 的可空性单独显示，FOLLOW 不含 ε。预测表采用非空格清单，遗漏的组合为错误格；同一格出现两个候选式时生成器立即报错。文法不代替字面量值、赋值左部形状和语义检查。\n\n'
     document += '## 文法\n\n```bnf\n' + bnf + '```\n\n## 上下文约束\n\n| 编号 | 类别 | 条件 | 实现 |\n|---|---|---|---|\n'
     document += ''.join(f'| {i} | {title} | {text} | `{function}()` |\n' for i, title, function, text, _ in CONSTRAINTS)
     document += '\n## 预测冲突\n\n| 非终结符 | 向前看 | 候选式 | 实际处理 |\n|---|---|---|---|\n'
@@ -366,9 +355,46 @@ def grammar_payload(payload):
     grammar['context'] = f'{len(grammar["rows"])} 条产生式，{len(names)} 个非终结符；编号与当前文法.bnf 一致。'
     grammar['notes'] = [
         '开始符号：程序。ε 表示空串；END_OF_FILE 是输入结束标记，不放入产生式右部。',
-        '这是当前解析器的文法骨架；使用时须结合《当前文法与约束.md》中的上下文条件。',
+        '函数、变量和成员声明分别建模；数组只允许一层，函数必须带块，结构体成员至少一个。',
     ]
     return {**payload, 'sheets': [grammar]}
+
+
+def overview(payload):
+    """返回文法目录说明，数量和文件名与本次生成结果一致。"""
+    return f'''# 当前语法分析资料
+
+{payload['sheets'][0]['context']}
+
+| 文件 | 内容 |
+|---|---|
+| [当前文法.bnf](当前文法.bnf) | 有编号的 LL(1) 产生式 |
+| [文法表.xlsx](文法表.xlsx) | 产生式、对应解析函数及源码位置 |
+| [FIRST与FOLLOW表.xlsx](FIRST与FOLLOW表.xlsx) | 非终结符的 FIRST、FOLLOW 与可空性 |
+| [SELECT集表.xlsx](SELECT集表.xlsx) | 每条产生式的 SELECT 集 |
+| [预测分析表.xlsx](预测分析表.xlsx) | 非空预测格、终结符及阶段检查约定 |
+| [当前文法与约束.md](当前文法与约束.md) | 文法、检查职责和来源快照 |
+
+开始符号为“程序”。ε 表示空串，END_OF_FILE 表示输入结束。FIRST 中的 ε 单独列在“可空”列，FOLLOW 不含 ε。预测表每格至多一条产生式，未列出的格子表示语法错误。
+
+函数定义、变量、成员、单层数组和非空结构体的形状直接写在产生式中。字面量数值、赋值左部形状、名字和类型检查仍由对应阶段完成。
+
+正式解析器使用递归下降和优先级攀升；这些表用于展示文法和验证 LL(1) 性质，不会替换 AST 构造代码。AST 节点及孩子顺序未改变，因此语义分析无须随文法的等价整理重写。
+
+## 重新生成与验收
+
+```powershell
+python tools/generate_parser_tables.py --data build/语法表格数据.json
+python tools/generate_parser_tables.py --grammar-data build/文法表数据.json
+python tools/generate_design_tables.py --data build/设计表格 --driver build/ninja/workbench_driver.exe
+# Excel 导出方式见实验设计/表格总览.md。
+python tools/generate_parser_tables.py --check
+python tools/test_parser_tables.py build/ninja/workbench_driver.exe
+python tools/generate_design_tables.py --check --driver build/ninja/workbench_driver.exe
+```
+
+文法与集合来自同一份产生式。测试同时使用独立 Earley 识别器、生成的 LL(1) 预测表和真实解析器核对声明边界。
+'''
 
 
 def main():
@@ -390,9 +416,10 @@ def main():
             OUTPUT.mkdir(parents=True, exist_ok=True)
             (OUTPUT / '当前文法.bnf').write_text(bnf, encoding='utf-8')
             (OUTPUT / '当前文法与约束.md').write_text(document, encoding='utf-8')
+            (OUTPUT / 'README.md').write_text(overview(payload), encoding='utf-8')
             print(payload['sheets'][0]['context'])
         else:
-            for name, expected in [('当前文法.bnf', bnf), ('当前文法与约束.md', document)]:
+            for name, expected in [('当前文法.bnf', bnf), ('当前文法与约束.md', document), ('README.md', overview(payload))]:
                 if (OUTPUT / name).read_text(encoding='utf-8') != expected:
                     raise ValueError(name + ' 需要重新核对并生成')
             if TARGET.exists():
