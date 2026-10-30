@@ -12,8 +12,8 @@
 - [词法实现](词法实现.md)
 - [正则规则](正则规则说明.md)
 - [当前词法表格](../../实验设计/词法分析/词法表格/README.md)
-- [单张状态转换图](../../实验设计/词法分析/状态转换图/README.md)
 
-验证：frontend_test.cpp、lexer_probe.cpp；词法规则、表一致性和独立正则对照工具见 tools/README.md。
+验证：frontend_test.cpp、lexer_probe.cpp；词法规则、DFA 和表一致性工具见 tools/README.md。
 
 [返回文档导航](../README.md)
+

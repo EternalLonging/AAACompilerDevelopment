@@ -140,8 +140,6 @@ static void test_types() {
     different->variadic = true;
     require(!same_type(signature, different), "可变参数标记参与签名比较");
     different->variadic = false;
-    different->has_prototype = false;
-    require(!same_type(signature, different), "原型标记参与签名比较");
     auto constant = make_type_info(*integer); constant->is_const = true;
     require(same_type(function(integer, {integer}), function(integer, {constant})), "形参顶层 const 不影响签名");
     require(!same_type(function(integer, {indirect(TypeKind::Address, integer)}),
@@ -183,17 +181,17 @@ static void test_scopes_and_functions() {
             !table.set_symbol_offset(invalid_id, 0), "非法编号不能越界");
     const auto first = table.insert(declaration("sum", 50, SymbolKind::Function,
                                                 function(basic(TypeKind::Int), {basic(TypeKind::Int)}))).value();
-    auto prototype = declaration("sum", 60, SymbolKind::Function,
+    auto compatible = declaration("sum", 60, SymbolKind::Function,
                                   function(basic(TypeKind::Int), {basic(TypeKind::Int)}));
-    require(table.insert(prototype) == first, "相同函数原型应复用编号");
-    prototype.is_defined = true;
-    require(table.insert(prototype) == first && table.symbol(first)->is_defined &&
+    require(table.insert(compatible) == first, "相同函数签名应复用编号");
+    compatible.is_defined = true;
+    require(table.insert(compatible) == first && table.symbol(first)->is_defined &&
             table.symbol(first)->range.begin.offset == 50, "定义应合并并保留首次位置");
-    require(!table.insert(prototype) && !table.set_symbol_offset(first, 0),
+    require(!table.insert(compatible) && !table.set_symbol_offset(first, 0),
             "重复函数定义和函数偏移应拒绝");
-    prototype.is_defined = false;
-    prototype.type = function(basic(TypeKind::Float), {basic(TypeKind::Int)});
-    require(!table.insert(prototype) && table.symbol(first)->type->base->kind == TypeKind::Int,
+    compatible.is_defined = false;
+    compatible.type = function(basic(TypeKind::Float), {basic(TypeKind::Int)});
+    require(!table.insert(compatible) && table.symbol(first)->type->base->kind == TypeKind::Int,
             "冲突签名不能覆盖旧类型");
     require(!table.insert(declaration("")) && !table.insert(declaration("bad", 1, SymbolKind::Variable, nullptr)),
             "无名或无类型符号应拒绝");
@@ -278,7 +276,7 @@ static void test_builtins() {
             printf_entry->type->params[0]->base->is_const, "printf 必须有正确内建签名");
     auto redeclaration = declaration("printf", 90, SymbolKind::Function, printf_entry->type);
     require(table.insert(redeclaration) == printf_id &&
-            table.symbol(printf_id)->builtin == BuiltinKind::Printf, "兼容原型不能丢掉内建标记");
+            table.symbol(printf_id)->builtin == BuiltinKind::Printf, "兼容函数条目不能丢掉内建标记");
     redeclaration.is_defined = true;
     require(!table.insert(redeclaration), "用户定义不能覆盖内建函数");
     SymbolTable conflict(diagnostics);
@@ -292,7 +290,7 @@ static void test_builtins() {
     require(register_builtins(compatible) && compatible.lookup("printf") == compatible_id &&
             compatible.symbol(compatible_id)->builtin == BuiltinKind::Printf &&
             compatible.symbol(compatible_id)->range.begin.offset == 80,
-            "兼容的已有原型应复用编号和首次位置，并补上内建标记");
+            "兼容的已有函数条目应复用编号和首次位置，并补上内建标记");
     SymbolTable user_definition(diagnostics);
     compatible_declaration.is_defined = true;
     user_definition.insert(compatible_declaration);
@@ -317,3 +315,4 @@ int main() {
         return 1;
     }
 }
+

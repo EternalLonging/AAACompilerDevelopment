@@ -8,12 +8,9 @@
 |---|---|
 | 实现 | [parser.cpp](../../src/语法分析/parser.cpp) |
 | 公共接口 | [parser.hpp](../../include/minic/parser.hpp) |
+| 文法与集合 | [当前文法](../../实验设计/语法分析/语法表格/README.md) |
+| AST 约定 | [数据结构与 AST](../公共约定/数据结构与AST约定.md) |
 
-- [语法实现](语法实现.md)
-- [当前文法、集合与语法表格](../../实验设计/语法分析/语法表格/README.md)
-- [AST 孩子顺序](../公共约定/数据结构与AST约定.md)
-- [历史 LL(1) 草案](../../实验设计/语法分析/历史参考/README.md)
-
-验证：frontend_test.cpp、parser_tables_current、parser_grammar，以及 tests/integration 中的语法拒绝用例。
+验证：`frontend_test.cpp`、`parser_tables_current`、`parser_grammar` 和源码联调测试。
 
 [返回文档导航](../README.md)

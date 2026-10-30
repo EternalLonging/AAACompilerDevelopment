@@ -78,19 +78,20 @@ Node program(Declarations... declarations) { return tree(NodeType::Program, "", 
 
 // 等价于读取 n，累计 1 到 n，输出结果并返回 0。
 inline Node loop_program() {
-    return program(function("main", TypeKind::Int, block(
+    auto body = block(
         variable("n", TypeKind::Int),
         variable("sum", TypeKind::Int, integer(0)),
         statement(call("scanf", text("\"%d\""), tree(NodeType::UnaryOp, "&", id("n")))),
+        variable("i", TypeKind::Int, integer(1)),
         tree(NodeType::For, "",
-            variable("i", TypeKind::Int, integer(1)),
-            binary("<=", id("i"), id("n")),
-            tree(NodeType::UnaryOp, "post++", id("i")),
-            block(statement(assign("sum", id("i"), "+=")))),
+             node(NodeType::Empty),
+             binary("<=", id("i"), id("n")),
+             assign("i", binary("+", id("i"), integer(1))),
+             block(statement(assign("sum", binary("+", id("sum"), id("i")))))),
         statement(call("printf", text("\"sum = %d\\n\""), id("sum"))),
-        ret(integer(0)))));
+        ret(integer(0)));
+    return program(function("main", TypeKind::Int, std::move(body)));
 }
-
 inline TypePtr array(TypePtr element, MaybeValue<std::size_t> length) {
     auto value = make_type_info();
     value->kind = TypeKind::Array; value->base = std::move(element); value->array_length = length;
@@ -112,20 +113,24 @@ inline Node field(Node base, const std::string& name) { return tree(NodeType::Me
 inline Node set(Node destination, Node source, const std::string& op = "=") {
     return tree(NodeType::Assign, op, std::move(destination), std::move(source));
 }
-template <typename... Elements>
-Node list(Elements... elements) { return tree(NodeType::InitList, "", std::move(elements)...); }
-
 // 数组元素赋值、结构体成员求和及带填充的结构体布局示例。
 inline Node aggregate_program() {
     auto structure = tree(NodeType::StructDef, "Result", member("label", basic(TypeKind::Char)), member("total", basic(TypeKind::Int)));
     return program(std::move(structure), function("main", TypeKind::Int, block(
-        object("values", array(basic(TypeKind::Int), 3), list(integer(2), integer(3), integer(4))),
-        object("result", record_type("Result"), list(node(NodeType::CharLiteral, "'S'"), integer(0))),
-        tree(NodeType::For, "", variable("i", TypeKind::Int, integer(0)), binary("<", id("i"), integer(3)),
-            tree(NodeType::UnaryOp, "post++", id("i")),
-            block(statement(set(field(id("result"), "total"), index(id("values"), id("i")), "+=")))),
+        object("values", array(basic(TypeKind::Int), 3)),
+        statement(set(index(id("values"), integer(0)), integer(2))),
+        statement(set(index(id("values"), integer(1)), integer(3))),
+        statement(set(index(id("values"), integer(2)), integer(4))),
+        object("result", record_type("Result")),
+        statement(set(field(id("result"), "label"), node(NodeType::CharLiteral, "'S'"))),
+        statement(set(field(id("result"), "total"), integer(0))),
+        variable("i", TypeKind::Int, integer(0)),
+        tree(NodeType::For, "", node(NodeType::Empty), binary("<", id("i"), integer(3)),
+            assign("i", binary("+", id("i"), integer(1))),
+            block(statement(set(field(id("result"), "total"), binary("+", field(id("result"), "total"), index(id("values"), id("i"))))))),
         statement(call("printf", text("\"%c = %d\\n\""), field(id("result"), "label"), field(id("result"), "total"))),
         ret(integer(0)))));
 }
 
 }
+

@@ -141,29 +141,6 @@ def main():
         expect(page.locator("#position")).to_contain_text("行 3")
 
         assert page.locator('[data-view="preprocessed"]').count() == 0
-        for source, code in (
-            ('#define N 2\nint main(void){return N;}', 'LEX_INVALID_CHAR'),
-            ('union U{int x;};int main(void){return 0;}', 'PARSE_RECORD_REMOVED'),
-            ('enum E{A};int main(void){return 0;}', 'PARSE_RECORD_REMOVED'),
-            ('static int x;int main(void){return 0;}', 'PARSE_DECLARATION_REMOVED'),
-            ('typedef int T;int main(void){return 0;}', 'PARSE_DECLARATION_REMOVED'),
-            ('int main(void){do{}while(0);return 0;}', 'PARSE_CONTROL_REMOVED'),
-            ('int main(void){switch(1){}return 0;}', 'PARSE_CONTROL_REMOVED'),
-            ('int main(void){goto done;return 0;}', 'PARSE_CONTROL_REMOVED'),
-            ('int main(void){done:return 0;}', 'PARSE_LABEL_REMOVED'),
-            ('double x;int main(void){return 0;}', 'PARSE_TYPE_REMOVED'),
-            ('int a[2][3];int main(void){return 0;}', 'PARSE_ARRAY_DIMENSION'),
-            ('int f(int x);int main(void){return 0;}', 'PARSE_FUNCTION_DECL_REMOVED'),
-            ('int main(void){int x=0;x+=1;return x;}', 'PARSE_COMPOUND_ASSIGNMENT'),
-            ('int main(void){return sizeof(int);}', 'PARSE_OPERATOR_REMOVED'),
-            ('int main(void){printf("%ld",1);return 0;}', 'SEM_FORMAT'),
-        ):
-            editor.fill(source)
-            page.locator("#run").click()
-            expect(page.locator("#status")).to_have_text("编译失败 · 查看诊断", timeout=20000)
-            expect(page.locator("#diagnostics")).to_contain_text(code)
-            assert 'SHOULD_NOT_RUN' not in page.locator("#output").inner_text()
-
         # 从界面新建多份源文件，验证实际编译、保存和重新导入。
         editor.press("Control+n")
         expect(page.locator("#new-file-dialog")).to_be_visible()

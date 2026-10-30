@@ -133,15 +133,8 @@ enum class TokenType {
     PLUS, MINUS, STAR, SLASH, ASSIGN, LT, LE, GT, GE, EQ, NE,
     AND, OR, NOT, AMP,
     LPAREN, RPAREN, LBRACE, RBRACE, LBRACKET, RBRACKET, SEMI, COMMA, DOT,
-    KW_BREAK, KW_CONTINUE, KW_SWITCH, KW_CASE, KW_DEFAULT, KW_DO,
-    KW_TYPEDEF, KW_UNION, KW_ENUM, KW_DOUBLE, KW_LONG, KW_SHORT, KW_UNSIGNED,
-    KW_SIGNED, KW_STATIC, KW_EXTERN, KW_AUTO, KW_REGISTER, KW_CONST,
-    KW_VOLATILE, KW_SIZEOF, KW_GOTO,
-    PERCENT, PLUS_PLUS, MINUS_MINUS, PLUS_ASSIGN, MINUS_ASSIGN,
-    STAR_ASSIGN, SLASH_ASSIGN, PERCENT_ASSIGN, BIT_OR, BIT_XOR, BIT_NOT,
-    SHIFT_LEFT, SHIFT_RIGHT, AND_ASSIGN, OR_ASSIGN, XOR_ASSIGN,
-    SHIFT_LEFT_ASSIGN, SHIFT_RIGHT_ASSIGN, QUESTION, COLON, ARROW,
-    ELLIPSIS
+    KW_BREAK, KW_CONTINUE,
+    PERCENT
 };
 
 // 词法分析
@@ -163,16 +156,14 @@ struct LexResult {
 
 // ==================== 2. 语法分析：语法树 ====================
 
-// 语法树节点的种类；保留旧枚举值，方便与同学的 AST 接口联调。
-// MiniC 源码不再生成 FunctionDecl、Conditional、Cast 和 Sizeof。
+// 语法树节点的种类；源码语法和各阶段之间共用这一组节点。
 enum class NodeType {
-    Program, FunctionDecl, FunctionDef, ParamDecl, VarDecl, StructDef,
+    Program, FunctionDef, ParamDecl, VarDecl, StructDef,
     MemberDecl, Block, ExprStmt, If, While, For, Return, Empty,
     Identifier, IntLiteral, FloatLiteral, CharLiteral, StringLiteral,
     Assign, BinaryOp, UnaryOp, Call, ImplicitCast,
     ArrayAccess, MemberAccess, Break, Continue,
-    Conditional, Cast, Sizeof,
-    InitList, Error
+    Error
 };
 
 // 抽象语法树节点。
@@ -231,8 +222,8 @@ struct ParseResult {
 // 语义分析会填写 ASTNode 的 type、category、symbol_id 等字段。
 // SemanticResult 用到完整符号表数据，定义在下面的 SymbolTableData 后。
 
-// 类型类别；旧类别保留用于公共接口兼容，MiniC 源码只有 int、float、char。
-// Void 用于函数；Address 是编译器内部地址，不能在源码中声明。
+// 类型类别；源码支持 void、char、int、float 和 struct。
+// Void 用于函数；Address 只供数组参数和输入输出使用。
 enum class TypeKind {
     Unknown, Error, Void, Char, Short, Int, Long, Float, Double, LongDouble,
     Address, Array, Function, Struct // Address 只供内部寻址，源码不能声明。
@@ -241,13 +232,13 @@ enum class TypeKind {
 // C 类型信息。
 struct TypeInfo {
     TypeKind kind = TypeKind::Unknown; // 类型种类，如 int、float、数组、结构体。
-    bool is_unsigned = false; // 旧接口的无符号标记；MiniC 源码中始终为 false。
-    bool is_const = false; // 当前这一层类型是否带 const。
+    bool is_unsigned = false; // 后端数值表示使用的无符号标记，源码不产生它。
+    bool is_const = false; // 内部类型限定，源码教学子集不开放 const。
     TypePtr base = nullptr; // 内部地址的目标类型、数组的元素类型或函数的返回类型。
     MaybeValue<std::size_t> array_length; // 本层数组长度；为空表示尚未确定。
     std::vector<TypePtr> params; // 函数的形参类型表，按声明顺序保存。
-    bool variadic = false; // 内建 printf、scanf 可接受多个参数；普通函数为 false。
-    bool has_prototype = true; // 旧接口的原型标记；语义检查后函数参数已确定。
+    bool variadic = false; // 仅供 printf/scanf 内建签名使用。
+    // 函数参数表和返回类型组成完整签名。
     std::string name; // 结构体标签名。
     RecordId record_id = invalid_id; // 对应的结构体编号。
 };
@@ -269,7 +260,7 @@ struct SymbolEntry {
     unsigned line = 1; // 声明行号，与 range.begin.line 一致。
     unsigned col = 1; // 声明列号，与 range.begin.col 一致。
     SourceRange range; // 声明在源码中的位置范围。
-    bool is_defined = false; // 是否已有定义，而不只是声明。
+    bool is_defined = false; // 是否已完成定义：函数有函数体，对象有初始化。
     BuiltinKind builtin = BuiltinKind::None; // 内建函数标记，如 printf、scanf。
     MaybeValue<std::size_t> offset; // 对象的存储字节偏移；未分配时为空。
 };
@@ -394,3 +385,7 @@ struct IRResult {
 };
 
 }
+
+
+
+

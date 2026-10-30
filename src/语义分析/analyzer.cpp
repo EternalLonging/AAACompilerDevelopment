@@ -56,7 +56,7 @@ private:
 
     TypePtr resolve(const TypePtr& source, ASTNode& node, std::size_t depth = 0) {
         if (!source || depth > 128) { error(node, "声明类型为空或嵌套过深", "SEM_DECL_TYPE"); return detail::type(TypeKind::Error); }
-        if (source->kind == TypeKind::Address) { error(node, "源码不能声明内部地址类型", "SEM_POINTER_REMOVED"); return detail::type(TypeKind::Error); }
+        if (source->kind == TypeKind::Address) { error(node, "声明类型不能使用内部地址", "SEM_DECL_TYPE"); return detail::type(TypeKind::Error); }
         auto result = make_type_info(*source);
         if (source->kind == TypeKind::Struct) {
             const auto id = table_.lookup_tag(source->name);
@@ -137,35 +137,32 @@ private:
 
     void initialize(ASTNode*& init, const TypePtr& target, bool global) {
         init->scope_id = table_.current_scope();
-        if (init->kind == NodeType::InitList) {
-            if (!shape(*init, 0, invalid_id)) return;
-            init->type = target;
-            std::vector<TypePtr> elements;
-            if (target->kind == TypeKind::Array) {
-                if (init->children.size() > *target->array_length) { error(*init, "数组初始化项过多", "SEM_INIT_COUNT"); return; }
-                for (std::size_t i = 0; i < init->children.size(); ++i) elements.push_back(target->base);
-            } else if ((target->kind == TypeKind::Struct)) {
-                const auto* record = table_.record(target->record_id);
-                if (init->children.size() > record->members.size()) { error(*init, "结构体初始化项过多", "SEM_INIT_COUNT"); return; }
-                for (std::size_t i = 0; i < init->children.size(); ++i) elements.push_back(record->members[i].type);
-            } else {
-                if (init->children.size() != 1) { error(*init, "数值初始化列表必须恰好一项", "SEM_INIT_COUNT"); return; }
-                elements.push_back(target);
-            }
-            for (std::size_t i = 0; i < elements.size(); ++i) initialize(init->children[i], elements[i], global);
-            return;
-        }
+
         expression(*init);
         if (!valid_expression(*init)) return;
+
         if (target->kind == TypeKind::Address) decay(init);
-        if (target->kind == TypeKind::Array && target->base->kind == TypeKind::Char && init->kind == NodeType::StringLiteral) {
+
+        if (target->kind == TypeKind::Array &&
+            target->base->kind == TypeKind::Char &&
+            init->kind == NodeType::StringLiteral) {
             if (constant_get<std::string>(init->value).size() > *target->array_length)
                 error(*init, "字符串超过 char 数组长度", "SEM_INIT_COUNT");
             return;
         }
-        if (global && !constant_initializer(*init)) { error(*init, "全局初始化必须是常量表达式", "SEM_GLOBAL_INIT"); return; }
-        if ((target->kind == TypeKind::Struct) && assignable(target, *init)) return;
-        if (!assignable(target, *init)) { error(*init, "初始化类型不兼容", "SEM_INIT_TYPE"); return; }
+
+        if (global && !constant_initializer(*init)) {
+            error(*init, "全局初始化必须是常量表达式", "SEM_GLOBAL_INIT");
+            return;
+        }
+
+        if (target->kind == TypeKind::Struct && assignable(target, *init)) return;
+
+        if (!assignable(target, *init)) {
+            error(*init, "初始化类型不兼容", "SEM_INIT_TYPE");
+            return;
+        }
+
         convert(init, detail::unqualified(target));
     }
 
@@ -178,7 +175,7 @@ private:
         if (node.kind == NodeType::ImplicitCast && node.type && node.type->kind == TypeKind::Address &&
             node.children.size() == 1 && node.children[0]->type->kind == TypeKind::Array)
             return global_address(*node.children[0]);
-        if (node.kind != NodeType::BinaryOp && node.kind != NodeType::Cast && node.kind != NodeType::ImplicitCast &&
+        if (node.kind != NodeType::BinaryOp && node.kind != NodeType::ImplicitCast &&
             !(node.kind == NodeType::UnaryOp && (node.name == "+" || node.name == "-" || node.name == "!" || node.name == "~"))) return false;
         for (const auto& child : node.children) if (!child || !constant_initializer(*child)) return false;
         return true;
@@ -403,7 +400,7 @@ private:
             } catch (const std::exception& exception) { error(node, exception.what(), "SEM_FORMAT"); return; }
         } else {
             if (node.children.size() - 1 != entry.type->params.size()) {
-                error(node, "函数实参数量与原型不一致", "SEM_ARGUMENT_COUNT"); return;
+                error(node, "函数实参数量与签名不一致", "SEM_ARGUMENT_COUNT"); return;
             }
             for (std::size_t i = 1; i < node.children.size(); ++i) {
                 if (!valid_expression(*node.children[i])) continue;
@@ -467,41 +464,6 @@ private:
                 node.category = object.category;
             }
             break;
-        case NodeType::Sizeof:
-            if (shape(node, node.declared_type ? 0 : 1, node.declared_type ? 0 : 1)) {
-                auto measured = node.declared_type ? resolve(node.declared_type, node) : TypePtr{};
-                if (!node.declared_type) { expression(*node.children[0]); measured = node.children[0]->type; }
-                try {
-                    const auto size = detail::layout(measured, table_.data()).size;
-                    node.children.clear(); node.declared_type = nullptr;
-                    node.kind = NodeType::IntLiteral; node.name = std::to_string(size);
-                    node.value = static_cast<long long>(size); node.type = detail::type(TypeKind::Int);
-                    node.category = ValueCategory::RValue;
-                } catch (const std::runtime_error& exception) { error(node, exception.what(), "SEM_SIZEOF"); }
-            }
-            break;
-        case NodeType::Conditional:
-            if (shape(node, 3, 3)) {
-                require_condition(*node.children[0]);
-                expression(*node.children[1]); expression(*node.children[2]);
-                auto common = arithmetic_result(node.children[1]->type, node.children[2]->type);
-                if (common->kind == TypeKind::Error) error(node, "条件表达式的两个结果类型不兼容", "SEM_CONDITIONAL");
-                else {
-                    convert(node.children[1], common); convert(node.children[2], common);
-                    node.type = common; node.category = ValueCategory::RValue;
-                }
-            }
-            break;
-        case NodeType::Cast:
-            if (shape(node, 1, 1)) {
-                expression(*node.children[0]);
-                const auto target = resolve(node.declared_type, node);
-                if (detail::numeric(target) && detail::numeric(node.children[0]->type)) {
-                    node.type = target;
-                    node.category = ValueCategory::RValue;
-                } else error(node, "显式转换只支持数值类型");
-            }
-            break;
         default: error(node, "此表达式节点尚未支持，或语法树已被分析过", "SEM_UNSUPPORTED"); break;
         }
         if (node.category == ValueCategory::Function && !callee_allowed)
@@ -514,8 +476,7 @@ private:
         auto resolved = resolve(node.declared_type, node);
         if (resolved->kind == TypeKind::Array && !resolved->array_length && !node.children.empty()) {
             auto inferred = make_type_info(*resolved);
-            if (node.children[0]->kind == NodeType::InitList) inferred->array_length = node.children[0]->children.size();
-            else if (node.children[0]->kind == NodeType::StringLiteral && inferred->base->kind == TypeKind::Char) {
+            if (node.children[0]->kind == NodeType::StringLiteral && inferred->base->kind == TypeKind::Char) {
                 try { inferred->array_length = detail::decode_string(node.children[0]->name, '"').size() + 1; }
                 catch (const std::runtime_error&) {}
             }
@@ -634,7 +595,6 @@ private:
             !(detail::numeric(declared->base) || (declared->base && (declared->base->kind == TypeKind::Void ||
               declared->base->kind == TypeKind::Struct))) ||
             declared->variadic ||
-            (!declared->has_prototype && !declared->params.empty()) ||
             node.children.size() != declared->params.size() + (definition ? 1 : 0)) {
             error(node, "M1 函数类型或形参列表无效", "SEM_FUNCTION"); return;
         }
@@ -652,9 +612,8 @@ private:
             parameter.type = parameter_type;
         }
         if (definition && node.children.back()->kind != NodeType::Block) { error(node, "函数定义最后一个孩子必须是 Block"); return; }
-        // M1 将空参数 f() 按无参函数处理，完整 C 的未指定参数规则留待扩展。
+        // 空参数列表按无参函数处理。
         auto normalized = make_type_info(*declared);
-        normalized->has_prototype = true;
         SymbolEntry entry;
         entry.name = node.name;
         entry.kind = SymbolKind::Function;
@@ -703,8 +662,8 @@ public:
                 child->scope_id = 0;
                 if (child->kind == NodeType::VarDecl) variable(*child, true);
                 else if (child->kind == NodeType::StructDef) record_definition(*child);
-                else if (child->kind == NodeType::FunctionDecl || child->kind == NodeType::FunctionDef) function(*child);
-                else error(*child, "M1 顶层仅支持变量和函数声明", "SEM_UNSUPPORTED");
+                else if (child->kind == NodeType::FunctionDef) function(*child);
+                else error(*child, "M1 顶层仅支持变量和函数定义", "SEM_UNSUPPORTED");
             }
             for (const auto& call : calls_) {
                 if (!table_.symbol(call.first)->is_defined)

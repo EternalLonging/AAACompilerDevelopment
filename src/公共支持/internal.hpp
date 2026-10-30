@@ -110,7 +110,7 @@ inline MaybeValue<long long> integer_constant(const ASTNode& node, std::size_t d
     const auto left = integer_constant(*node.children[0], depth + 1);
     if (!left) return emptyValue;
     long long value;
-    if (node.kind == NodeType::ImplicitCast || node.kind == NodeType::Cast) value = *left;
+    if (node.kind == NodeType::ImplicitCast) value = *left;
     else if (node.kind == NodeType::UnaryOp) {
         if (node.name == "+") value = *left;
         else if (node.name == "-") value = -*left;
@@ -189,7 +189,7 @@ inline MaybeValue<ConstantValue> folded_value(const ASTNode& node, std::size_t d
     };
     const auto left = number(*left_value);
     double result;
-    if (node.kind == NodeType::Cast || node.kind == NodeType::ImplicitCast) result = left;
+    if (node.kind == NodeType::ImplicitCast) result = left;
     else if (node.kind == NodeType::UnaryOp) {
         if (node.name == "+") result = left;
         else if (node.name == "-") result = -left;

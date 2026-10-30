@@ -14,11 +14,12 @@ int sum(int values[], int n) {
 }
 
 int main() {
-    int values[] = {1, 2, 3};
+    int values[3];
     struct Pair pair;
     int total;
     float scale = 1;
     char label[] = "ok";
+    values[0] = 1; values[1] = 2; values[2] = 3;
     pair.left = seed + 1;
     pair.mark = 'A';
     while (seed < 3) { seed = seed + 1; }

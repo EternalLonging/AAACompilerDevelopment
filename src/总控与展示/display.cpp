@@ -35,12 +35,7 @@ const char* token_name(TokenType type) {
         "KW_INT", "KW_FLOAT", "KW_CHAR", "KW_STRUCT", "KW_RETURN", "KW_IF", "KW_ELSE", "KW_WHILE", "KW_FOR", "KW_VOID",
         "PLUS", "MINUS", "STAR", "SLASH", "ASSIGN", "LT", "LE", "GT", "GE", "EQ", "NE", "AND", "OR", "NOT", "AMP",
         "LPAREN", "RPAREN", "LBRACE", "RBRACE", "LBRACKET", "RBRACKET", "SEMI", "COMMA", "DOT",
-        "KW_BREAK", "KW_CONTINUE", "KW_SWITCH", "KW_CASE", "KW_DEFAULT", "KW_DO", "KW_TYPEDEF", "KW_UNION", "KW_ENUM",
-        "KW_DOUBLE", "KW_LONG", "KW_SHORT", "KW_UNSIGNED", "KW_SIGNED", "KW_STATIC", "KW_EXTERN", "KW_AUTO", "KW_REGISTER",
-        "KW_CONST", "KW_VOLATILE", "KW_SIZEOF", "KW_GOTO", "PERCENT", "PLUS_PLUS", "MINUS_MINUS", "PLUS_ASSIGN", "MINUS_ASSIGN",
-        "STAR_ASSIGN", "SLASH_ASSIGN", "PERCENT_ASSIGN", "BIT_OR", "BIT_XOR", "BIT_NOT", "SHIFT_LEFT", "SHIFT_RIGHT",
-        "AND_ASSIGN", "OR_ASSIGN", "XOR_ASSIGN", "SHIFT_LEFT_ASSIGN", "SHIFT_RIGHT_ASSIGN", "QUESTION", "COLON", "ARROW",
-        "ELLIPSIS"
+        "KW_BREAK", "KW_CONTINUE", "PERCENT"
     };
     const auto index = static_cast<std::size_t>(type);
     return index < sizeof(names) / sizeof(names[0]) ? names[index] : "INVALID_TOKEN";
@@ -48,10 +43,10 @@ const char* token_name(TokenType type) {
 
 const char* node_name(NodeType type) {
     static const char* names[] = {
-        "Program", "FunctionDecl", "FunctionDef", "ParamDecl", "VarDecl", "StructDef", "MemberDecl", "Block", "ExprStmt",
+        "Program", "FunctionDef", "ParamDecl", "VarDecl", "StructDef", "MemberDecl", "Block", "ExprStmt",
         "If", "While", "For", "Return", "Empty", "Identifier", "IntLiteral", "FloatLiteral", "CharLiteral", "StringLiteral",
         "Assign", "BinaryOp", "UnaryOp", "Call", "ImplicitCast", "ArrayAccess", "MemberAccess", "Break", "Continue",
-        "Conditional", "Cast", "Sizeof", "InitList", "Error"
+        "Error"
     };
     const auto index = static_cast<std::size_t>(type);
     return index < sizeof(names) / sizeof(names[0]) ? names[index] : "InvalidNode";
@@ -178,3 +173,5 @@ void print_diagnostics(const std::vector<Diagnostic>& diagnostics, std::ostream&
 }
 
 }
+
+

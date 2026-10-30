@@ -9,8 +9,9 @@
 | 符号表管理 | symbol_table_test.cpp | 作用域、遮蔽、重复声明、记录和成员 |
 | 总控联调 | compiler_flow_test.cpp、integration_driver.cpp、[源码夹具](integration/README.md) | 隔离的流程替身、真实源码编译与执行 |
 
-测试文件名和 CTest 名称保留，避免破坏脚本调用。当前 46 份源码夹具既有成功程序，也有已删除功能的拒绝用例。
+测试文件名和 CTest 名称保留，避免破坏脚本调用。源码夹具覆盖当前语言的成功程序，以及词法、语法、语义和运行时错误。
 
-`design_tables_current` 运行[设计表格核对](../tools/generate_design_tables.py)，验证六份新增表、共用示例的优化执行对照、九种赋值转换和 14 个语义拒绝例子。
+`design_tables_current` 运行[设计表格核对](../tools/generate_design_tables.py)，验证六份新增表、共用示例的优化执行对照、九种赋值转换和 11 个语义拒绝例子。
 
 [构建与验收](../docs/使用指南/构建与验收.md)给出全部 22 项 CTest 的执行方法，包含当前词法、语法表格与对应来源的一致性检查。
+
