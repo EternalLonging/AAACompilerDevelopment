@@ -52,10 +52,6 @@ def runtime_table():
                 raise ValueError(f'预测表冲突：{name}, {terminal}')
             entries.append(str(int(choices[0][1:]) - 1) if choices else '-1')
         lines.append('    {' + ', '.join(entries) + '}, // ' + name)
-    lines += ['};', '// FOLLOW 集成员标记，用于错误恢复时同步输入。',
-              f'inline constexpr bool follow[][{len(terminals)}] = {{']
-    for name in sets['names']:
-        lines.append('    {' + ', '.join('true' if t in sets['follow'][name] else 'false' for t in terminals) + '}, // ' + name)
     lines += ['};', 'inline constexpr const char* names[] = {']
     lines += ['    "' + name + '",' for name in symbols]
     lines += ['};']
@@ -134,7 +130,7 @@ CONSTRAINTS = [
     ('C04', '名字和类型', 'declaration', '声明可见性、重名、结构体布局、赋值和调用类型兼容由语义阶段检查。', '语义'),
     ('C05', '控制流', 'statement', 'break/continue 所在循环、return 所在函数和返回类型由语义阶段检查。', '语义'),
     ('C06', 'AST 交接', 'finish', '重复后缀按从左到右建立 AST；节点类型、孩子顺序和类型归属保持公共接口约定。', 'AST'),
-    ('C07', '错误恢复', 'recover', '按预测项和 FOLLOW 同步；终结符失配时跳过输入或补缺，错误输入不交付成功 AST。', 'PARSE_EXPECTED'),
+    ('C07', '首次出错停止', 'expected', '预测表空格或终结符失配时报告第一条错误并立即退出，不交付成功 AST。', 'PARSE_EXPECTED'),
 ]
 
 AST = [
@@ -166,15 +162,13 @@ AST = [
     ('StringLiteral', 'unary', '各段原文以空格拼接，保留引号与转义', '无；解码由语义完成', '零个'),
 ]
 
-RECOVERY = [
+HANDOFF = [
     ('输入协议', 'parse', '必须且只能有一个末尾 END_OF_FILE；缺失、提前或重复均拒绝。', 'PARSE_TOKEN_STREAM'),
     ('类型生命周期', 'parse', '直接调用前建立 TypeArenaScope，类型管理器保留到 AST 用完；节点由 ParseResult.arena 统一释放。', '接口约定'),
-    ('普通语法错误', 'report', '记录当前位置、错误码和中文消息；首个错误之后停用语义值栈和 AST 动作，继续识别并收集错误。', 'Error'),
-    ('非终结符恢复', 'recover', '跳到当前行有效预测项时重试；遇到 FOLLOW 或文件结束时弹出当前非终结符。', '预测表 / FOLLOW'),
-    ('终结符恢复', 'recover', '在分号、闭括号和文件结束前按缺失终结符处理，否则跳过当前输入再匹配。', '每步弹栈或推进'),
-    ('错误上限', 'stopped', '累计 20 条诊断后停止；第 20 条追加“错误过多，停止本阶段”。', '20 条'),
+    ('首次出错停止', 'fail', '记录第一条错误的位置、错误码和中文消息，立即退出整个分析过程，不继续匹配或完成 AST。', '一条诊断'),
+    ('预测项与终结符', 'expected', '预测表空格或终结符失配时报告期望的符号和当前输入，立即停止。', 'PARSE_EXPECTED'),
     ('嵌套与树高', 'finish', '括号嵌套和 AST 高度均限制为 128；分析过程使用显式栈，不递归调用解析函数。', 'PARSE_DEPTH / Fatal'),
-    ('失败产物', 'run', '只要存在 Error 或 Fatal，root 为空；恢复所得部分树不作为成功结果交给后续阶段。', 'ParseResult'),
+    ('失败产物', 'run', '第一条错误后返回空 root，已分配的部分节点由 arena 管理，不交给后续阶段。', 'ParseResult'),
     ('成功产物', 'run', 'Program 按源码顺序保存顶层节点；声明类型已填写，绑定、类型标注和隐式转换交给语义。', 'ParseResult'),
 ]
 
@@ -302,7 +296,7 @@ def build_payload():
 
     references = {function: source_reference(function, source) for function in
                   {row['function'] for row in rows} | {row[2] for row in CONSTRAINTS}
-                  | {row[1] for row in AST} | {row[1] for row in RECOVERY}}
+                  | {row[1] for row in AST} | {row[1] for row in HANDOFF}}
     conflicts, table_rows = [], []
     for (name, token), choices in sorted(dfa['table'].items(), key=lambda pair: (dfa['names'].index(pair[0][0]), order[pair[0][1]])):
         table_rows.append([name, token, spelling[token], ' / '.join(choices), len(choices)])
@@ -374,8 +368,8 @@ def build_payload():
               ['编号', '类别', '条件', '诊断或阶段', '源码位置'], [[i, title, text, codes, references[function]] for i, title, function, text, codes in CONSTRAINTS], [12, 22, 115, 62, 43]),
         sheet('语法诊断', '当前语法错误代码', '错误码与出现行号从源码提取。消息列保留所在行的字符串片段；动态消息按实际 Token 拼接。',
               ['错误代码', '级别', '消息片段', 'parser.cpp 行号'], diagnostic_rows, [42, 12, 150, 32]),
-        sheet('恢复与接口', '输入、错误恢复与阶段交接', '错误恢复用于继续收集诊断；存在语法错误时不向后续阶段交付成功 AST。',
-              ['项目', '实现函数', '行为', '结果或限制', '源码位置'], [[title, function, text, limit, references[function]] for title, function, text, limit in RECOVERY], [22, 22, 120, 30, 43]),
+        sheet('出错与接口', '输入、首次出错停止与阶段交接', '语法分析只报告第一条错误并立即退出；不向后续阶段交付部分 AST。',
+              ['项目', '实现函数', '行为', '结果或限制', '源码位置'], [[title, function, text, limit, references[function]] for title, function, text, limit in HANDOFF], [22, 22, 120, 30, 43]),
     ]
     bnf = '# MiniC 的 LL(1) 文法\n# 开始符号：程序；结束标记：END_OF_FILE；空串：ε\n# 词法值、赋值左部形状和语义检查见《当前文法与约束.md》。\n'
     bnf += ''.join(f'{row["id"]}: {row["lhs"]} -> {" ".join(row["rhs"]) or EPSILON}\n' for row in rows)

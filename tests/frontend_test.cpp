@@ -71,10 +71,21 @@ int main() {
                 "括号影响优先级并保留完整源码范围");
         rejects("int f(){int a,b,c;a+b=c;return 0;}");
         require(syntax("int f(){int a,b,c;(a+b)=c;return 0;}").ok(), "括号主式的左值合法性交给语义检查");
-        auto recovery = syntax("int f(){\na=;\nb=;\nreturn 0;}");
-        bool line2 = false, line3 = false;
-        for (const auto& d : recovery.diagnostics) { line2 |= d.line == 2; line3 |= d.line == 3; }
-        require(!recovery.root && line2 && line3, "FOLLOW 同步必须继续报告下一条语句的错误");
+        auto first_error = compile("int f(){\na=;\nb=;\nreturn 0;}", "first_error.c");
+        require(!first_error.ok() && first_error.syntax && !first_error.syntax->root &&
+                first_error.diagnostics.size() == 1 && first_error.diagnostics[0].line == 2 &&
+                first_error.diagnostics[0].col == 3 && first_error.diagnostics[0].code == "PARSE_EXPECTED" &&
+                !first_error.semantic && !first_error.ir, "预测表空格只报告第一处错误，停止后续分析阶段");
+        const std::string mismatched = "int f(){if(1]{}return 0;}";
+        auto terminal_error = syntax(mismatched);
+        require(!terminal_error.root && terminal_error.diagnostics.size() == 1 &&
+                terminal_error.diagnostics[0].range.begin.offset == mismatched.find(']') &&
+                terminal_error.diagnostics[0].message == "需要 RPAREN，实际遇到 ]",
+                "终结符失配立即停止并保留错误位置和提示");
+        auto bound_error = syntax("int a[0];\nint b[0];");
+        require(!bound_error.root && bound_error.diagnostics.size() == 1 &&
+                bound_error.diagnostics[0].line == 1 && bound_error.diagnostics[0].code == "PARSE_ARRAY_BOUND",
+                "AST 完成动作出错也立即停止");
         std::string flat = "void f(){";
         for (int i = 0; i < 3000; ++i) flat += ";";
         flat += "return;}";
@@ -122,7 +133,9 @@ int main() {
         std::string broken = "int f(){";
         for (int i = 0; i < 30; ++i) broken += "a=;";
         auto errors = syntax(broken + "}");
-        require(!errors.root && errors.diagnostics.size() == 20, "语义值不完整时安全恢复并遵守诊断上限");
+        require(!errors.root && errors.diagnostics.size() == 1 &&
+                errors.diagnostics[0].message.find("错误过多") == std::string::npos,
+                "连续错误只返回第一条诊断，不追加错误上限提示");
         execute("int main(void){return 2+3*4-8/2;}", 10);
         execute("int main(void){int a=0,b=0;a=b=7;return a+b;}", 14);
         execute("int sum(int a[],int n){int i=0,s=0;for(i=0;i<n;i=i+1){s=s+a[i];}return s;} int main(void){int a[3];a[0]=1;a[1]=2;a[2]=3;return sum(a,3);}", 6);

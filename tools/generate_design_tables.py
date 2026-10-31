@@ -347,7 +347,7 @@ def catalog(books, snapshots):
     if (DESIGN / '词法分析/词法表格/词法状态转换表.xlsx').exists():
         result += '| 词法分析 | [词法状态转换表](词法分析/词法表格/词法状态转换表.xlsx) | DFA、输入分类、规则、关键字、固定符号共 8 张表 |\n'
     if (DESIGN / '语法分析/语法表格/文法表.xlsx').exists():
-        result += '| 语法分析 | [文法表](语法分析/语法表格/文法表.xlsx)、[综合语法分析表](语法分析/语法表格/语法分析表.xlsx) | 产生式、运算符优先级、AST 孩子顺序、诊断和恢复等已有资料 |\n'
+        result += '| 语法分析 | [文法表](语法分析/语法表格/文法表.xlsx) | 产生式、对应解析函数及源码位置 |\n'
     for path, payload in books.items():
         if (DESIGN / path).exists():
             result += f'| {path.split("/")[0]} | [{Path(path).stem}]({path}) | ' + '、'.join(s['name'] for s in payload['sheets']) + ' |\n'

@@ -36,22 +36,12 @@ class Parser {
     std::vector<Value> values; // 语义值栈：每个已匹配符号对应一个结果。
     std::unordered_map<Node, unsigned> heights; // 已完成 AST 节点的高度。
 
-    // 在指定单词处记录错误；不指定位置时使用当前输入。
-    void report(const std::string& message, const std::string& code = "PARSE_EXPECTED",
-                Level level = Level::Error, std::size_t at = std::numeric_limits<std::size_t>::max()) {
-        const auto& token = tokens[at == std::numeric_limits<std::size_t>::max() ? pos : at];
-        result.diagnostics.push_back({Phase::Parser, level, token.line, token.col, message, code, token.range, {}});
-        if (result.diagnostics.size() == 20) result.diagnostics.back().message += "；错误过多，停止本阶段";
-    }
-    // 报告 AST 约束错误，结束本次完成动作。
+    // 记录第一条错误并退出分析；不指定位置时使用当前输入。
     [[noreturn]] void fail(const std::string& message, const std::string& code,
                           Level level = Level::Error, std::size_t at = std::numeric_limits<std::size_t>::max()) {
-        report(message, code, level, at); throw ParseFailure{};
-    }
-    // 判断是否达到错误上限或出现致命错误。
-    bool stopped() const {
-        return result.diagnostics.size() >= 20 ||
-            (!result.diagnostics.empty() && result.diagnostics.back().level == Level::Fatal);
+        const auto& token = tokens[at == std::numeric_limits<std::size_t>::max() ? pos : at];
+        result.diagnostics.push_back({Phase::Parser, level, token.line, token.col, message, code, token.range, {}});
+        throw ParseFailure{};
     }
     // 创建 AST 节点，填写种类、源码范围、名字和孩子。
     Node node(NodeType kind, std::size_t begin, std::size_t end,
@@ -286,24 +276,10 @@ class Parser {
         if (out.ast) finish(out.ast);
         return out;
     }
-    // 按预测项或 FOLLOW 同步；终结符失配时补缺或跳过输入。
-    void recover(int symbol) {
-        report(std::string("需要 ") + names[symbol] + "，实际遇到 " +
-               (tokens[pos].type == TT::END_OF_FILE ? "文件结束" : tokens[pos].lexeme));
-        if (symbol >= terminal_count) {
-            const auto row = symbol - terminal_count;
-            while (tokens[pos].type != TT::END_OF_FILE) {
-                const auto t = static_cast<int>(tokens[pos].type);
-                if (table[row][t] >= 0) return;
-                if (follow[row][t]) break;
-                ++pos;
-            }
-            stack.pop_back();
-        } else {
-            const auto t = tokens[pos].type;
-            if (t == TT::END_OF_FILE || t == TT::SEMI || t == TT::RBRACE || t == TT::RPAREN || t == TT::RBRACKET) stack.pop_back();
-            else ++pos;
-        }
+    // 报告期望的符号和当前单词，立即退出分析。
+    [[noreturn]] void expected(int symbol) {
+        fail(std::string("需要 ") + names[symbol] + "，实际遇到 " +
+             (tokens[pos].type == TT::END_OF_FILE ? "文件结束" : tokens[pos].lexeme), "PARSE_EXPECTED");
     }
 
 public:
@@ -311,45 +287,39 @@ public:
     explicit Parser(const std::vector<Token>& input) : tokens(input) {}
     // 匹配终结符、查表展开、完成 AST 动作，返回整棵树或错误诊断。
     ParseResult run() {
-        stack = {{static_cast<int>(TT::END_OF_FILE)}, {程序}};
-        while (!stack.empty() && !stopped()) {
-            const auto frame = stack.back();
-            if (frame.production >= 0) {
-                stack.pop_back();
-                if (result.diagnostics.empty()) {
+        try {
+            stack = {{static_cast<int>(TT::END_OF_FILE)}, {程序}};
+            while (!stack.empty()) {
+                const auto frame = stack.back();
+                if (frame.production >= 0) {
+                    stack.pop_back();
                     const int count = productions[frame.production].length;
                     const auto begin = count ? values[frame.base].begin : pos;
-                    try {
-                        auto value = reduce(frame.symbol, count ? &values[frame.base] : nullptr, count);
-                        value.begin = begin; value.end = pos;
-                        values.resize(frame.base); values.push_back(std::move(value));
-                    } catch (const ParseFailure&) {}
-                }
-            } else if (frame.symbol < terminal_count) {
-                if (frame.symbol != static_cast<int>(tokens[pos].type)) { recover(frame.symbol); continue; }
-                stack.pop_back();
-                if (result.diagnostics.empty()) {
+                    auto value = reduce(frame.symbol, count ? &values[frame.base] : nullptr, count);
+                    value.begin = begin; value.end = pos;
+                    values.resize(frame.base); values.push_back(std::move(value));
+                } else if (frame.symbol < terminal_count) {
+                    if (frame.symbol != static_cast<int>(tokens[pos].type)) expected(frame.symbol);
+                    stack.pop_back();
                     Value value; value.begin = pos; value.end = pos + (frame.symbol != 0);
                     values.push_back(std::move(value));
+                    if (frame.symbol == 0) continue;
+                    const auto t = tokens[pos++].type;
+                    if (t == TT::LPAREN || t == TT::LBRACE || t == TT::LBRACKET) {
+                        if (++nesting > 128) fail("括号嵌套超过 128 层", "PARSE_DEPTH", Level::Fatal);
+                    } else if (nesting && (t == TT::RPAREN || t == TT::RBRACE || t == TT::RBRACKET)) --nesting;
+                } else {
+                    const int choice = table[frame.symbol - terminal_count][static_cast<int>(tokens[pos].type)];
+                    if (choice < 0) expected(frame.symbol);
+                    stack.pop_back(); stack.push_back({frame.symbol, choice, values.size()});
+                    const auto& production = productions[choice];
+                    for (int i = production.length - 1; i >= 0; --i) stack.push_back({production.rhs[i]});
                 }
-                if (frame.symbol == 0) continue;
-                const auto t = tokens[pos++].type;
-                if (t == TT::LPAREN || t == TT::LBRACE || t == TT::LBRACKET) {
-                    if (++nesting > 128) report("括号嵌套超过 128 层", "PARSE_DEPTH", Level::Fatal);
-                } else if (nesting && (t == TT::RPAREN || t == TT::RBRACE || t == TT::RBRACKET)) --nesting;
-            } else {
-                const int choice = table[frame.symbol - terminal_count][static_cast<int>(tokens[pos].type)];
-                if (choice < 0) { recover(frame.symbol); continue; }
-                stack.pop_back(); stack.push_back({frame.symbol, choice, values.size()});
-                const auto& production = productions[choice];
-                for (int i = production.length - 1; i >= 0; --i) stack.push_back({production.rhs[i]});
             }
-        }
-        if (result.diagnostics.empty()) {
             auto root = node(NodeType::Program, 0, pos, "", {values[0].nodes.rbegin(), values[0].nodes.rend()});
             root->range.end = tokens[pos].range.end;
-            try { finish(root); result.root = root; } catch (const ParseFailure&) {}
-        }
+            finish(root); result.root = root;
+        } catch (const ParseFailure&) {} // 第一条错误已保存，根节点保持为空。
         return std::move(result);
     }
 };

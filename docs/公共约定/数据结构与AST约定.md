@@ -50,7 +50,7 @@ Token / Diagnostic 保留需求资料中的 `line`、`col` 简便字段，它们
 - message 是可读的中文说明；code 是稳定检索标识，如 `SEM_UNDECLARED`。
 - related 可定位到先前的声明，便于解释重复声明、类型冲突。
 
-每阶段最多记录 20 条 Error / Fatal；达到上限后结束该阶段，在第 20 条的原始消息后附加“错误过多，停止本阶段”。Fatal 立即停止该阶段。Note / Warning 不计入此上限。无论是否达到上限，只要本阶段有错误，就不执行下一阶段。语义阶段在限额内继续检查其他独立节点，错误子表达式标为 Error 类型，避免衍生报错。
+语法阶段在第一条错误后立即停止，返回一条诊断和空根节点。词法阶段与使用默认 DiagnosticEngine 的阶段最多记录 20 条 Error / Fatal；达到上限后结束该阶段，在第 20 条的原始消息后附加“错误过多，停止本阶段”。Fatal 立即停止该阶段。Note / Warning 不计入此上限。只要本阶段有错误，就不执行下一阶段。语义阶段在限额内继续检查其他独立节点，错误子表达式标为 Error 类型，避免衍生报错。
 
 ## 3. Token：种别不等于 C 数据类型
 
@@ -249,7 +249,7 @@ IRResult generate(const Program& program, const SymbolTableData& symbols);
 这四个入口分别在 lexer.hpp、parser.hpp、semantic.hpp、ir.hpp 中声明；lex、parse、analyze 和 generate 均有正式实现。详细合同及符号表、诊断、执行与总控接口见 [模块接口](模块接口.md)。每阶段填完产物/diagnostics 再调用 ok()；默认构造的结果不代表该阶段已经运行。编译驱动负责按顺序调用并保存所有诊断，不能用一个默认 bool ok 隐瞒错误。
 
 - LexResult：Token 序列 + 词法诊断；错误时仍可展示收集到的 Token。
-- ParseResult：AST 根 + 语法诊断；解析恢复可继续收集错误，但只要有语法错误，最终 root 置空。
+- ParseResult：AST 根 + 语法诊断；遇到第一条语法错误立即停止，返回一条诊断，root 为空。
 - SemanticResult：持久符号表数据 + 语义诊断；类型写回传入 AST。失败时可展示已标注部分，不交给 IR。
 - IRResult：按函数组织的 IRProgram + IR 诊断；失败时不交给解释器。
 

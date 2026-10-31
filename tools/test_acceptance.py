@@ -41,7 +41,7 @@ def main():
     compiler = str(args.compiler.resolve())
     results = []
 
-    def check(name, command, *, data="", code=0, output=None, contains=(), errors=(), empty_output=False):
+    def check(name, command, *, data="", code=0, output=None, contains=(), errors=(), absent_errors=(), empty_output=False):
         try:
             actual_code, out, err = invoke(command, data)
             assert actual_code == code, f"退出码 {actual_code}，预期 {code}"
@@ -53,6 +53,8 @@ def main():
                 assert text in out, f"输出缺少 {text!r}"
             for text in errors:
                 assert text in err, f"诊断缺少 {text!r}；实际 {err!r}"
+            for text in absent_errors:
+                assert text not in err, f"不应报告后续错误 {text!r}；实际 {err!r}"
             if code == 0:
                 assert not err, f"成功时不应有诊断：{err!r}"
             results.append({"name": name, "passed": True})
@@ -109,10 +111,10 @@ def main():
         file = folder / "exit_code.c"
         file.write_text("int main(void) { return 7; }\n", encoding="utf-8")
         check("main_exit_code", [compiler, "run", str(file)], code=7, output="")
-        file = folder / "recover.c"
+        file = folder / "first_error.c"
         file.write_text("int main(void) {\n x=;\n y=;\n return 0;\n}\n", encoding="utf-8")
-        check("multiple_diagnostics", [compiler, "check", str(file)], code=1,
-              errors=("recover.c:2:", "recover.c:3:", "[语法/错误]"), empty_output=True)
+        check("first_syntax_error", [compiler, "check", str(file)], code=1,
+              errors=("first_error.c:2:", "[语法/错误]"), absent_errors=("first_error.c:3:",), empty_output=True)
 
     passed = sum(item["passed"] for item in results)
     print(f"acceptance: {passed}/{len(results)} checks passed")
