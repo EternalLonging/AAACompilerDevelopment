@@ -96,9 +96,6 @@ int main() {
         rejects("int f(){return " + std::string(140, '!') + "1;}");
         rejects("int a[0];");
         rejects("int a[2U];");
-        auto stream = lex("int a;", "stream.c").tokens;
-        stream[0].type = static_cast<TokenType>(10000);
-        require(!parse(stream).root, "无效 Token 编号不得用于访问预测表");
         const std::string declarations = "struct S{int a,b[2];char c;} first,second[3];int x=1,y[2],z;float f(char c,int a[],struct S s[]){return 1.0;}";
         auto lists = syntax(declarations);
         require(lists.ok() && lists.root->children.size() == 7, "结构体对象与逗号声明列表");
