@@ -53,7 +53,7 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/词法分析/lexer.cpp")
         src/语法分析/parser.cpp
     )
     add_library(minic_compiler STATIC ${compiler_sources})
-    target_include_directories(minic_compiler PRIVATE src/词法分析)
+    target_include_directories(minic_compiler PRIVATE src/词法分析 src/语法分析)
     target_link_libraries(minic_compiler PUBLIC minic_backend)
     if(MSVC)
         target_compile_options(minic_compiler PRIVATE /W4 /utf-8)

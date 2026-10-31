@@ -1,5 +1,5 @@
 #include "minic/parser.hpp"
-#include "minic/detail/predictive_table.hpp"
+#include "predictive_table.hpp"
 
 #include <algorithm>
 #include <limits>
