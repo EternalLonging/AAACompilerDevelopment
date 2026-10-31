@@ -7,7 +7,7 @@
 | 内容 | 文件 |
 |---|---|
 | 实现 | [parser.cpp](../../src/语法分析/parser.cpp) |
-| 运行预测表 | [predictive_table.hpp](../../include/minic/detail/predictive_table.hpp) |
+| 运行预测表 | [predictive_table.hpp](../../src/语法分析/predictive_table.hpp) |
 | 算法与阅读顺序 | [语法实现](语法实现.md) |
 | 文法唯一来源 | [generate_parser_tables.py](../../tools/generate_parser_tables.py) |
 | 公共接口 | [parser.hpp](../../include/minic/parser.hpp) |

@@ -19,7 +19,7 @@ GRAMMAR_TARGET = OUTPUT / '文法表.xlsx'
 PARSER = ROOT / 'src/语法分析/parser.cpp'
 EPSILON = 'ε'
 END = 'END_OF_FILE'
-RUNTIME_TABLE = ROOT / 'include/minic/detail/predictive_table.hpp'
+RUNTIME_TABLE = ROOT / 'src/语法分析/predictive_table.hpp'
 
 
 def runtime_table():
@@ -335,7 +335,7 @@ def build_payload():
                                 '；'.join(dict.fromkeys(messages)) or ('单词表须恰好一个末尾 EOF' if code == 'PARSE_TOKEN_STREAM' else '动态消息，包含实际遇到的单词'),
                                 '、'.join(map(str, line_numbers))])
     sources = ['src/语法分析/parser.cpp', 'include/minic/parser.hpp', 'include/minic/interface.hpp',
-               'include/minic/detail/predictive_table.hpp', 'tools/generate_parser_tables.py',
+               'src/语法分析/predictive_table.hpp', 'tools/generate_parser_tables.py',
                'src/词法分析/词法规则.json', 'docs/公共约定/语言支持范围.md', 'docs/公共约定/数据结构与AST约定.md']
     # 统一换行为 LF，避免 Windows 与 Linux 检出格式不同导致快照失效。
     source_hashes = {name: hashlib.sha256((ROOT / name).read_text(encoding='utf-8').encode('utf-8')).hexdigest()
