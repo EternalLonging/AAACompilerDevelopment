@@ -28,6 +28,7 @@ inline int integer_bits(const TypePtr& value) {
     return value->kind == TypeKind::Char ? 8 : 32;
 }
 inline TypePtr unqualified(const TypePtr& value) {
+    if (!value->is_const) return value;
     auto result = make_type_info(*value); result->is_const = false; return result;
 }
 

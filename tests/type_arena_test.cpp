@@ -7,7 +7,7 @@
 #include <vector>
 
 using namespace minic;
-static_assert(std::is_same_v<TypePtr, const TypeInfo*>);
+static_assert(std::is_same_v<TypePtr, TypeInfo*>);
 static_assert(!std::is_copy_constructible_v<TypeArena>);
 static_assert(std::is_nothrow_move_constructible_v<TypeArena>);
 
