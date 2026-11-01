@@ -112,6 +112,24 @@ int main() {
                 globals[5]->range.end.offset == declarations.find(";float") + 1 &&
                 globals[0]->range.end.offset == declarations.find("} first") + 1,
                 "逗号声明和结构体定义的源码范围");
+        const std::string local_source = "int f(){struct L{int x,y[2];} first,second[3];struct Only{char c;};int z=1;return z;}";
+        auto local_records = syntax(local_source);
+        require(local_records.ok(), "局部结构体定义、对象列表和独立结构体定义可同时解析");
+        const auto& locals = local_records.root->children[0]->children.back()->children;
+        require(locals.size() == 6 && locals[0]->kind == NodeType::StructDef && locals[0]->name == "L" &&
+                locals[1]->name == "first" && locals[2]->name == "second" &&
+                locals[3]->kind == NodeType::StructDef && locals[3]->name == "Only" &&
+                locals[4]->name == "z" && locals[5]->kind == NodeType::Return,
+                "统一节点列表保持局部结构体、对象与语句的源码顺序");
+        require(!locals[0]->declared_type && !locals[3]->declared_type &&
+                locals[1]->declared_type->kind == TypeKind::Struct && locals[1]->declared_type->name == "L" &&
+                locals[2]->declared_type->kind == TypeKind::Array &&
+                locals[2]->declared_type->array_length.value() == 3 && locals[2]->declared_type->base->name == "L" &&
+                locals[4]->children.size() == 1 && locals[4]->children[0]->name == "1",
+                "结构体定义不混入对象类型绑定，数组元素类型和初始化保持完整");
+        require(locals[0]->range.end.offset == local_source.find("} first") + 1 &&
+                locals[3]->range.end.offset == local_source.find(";int z") + 1,
+                "结构体兼带变量与独立定义的结束范围保持不变");
         const auto& signature = globals[6]->children;
         require(signature.size() == 4 && signature[0]->name == "c" && signature[1]->name == "a" &&
                 signature[2]->name == "s" && signature[2]->declared_type->base->name == "S" &&
@@ -137,6 +155,7 @@ int main() {
         execute("int main(void){int a=0,b=0;a=b=7;return a+b;}", 14);
         execute("int sum(int a[],int n){int i=0,s=0;for(i=0;i<n;i=i+1){s=s+a[i];}return s;} int main(void){int a[3];a[0]=1;a[1]=2;a[2]=3;return sum(a,3);}", 6);
         execute("struct S{int x;};int main(void){struct S s;s.x=8;return s.x;}", 8);
+        execute("int main(void){struct L{int x,y[2];} first,second[3];first.x=4;second[1].y[0]=5;return first.x+second[1].y[0];}", 9);
         execute("int main(void){int i=0,s=0;while(i<5){i=i+1;if(i==2){continue;}s=s+i;if(i==4){break;}}return s;}", 8);
         rejects("int *p;");
         rejects("int main(void){if(1)return 0;}");

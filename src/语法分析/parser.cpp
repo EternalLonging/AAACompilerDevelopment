@@ -18,9 +18,8 @@ struct ParseFailure {};
 class Parser {
     struct Value {
         std::size_t begin = 0, end = 0; // 已匹配的单词区间，右端不包含。
-        Node ast = nullptr; // 表达式、语句或待补名字的函数、结构体。
         TypePtr type = nullptr; // 基础类型或尚未填入基础类型的数组。
-        std::vector<Node> nodes; // 声明、参数或运算尾表，逆序保存以便尾部追加。
+        std::vector<Node> nodes; // 所有节点结果；单节点在下标 0，多节点按源码逆序保存。
         bool unary_form = false; // 是否具有一元式形状，供赋值左部检查。
     };
     struct Frame {
@@ -63,8 +62,7 @@ class Parser {
     // 把前项接到尾表前面；移动尾表并追加，避免反复复制长列表。
     Value sequence(Value& head, Value& tail) {
         Value out = std::move(tail);
-        if (head.ast) out.nodes.push_back(head.ast);
-        else out.nodes.insert(out.nodes.end(), head.nodes.begin(), head.nodes.end());
+        out.nodes.insert(out.nodes.end(), head.nodes.begin(), head.nodes.end());
         return out;
     }
     // 根据已经匹配的类型单词返回基础类型。
@@ -118,31 +116,32 @@ class Parser {
             out.nodes.front()->range.end = tokens[v[4].begin].range.end;
         } else out = std::move(v[2]);
         auto base = v[0].type ? v[0].type : specs(begin);
-        if (out.ast && out.ast->kind == NodeType::FunctionDef) {
-            auto fn = out.ast;
-            fn->name = tokens[v[1].begin].lexeme; fn->range.begin = tokens[begin].range.begin;
-            auto type = make_type_info(); type->kind = TypeKind::Function; type->base = base;
-            for (std::size_t i = 0; i + 1 < fn->children.size(); ++i) type->params.push_back(fn->children[i]->declared_type);
-            fn->declared_type = type; out.nodes.push_back(fn); out.ast = nullptr;
-            return;
-        }
-        if (!out.nodes.empty() && out.nodes.back()->name.empty()) out.nodes.back()->name = tokens[v[1].begin].lexeme;
-        for (auto n : out.nodes) { n->range.begin = tokens[begin].range.begin; bind_type(n, base); }
-        if (out.ast) {
-            out.ast->name = tokens[v[1].begin].lexeme; out.ast->range.begin = tokens[begin].range.begin;
-            out.nodes.push_back(out.ast); out.ast = nullptr;
+        for (auto n : out.nodes) {
+            n->range.begin = tokens[begin].range.begin;
+            if (n->kind == NodeType::FunctionDef) {
+                n->name = tokens[v[1].begin].lexeme;
+                auto type = make_type_info(); type->kind = TypeKind::Function; type->base = base;
+                for (std::size_t i = 0; i + 1 < n->children.size(); ++i) type->params.push_back(n->children[i]->declared_type);
+                n->declared_type = type;
+            } else if (n->kind == NodeType::StructDef) {
+                n->name = tokens[v[1].begin].lexeme;
+            } else {
+                if (n->name.empty()) n->name = tokens[v[1].begin].lexeme;
+                bind_type(n, base);
+            }
         }
     }
     // 把逆序的局部声明和语句列表一次性装入块节点。
     void block(Value& out, Value* v) {
         std::vector<Node> children(v[1].nodes.rbegin(), v[1].nodes.rend());
         children.insert(children.end(), v[2].nodes.rbegin(), v[2].nodes.rend());
-        out.ast = node(NodeType::Block, v[0].begin, v[3].end, "", std::move(children));
+        auto n = node(NodeType::Block, v[0].begin, v[3].end, "", std::move(children));
+        finish(n); out.nodes.push_back(n);
     }
     // 按语句产生式建立控制流节点，保持公共 AST 孩子顺序。
     void statement(Value& out, Value* v, int count) {
         const auto token = tokens[v[0].begin].type;
-        if (token == TT::LBRACE) { out.ast = v[0].ast; return; }
+        if (token == TT::LBRACE) { out.nodes = std::move(v[0].nodes); return; }
         NodeType kind = NodeType::ExprStmt;
         switch (token) {
         case TT::SEMI: kind = NodeType::Empty; break;
@@ -154,41 +153,44 @@ class Parser {
         case TT::KW_CONTINUE: kind = NodeType::Continue; break;
         default: break;
         }
-        out.ast = node(kind, v[0].begin, v[count - 1].end);
-        auto& children = out.ast->children;
+        auto n = node(kind, v[0].begin, v[count - 1].end);
+        auto& children = n->children;
         if (kind == NodeType::If || kind == NodeType::While) {
-            children = {v[2].ast, v[4].ast};
-            if (kind == NodeType::If && v[5].ast) children.push_back(v[5].ast);
+            children = {v[2].nodes[0], v[4].nodes[0]};
+            if (kind == NodeType::If && !v[5].nodes.empty()) children.push_back(v[5].nodes[0]);
         } else if (kind == NodeType::For) {
-            for (int i : {2, 4, 6}) children.push_back(v[i].ast ? v[i].ast : node(NodeType::Empty, v[i].begin, v[i].begin + 1));
-            children.push_back(v[8].ast);
-        } else if (kind == NodeType::Return) { if (v[1].ast) children.push_back(v[1].ast); }
-        else if (kind == NodeType::ExprStmt) children.push_back(v[0].ast);
+            for (int i : {2, 4, 6}) children.push_back(v[i].nodes.empty() ? node(NodeType::Empty, v[i].begin, v[i].begin + 1) : v[i].nodes[0]);
+            children.push_back(v[8].nodes[0]);
+        } else if (kind == NodeType::Return) { if (!v[1].nodes.empty()) children.push_back(v[1].nodes[0]); }
+        else if (kind == NodeType::ExprStmt) children.push_back(v[0].nodes[0]);
+        finish(n); out.nodes.push_back(n);
     }
     // 从左向右接上运算尾表；赋值右部已是完整表达式，所以自然右结合。
     void expression(Value& out, Value* v) {
-        out.ast = v[0].ast; out.unary_form = v[0].unary_form;
+        auto n = v[0].nodes[0]; out.unary_form = v[0].unary_form;
         for (auto i = v[1].nodes.rbegin(); i != v[1].nodes.rend(); ++i) {
             auto op = *i;
             if (op->kind == NodeType::Assign && !out.unary_form)
                 fail("赋值左部必须符合一元表达式形状", "PARSE_ASSIGNMENT_TARGET", Level::Error, v[1].begin);
-            op->range.begin = out.ast->range.begin; op->children.insert(op->children.begin(), out.ast);
-            finish(op); out.ast = op; out.unary_form = false;
+            op->range.begin = n->range.begin; op->children.insert(op->children.begin(), n);
+            finish(op); n = op; out.unary_form = false;
         }
+        out.nodes.push_back(n);
     }
     // 完成一元式、主式或字符串；括号主式保留一元式形状。
     void unary(Value& out, Value* v, int symbol, int count) {
         const auto begin = v[0].begin, end = v[count - 1].end;
         const auto& token = tokens[begin]; out.unary_form = true;
+        Node n;
         if (symbol == 一元式) {
-            out.ast = count == 1 ? v[0].ast : node(NodeType::UnaryOp, begin, end, token.lexeme, {v[1].ast});
+            n = count == 1 ? v[0].nodes[0] : node(NodeType::UnaryOp, begin, end, token.lexeme, {v[1].nodes[0]});
         } else if (symbol == 字符串) {
             std::string text = token.lexeme;
             for (auto i = begin + 1; i < end; ++i) text += " " + tokens[i].lexeme;
-            out.ast = node(NodeType::StringLiteral, begin, end, text);
+            n = node(NodeType::StringLiteral, begin, end, text);
         } else if (token.type == TT::LPAREN) {
-            out.ast = v[1].ast; out.ast->range.begin = token.range.begin; out.ast->range.end = tokens[end - 1].range.end;
-        } else if (v[0].ast) out.ast = v[0].ast;
+            n = v[1].nodes[0]; n->range.begin = token.range.begin; n->range.end = tokens[end - 1].range.end;
+        } else if (!v[0].nodes.empty()) n = v[0].nodes[0];
         else {
             NodeType kind = NodeType::Identifier;
             if (token.type == TT::INT_LITERAL) {
@@ -200,23 +202,26 @@ class Parser {
                     fail("浮点常量不接受 L 后缀", "PARSE_LITERAL", Level::Error, begin);
                 kind = NodeType::FloatLiteral;
             } else if (token.type == TT::CHAR_LITERAL) kind = NodeType::CharLiteral;
-            out.ast = node(kind, begin, end, token.lexeme);
+            n = node(kind, begin, end, token.lexeme);
         }
+        finish(n); out.nodes.push_back(n);
     }
     // 将调用、下标或成员后缀依次接到主式上。
     void postfix(Value& out, Value* v) {
-        out.ast = v[0].ast; out.unary_form = true;
+        auto n = v[0].nodes[0]; out.unary_form = true;
         for (auto i = v[1].nodes.rbegin(); i != v[1].nodes.rend(); ++i) {
             auto suffix = *i;
-            if (suffix->kind == NodeType::Call && out.ast->kind == NodeType::Identifier) suffix->name = out.ast->name;
-            suffix->range.begin = out.ast->range.begin; suffix->children.insert(suffix->children.begin(), out.ast);
-            finish(suffix); out.ast = suffix;
+            if (suffix->kind == NodeType::Call && n->kind == NodeType::Identifier) suffix->name = n->name;
+            suffix->range.begin = n->range.begin; suffix->children.insert(suffix->children.begin(), n);
+            finish(suffix); n = suffix;
         }
+        out.nodes.push_back(n);
     }
     // 消费产生式右部的语义值，返回一个结果；不保存文法孩子或匹配树。
     Value reduce(int symbol, Value* v, int count) {
         Value out;
         if (!count) return out;
+        Node n = nullptr; // 本次新建的单节点；完成后统一加入结果列表。
         switch (symbol) {
         case 程序: case 成员序列: case 局部声明序列: case 语句序列: case 表达后缀序列:
         case 形参表可选: case 实参可选:
@@ -228,12 +233,12 @@ class Parser {
         case 对象续: case 成员续: {
             const bool member = symbol == 成员续;
             out = std::move(v[member ? 3 : 4]);
-            auto n = object(member ? NodeType::MemberDecl : NodeType::VarDecl, v[2], member ? nullptr : v[3].ast,
+            auto n = object(member ? NodeType::MemberDecl : NodeType::VarDecl, v[2], member || v[3].nodes.empty() ? nullptr : v[3].nodes[0],
                             member ? v[2].end : v[3].end);
             n->name = tokens[v[1].begin].lexeme; out.nodes.push_back(n); break;
         }
         case 对象尾:
-            out = std::move(v[2]); out.nodes.push_back(object(NodeType::VarDecl, v[0], v[1].ast, v[1].end));
+            out = std::move(v[2]); out.nodes.push_back(object(NodeType::VarDecl, v[0], v[1].nodes.empty() ? nullptr : v[1].nodes[0], v[1].end));
             out.nodes.front()->range.end = tokens[v[3].begin].range.end; break;
         case 定义后:
             if (count == 2) { out = std::move(v[1]); out.nodes.back()->name = tokens[v[0].begin].lexeme; }
@@ -242,38 +247,38 @@ class Parser {
             if (count == 2) { out = std::move(v[1]); out.nodes.back()->name = tokens[v[0].begin].lexeme; }
             else {
                 auto members = sequence(v[1], v[2]); out = std::move(v[4]);
-                out.ast = node(NodeType::StructDef, v[0].begin, out.nodes.empty() ? v[4].end : v[3].end,
+                n = node(NodeType::StructDef, v[0].begin, out.nodes.empty() ? v[4].end : v[3].end,
                                "", {members.nodes.rbegin(), members.nodes.rend()});
             }
             break;
         case 函数尾:
-            out.ast = node(NodeType::FunctionDef, v[0].begin, v[3].end, "", {v[1].nodes.rbegin(), v[1].nodes.rend()});
-            out.ast->children.push_back(v[3].ast); break;
+            n = node(NodeType::FunctionDef, v[0].begin, v[3].end, "", {v[1].nodes.rbegin(), v[1].nodes.rend()});
+            n->children.push_back(v[3].nodes[0]); break;
         case 外部声明: case 局部声明: case 成员声明: declaration(out, v, symbol); break;
         case 形参:
-            out.ast = node(NodeType::ParamDecl, v[0].begin, v[count - 1].end, tokens[v[count == 3 ? 1 : 2].begin].lexeme);
-            out.ast->declared_type = count == 3 ? v[2].type : declarator(v[3].begin, v[5].end);
-            bind_type(out.ast, v[0].type ? v[0].type : specs(v[0].begin)); break;
+            n = node(NodeType::ParamDecl, v[0].begin, v[count - 1].end, tokens[v[count == 3 ? 1 : 2].begin].lexeme);
+            n->declared_type = count == 3 ? v[2].type : declarator(v[3].begin, v[5].end);
+            bind_type(n, v[0].type ? v[0].type : specs(v[0].begin)); break;
         case 块: block(out, v); break;
         case 语句: statement(out, v, count); break;
-        case 初值可选: case 否则可选: out.ast = v[1].ast; break;
+        case 初值可选: case 否则可选: out.nodes = std::move(v[1].nodes); break;
         case 表达式: case 逻辑或式: case 逻辑与式: case 相等式: case 关系式: case 加法式: case 乘法式:
             expression(out, v); break;
         case 赋值续: case 逻辑或续: case 逻辑与续: case 相等续: case 关系续: case 加法续: case 乘法续:
             if (count == 3) out = std::move(v[2]);
             out.nodes.push_back(node(symbol == 赋值续 ? NodeType::Assign : NodeType::BinaryOp,
-                                     v[0].begin, v[1].end, tokens[v[0].begin].lexeme, {v[1].ast})); break;
+                                     v[0].begin, v[1].end, tokens[v[0].begin].lexeme, {v[1].nodes[0]})); break;
         case 一元式: case 主式: case 字符串: unary(out, v, symbol, count); break;
         case 后缀式: postfix(out, v); break;
         case 表达后缀:
-            if (count == 2) out.ast = node(NodeType::MemberAccess, v[0].begin, v[1].end, tokens[v[1].begin].lexeme);
+            if (count == 2) n = node(NodeType::MemberAccess, v[0].begin, v[1].end, tokens[v[1].begin].lexeme);
             else if (tokens[v[0].begin].type == TT::LPAREN)
-                out.ast = node(NodeType::Call, v[0].begin, v[2].end, "", {v[1].nodes.rbegin(), v[1].nodes.rend()});
-            else out.ast = node(NodeType::ArrayAccess, v[0].begin, v[2].end, "", {v[1].ast});
+                n = node(NodeType::Call, v[0].begin, v[2].end, "", {v[1].nodes.rbegin(), v[1].nodes.rend()});
+            else n = node(NodeType::ArrayAccess, v[0].begin, v[2].end, "", {v[1].nodes[0]});
             break;
         default: if (count == 1) out = std::move(v[0]); break;
         }
-        if (out.ast) finish(out.ast);
+        if (n) { finish(n); out.nodes.push_back(n); }
         return out;
     }
     // 报告期望的符号和当前单词，立即退出分析。
