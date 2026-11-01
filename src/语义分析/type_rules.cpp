@@ -42,8 +42,8 @@ bool compare(const TypePtr& left, const TypePtr& right, std::vector<TypePair>& p
                 return result;
             };
             if (!left->params[i] || !right->params[i]) { equal = false; break; }
-            const auto left_parameter = adjusted(left->params[i]);
-            const auto right_parameter = adjusted(right->params[i]);
+            auto left_parameter = adjusted(left->params[i]);
+            auto right_parameter = adjusted(right->params[i]);
             equal = compare(&left_parameter, &right_parameter, path);
         }
         break;

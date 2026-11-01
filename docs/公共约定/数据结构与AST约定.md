@@ -12,7 +12,7 @@ v1.2 增加程序共享的常量池：数据定义位于 interface.hpp，登记�
 
 当前版本的 AST 只保存当前教学语言产生的节点，孩子顺序固定。IRProgram.globals 只包含全局对象；ASTNode 和 SymbolEntry 不保存额外的声明属性字段。内部跳转标号用于 if 和循环。
 
-v1.4 将 TypePtr 改为普通指针 `const TypeInfo*`，类型对象由 TypeArena 统一创建和释放。CompilationResult 新增 types 成员保存本次编译的类型；AST 孩子顺序不变。当前版本增加 NodeArena，AST 子节点使用普通指针并由 ParseResult.arena 统一释放；ConstantValue 和运行时 Value 均使用显式枚举标签。
+v1.4 将 TypePtr 改为普通指针，类型对象由 TypeArena 统一创建和释放；当前使用可写的 `TypeInfo*`。CompilationResult 新增 types 成员保存本次编译的类型；AST 孩子顺序不变。当前版本增加 NodeArena，AST 子节点使用普通指针并由 ParseResult.arena 统一释放；ConstantValue 和运行时 Value 均使用显式枚举标签。
 
 当前教学语言范围以 [语言支持范围](语言支持范围.md) 为准。
 
@@ -66,9 +66,9 @@ Token / Diagnostic 保留需求资料中的 `line`、`col` 简便字段，它们
 
 ## 4. TypeInfo：所有模块共用一套 C 类型描述
 
-`TypePtr = const TypeInfo*`，是指向只读类型信息的普通指针。AST、符号表和临时变量借用同一个类型对象，不能分别 delete。不能使用指针地址判断类型相等；语义模块提供递归的结构比较和兼容性规则。
+`TypePtr = TypeInfo*`，是指向可写类型信息的普通指针。AST、符号表和临时变量可以借用同一个类型对象，不能分别 delete。不能使用指针地址判断类型相等；语义模块提供递归的结构比较和兼容性规则。
 
-`TypeArena` 用 `std::vector<TypeInfo*>` 保存它 new 出来的对象，析构时逐个 delete；表扩容不改变类型对象地址。`TypeInfo::base` 和 params 中的子类型指针只借用，不递归释放。`create()` 返回可填写成员的 `TypeInfo*`，填好后交给 TypePtr 只读使用。
+`TypeArena` 用 `std::vector<TypeInfo*>` 保存它 new 出来的对象，析构时逐个 delete；表扩容不改变类型对象地址。`TypeInfo::base` 和 params 中的子类型指针只借用，不递归释放。语法阶段每个数组声明单独创建数组类型，补元素类型时直接写 base；需要保留原类型含义时仍要另建类型，例如语义转换和常量池快照。
 
 调用 compile / compile 时，返回的 CompilationResult.types 持有全部编译类型。保留整份 CompilationResult，直到语法树、符号表和 IR 都不再使用；单独复制某张表不会复制类型对象。移动编译结果会转交类型所有权，并保留对象地址。
 

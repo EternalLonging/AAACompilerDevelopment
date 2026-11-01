@@ -94,10 +94,10 @@ class Parser {
         }
         return t;
     }
-    // 为一个变量、成员或形参补全类型，不修改已有类型对象。
+    // 为变量、成员或形参填入基础类型，数组直接补元素类型。
     void bind_type(Node n, TypePtr base) {
         if (!n->declared_type) n->declared_type = base;
-        else { auto t = make_type_info(*n->declared_type); t->base = base; n->declared_type = t; }
+        else n->declared_type->base = base;
     }
     // 建立暂缺名字和基础类型的对象，交给所属声明补全。
     Node object(NodeType kind, Value& array, Node init = nullptr, std::size_t end = 0) {

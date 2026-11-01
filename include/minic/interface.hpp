@@ -88,8 +88,8 @@ inline bool has_errors(const std::vector<Diagnostic>& diagnostics) {
 }
 
 struct TypeInfo;
-// 指向只读类型信息的普通指针；对象由 TypeArena 统一释放。
-using TypePtr = const TypeInfo*;
+// 指向类型信息的普通指针；对象由 TypeArena 统一释放。
+using TypePtr = TypeInfo*;
 
 // 常量值，使用显式标签保存整数、浮点或字符串。
 enum class ConstantKind { Empty, Integer, Floating, Text };
