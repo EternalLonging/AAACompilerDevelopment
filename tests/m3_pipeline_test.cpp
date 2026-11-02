@@ -1,59 +1,68 @@
-#include "../examples/ast_examples.hpp"
 #include "minic/modules.hpp"
 
 #include <iostream>
-#include <sstream>
 #include <stdexcept>
 
 using namespace minic;
-using namespace minic::examples;
 
 static void require(bool condition, const char* message) {
     if (!condition) throw std::runtime_error(message);
 }
-static Node unary(const std::string& op, Node value) { return tree(NodeType::UnaryOp, op, std::move(value)); }
-static Node main_program(Node body) { return program(function("main", TypeKind::Int, std::move(body))); }
-struct Compiled { SemanticResult semantic; IRResult ir; };
-static Compiled compile_ast(Node ast) {
-    auto semantic = analyze(*ast);
-    if (!semantic.ok()) { print_diagnostics(semantic.diagnostics, std::cerr); throw std::runtime_error("正确 AST 应通过语义检查"); }
-    auto ir = generate(*ast, semantic.symbols);
-    if (!ir.ok()) { print_diagnostics(ir.diagnostics, std::cerr); throw std::runtime_error("正确 AST 应生成 IR"); }
-    return {std::move(semantic), std::move(ir)};
-}
-static RunResult execute(const Compiled& compiled, const std::string& input = "", RunOptions options = {}) {
-    std::istringstream source(input); std::ostringstream output;
-    return run(compiled.ir.program, compiled.semantic.symbols, source, output, options);
-}
-static void succeeds(Node ast, int code, const std::string& input = "") {
-    const auto result = execute(compile_ast(std::move(ast)), input);
-    if (!result.ok()) print_diagnostics(result.diagnostics, std::cerr);
-    require(result.ok() && result.exit_code == code, "执行结果错误");
-}
-static void fails(Node ast, const std::string& message) {
-    const auto result = execute(compile_ast(std::move(ast)));
-    require(!result.ok() && result.diagnostics[0].message.find(message) != std::string::npos, "运行错误应明确诊断");
-}
-static void rejects(Node ast, const std::string& code) {
-    const auto result = analyze(*ast); bool found = false;
-    for (const auto& diagnostic : result.diagnostics) if (diagnostic.code == code) found = true;
-    if (!found) print_diagnostics(result.diagnostics, std::cerr);
-    require(!result.ok() && found, "错误 AST 应有指定诊断");
-}
 
-static void integer_operators() {
-    succeeds(main_program(block(ret(binary("&", unary("~", integer(0)), integer(15))))), 15);
-    succeeds(main_program(block(variable("x", TypeKind::Int, integer(-7)), ret(binary(">>", id("x"), integer(1))))), -4);
-    fails(main_program(block(variable("x", TypeKind::Int, integer(1)), ret(binary("<<", id("x"), integer(32))))), "移位");
-    fails(main_program(block(variable("x", TypeKind::Int, integer(2147483647)), ret(binary("<<", id("x"), integer(1))))), "范围");
-    rejects(main_program(block(ret(binary("&", floating("1.5"), integer(1))))), "SEM_OPERANDS");
+// 用真实源码检查：结构合法的 AST 仍须拒绝名字、类型和上下文错误。
+static void rejects(const std::string& source, const std::string& code) {
+    auto result = compile(source, "semantic-test.c", CompileTarget::Check);
+    require(result.syntax && result.syntax->ok(), "语义用例须先通过词法和语法");
+    require(result.semantic && !result.semantic->ok() && !result.ir, "语义错误不能进入 IR");
+    for (const auto& diagnostic : result.semantic->diagnostics)
+        if (diagnostic.code == code) return;
+    print_diagnostics(result.diagnostics, std::cerr);
+    throw std::runtime_error("缺少预期的语义诊断：" + code);
 }
 
 int main() {
-    minic::TypeArena types; // 手工类型及语法树借用的内存，保留到示例/测试结束。
-    minic::TypeArenaScope type_scope(types);
     try {
-        integer_operators();
-        std::cout << "位运算与整数边界测试全部通过\n"; return 0;
-    } catch (const std::exception& error) { std::cerr << "测试失败：" << error.what() << '\n'; return 1; }
+        rejects("int main(void){return missing;}", "SEM_UNDECLARED");
+        rejects("int main(void){int a;int a;return 0;}", "SYM_DECL_CONFLICT");
+        rejects("int main(void){int a=1.5;return 0;}", "SEM_INIT_TYPE");
+        rejects("int main(void){int a;a=1.5;return 0;}", "SEM_ASSIGN_TYPE");
+        rejects("int main(void){int a[2];a=1;return 0;}", "SEM_LVALUE");
+        rejects("int main(void){return 1.5%2;}", "SEM_OPERANDS");
+        rejects("int main(void){int a[2];return a[1.5];}", "SEM_INDEX");
+        rejects("struct S{int x;};int main(void){struct S s;return s.missing;}", "SEM_MEMBER");
+        rejects("struct S{int x;};int main(void){struct S s;if(s){return 1;}return 0;}", "SEM_CONDITION");
+        rejects("int main(void){break;return 0;}", "SEM_LOOP");
+        rejects("int main(void){continue;return 0;}", "SEM_LOOP");
+        rejects("int main(void){return 1.5;}", "SEM_RETURN");
+        rejects("int main(void){int a=0;}", "SEM_MISSING_RETURN");
+        rejects("int f(int a){return a;}int main(void){return f();}", "SEM_ARGUMENT_COUNT");
+        rejects("int f(int a){return a;}int main(void){return f(1.5);}", "SEM_ARGUMENT_TYPE");
+        rejects("int main(void){int f=1;return f();}", "SEM_CALL");
+        rejects("int main(void){printf(\"%f\",1);return 0;}", "SEM_FORMAT");
+        rejects("int main(void){int a;scanf(\"%d\",a);return 0;}", "SEM_FORMAT");
+        rejects("int main(void){int a;return &a;}", "SEM_ADDRESS");
+        rejects("int a=1;int b=a;int main(void){return 0;}", "SEM_GLOBAL_INIT");
+        rejects("int main(void){char s[2]=\"abc\";return 0;}", "SEM_INIT_COUNT");
+        rejects("int main(void){return 2147483648;}", "SEM_LITERAL");
+        rejects("int main(void){struct Missing s;return 0;}", "SEM_TAG");
+        rejects("int f(struct Missing a[]){return 0;}int main(void){return 0;}", "SEM_TAG");
+
+        // 参数只解析一次；保留数组传参、隐式转换和递归绑定。
+        auto result = compile(
+            "float sum(int a[],int n){if(n==0){return 0;}return a[n-1]+sum(a,n-1);}"
+            "int main(void){int a[2];float total;a[0]=2;a[1]=3;total=sum(a,2);"
+            "printf(\"%f\",total);return 0;}");
+        if (!result.ok()) print_diagnostics(result.diagnostics, std::cerr);
+        require(result.ok(), "数组参数、递归和数值转换须能生成 IR");
+        const auto& function = *result.syntax->root->children[0];
+        require(function.type->params[0]->kind == TypeKind::Address &&
+                function.type->params[0] == function.children[0]->type,
+                "形参节点和函数签名须使用同一份解析结果");
+        require(!result.ir->program.functions.empty(), "须生成函数四元式");
+        std::cout << "解析器 AST 的语义拒绝、数组参数、递归及转换检查通过\n";
+        return 0;
+    } catch (const std::exception& error) {
+        std::cerr << error.what() << '\n';
+        return 1;
+    }
 }
