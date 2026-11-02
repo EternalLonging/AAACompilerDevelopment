@@ -21,6 +21,21 @@ EPSILON = 'ε'
 END = 'END_OF_FILE'
 RUNTIME_TABLE = ROOT / 'src/语法分析/predictive_table.hpp'
 
+# 固定符号的拼写直接取自词法规则，不另外维护一份符号清单。
+LEXICAL = json.loads((ROOT / 'src/词法分析/词法规则.json').read_text(encoding='utf-8'))
+LITERALS = {rule['token']: rule['literal'] for rule in LEXICAL['rules'] if 'literal' in rule}
+LITERAL_TOKENS = {json.dumps(literal): token for token, literal in LITERALS.items()}
+
+
+def grammar_symbol(symbol):
+    """文法中的固定符号显示为带双引号的实际拼写，其他名字原样返回。"""
+    return json.dumps(LITERALS[symbol]) if symbol in LITERALS else symbol
+
+
+def grammar_rhs(symbols):
+    """返回可阅读的产生式右部，空右部返回 ε。"""
+    return ' '.join(map(grammar_symbol, symbols)) or EPSILON
+
 
 def runtime_table():
     """从同一份文法生成 C++ 运行表，返回完整头文件。"""
@@ -41,7 +56,7 @@ def runtime_table():
               'inline constexpr Production productions[] = {']
     for row in rows:
         rhs = ', '.join(str(symbols.index(symbol)) for symbol in row['rhs']) or '0'
-        lines.append(f'    {{{len(row["rhs"])}, {{{rhs}}}}}, // {row["id"]}: {row["lhs"]} -> {" ".join(row["rhs"]) or EPSILON}')
+        lines.append(f'    {{{len(row["rhs"])}, {{{rhs}}}}}, // {row["id"]}: {row["lhs"]} -> {grammar_rhs(row["rhs"])}')
     lines += ['};', '// 行为非终结符，列为 TokenType；值为产生式下标，-1 表示语法错误。',
               f'inline constexpr int table[][{len(terminals)}] = {{']
     for name in sets['names']:
@@ -53,73 +68,73 @@ def runtime_table():
             entries.append(str(int(choices[0][1:]) - 1) if choices else '-1')
         lines.append('    {' + ', '.join(entries) + '}, // ' + name)
     lines += ['};', 'inline constexpr const char* names[] = {']
-    lines += ['    "' + name + '",' for name in symbols]
+    lines += ['    ' + json.dumps(LITERALS.get(name, name), ensure_ascii=False) + ',' for name in symbols]
     lines += ['};']
     for i, terminal in enumerate(terminals):
         lines.append(f'static_assert(static_cast<int>(TokenType::{terminal}) == {i}, "请重新生成预测表");')
     return '\n'.join(lines + ['} }', ''])
 
-# 每组记录实现函数；右部的英文大写名字直接使用 TokenType。
+# 每组记录实现函数；固定符号使用带双引号的半角拼写，其他终结符使用 TokenType 名字。
 # 声明形状直接由产生式限制；类型检查、词法值和 AST 交接见 CONSTRAINTS。
 GRAMMAR = '''@run
 程序 -> 外部声明 程序 | ε
 @declaration
 外部声明 -> 标量类型 ID 外部声明尾 | KW_VOID ID 函数尾 | KW_STRUCT ID 结构声明尾
 外部声明尾 -> 函数尾 | 对象尾
-函数尾 -> LPAREN 形参表可选 RPAREN 块
+函数尾 -> "(" 形参表可选 ")" 块
 局部声明 -> 标量类型 ID 对象尾 | KW_STRUCT ID 结构声明尾
-结构声明尾 -> LBRACE 成员声明 成员序列 RBRACE 定义后 | ID 对象尾
-定义后 -> ID 对象尾 | SEMI
-对象尾 -> 数组可选 初值可选 对象续 SEMI
-对象续 -> COMMA ID 数组可选 初值可选 对象续 | ε
-初值可选 -> ASSIGN 表达式 | ε
+结构声明尾 -> "{" 成员声明 成员序列 "}" 定义后 | ID 对象尾
+定义后 -> ID 对象尾 | ";"
+对象尾 -> 数组可选 初值可选 对象续 ";"
+对象续 -> "," ID 数组可选 初值可选 对象续 | ε
+初值可选 -> "=" 表达式 | ε
 @specs
 标量类型 -> KW_CHAR | KW_INT | KW_FLOAT
 成员序列 -> 成员声明 成员序列 | ε
 @declaration
-成员声明 -> 成员类型 ID 数组可选 成员续 SEMI
+成员声明 -> 成员类型 ID 数组可选 成员续 ";"
 成员类型 -> 标量类型 | KW_STRUCT ID
-成员续 -> COMMA ID 数组可选 成员续 | ε
+成员续 -> "," ID 数组可选 成员续 | ε
 @declarator
-数组可选 -> LBRACKET 界限可选 RBRACKET | ε
+数组可选 -> "[" 界限可选 "]" | ε
 界限可选 -> INT_LITERAL | ε
 形参表可选 -> KW_VOID | 形参 形参续 | ε
-形参续 -> COMMA 形参 形参续 | ε
-形参 -> 标量类型 ID 数组可选 | KW_STRUCT ID ID LBRACKET 界限可选 RBRACKET
+形参续 -> "," 形参 形参续 | ε
+形参 -> 标量类型 ID 数组可选 | KW_STRUCT ID ID "[" 界限可选 "]"
 @block
-块 -> LBRACE 局部声明序列 语句序列 RBRACE
+块 -> "{" 局部声明序列 语句序列 "}"
 局部声明序列 -> 局部声明 局部声明序列 | ε
 语句序列 -> 语句 语句序列 | ε
 @statement
-语句 -> 块 | SEMI | KW_IF LPAREN 表达式 RPAREN 块 否则可选 | KW_WHILE LPAREN 表达式 RPAREN 块 | KW_FOR LPAREN 表达式可选 SEMI 表达式可选 SEMI 表达式可选 RPAREN 块 | KW_RETURN 表达式可选 SEMI | KW_BREAK SEMI | KW_CONTINUE SEMI | 表达式 SEMI
+语句 -> 块 | ";" | KW_IF "(" 表达式 ")" 块 否则可选 | KW_WHILE "(" 表达式 ")" 块 | KW_FOR "(" 表达式可选 ";" 表达式可选 ";" 表达式可选 ")" 块 | KW_RETURN 表达式可选 ";" | KW_BREAK ";" | KW_CONTINUE ";" | 表达式 ";"
 否则可选 -> KW_ELSE 块 | ε
 表达式可选 -> 表达式 | ε
 @expression
 表达式 -> 逻辑或式 赋值续
-赋值续 -> ASSIGN 表达式 | ε
+赋值续 -> "=" 表达式 | ε
 逻辑或式 -> 逻辑与式 逻辑或续
-逻辑或续 -> OR 逻辑与式 逻辑或续 | ε
+逻辑或续 -> "||" 逻辑与式 逻辑或续 | ε
 逻辑与式 -> 相等式 逻辑与续
-逻辑与续 -> AND 相等式 逻辑与续 | ε
+逻辑与续 -> "&&" 相等式 逻辑与续 | ε
 相等式 -> 关系式 相等续
-相等续 -> EQ 关系式 相等续 | NE 关系式 相等续 | ε
+相等续 -> "==" 关系式 相等续 | "!=" 关系式 相等续 | ε
 关系式 -> 加法式 关系续
-关系续 -> LT 加法式 关系续 | LE 加法式 关系续 | GT 加法式 关系续 | GE 加法式 关系续 | ε
+关系续 -> "<" 加法式 关系续 | "<=" 加法式 关系续 | ">" 加法式 关系续 | ">=" 加法式 关系续 | ε
 加法式 -> 乘法式 加法续
-加法续 -> PLUS 乘法式 加法续 | MINUS 乘法式 加法续 | ε
+加法续 -> "+" 乘法式 加法续 | "-" 乘法式 加法续 | ε
 乘法式 -> 一元式 乘法续
-乘法续 -> STAR 一元式 乘法续 | SLASH 一元式 乘法续 | PERCENT 一元式 乘法续 | ε
+乘法续 -> "*" 一元式 乘法续 | "/" 一元式 乘法续 | "%" 一元式 乘法续 | ε
 @unary
-一元式 -> PLUS 一元式 | MINUS 一元式 | NOT 一元式 | AMP 一元式 | 后缀式
+一元式 -> "+" 一元式 | "-" 一元式 | "!" 一元式 | "&" 一元式 | 后缀式
 后缀式 -> 主式 表达后缀序列
-主式 -> ID | INT_LITERAL | FLOAT_LITERAL | CHAR_LITERAL | 字符串 | LPAREN 表达式 RPAREN
+主式 -> ID | INT_LITERAL | FLOAT_LITERAL | CHAR_LITERAL | 字符串 | "(" 表达式 ")"
 字符串 -> STRING_LITERAL 字符串续
 字符串续 -> STRING_LITERAL 字符串续 | ε
 @postfix
 表达后缀序列 -> 表达后缀 表达后缀序列 | ε
-表达后缀 -> LPAREN 实参可选 RPAREN | LBRACKET 表达式 RBRACKET | DOT ID
+表达后缀 -> "(" 实参可选 ")" | "[" 表达式 "]" | "." ID
 实参可选 -> 表达式 实参续 | ε
-实参续 -> COMMA 表达式 实参续 | ε
+实参续 -> "," 表达式 实参续 | ε
 '''
 
 # 编号用于定位仍需程序检查的规则，语义检查不能由 FIRST/FOLLOW 代替。
@@ -186,6 +201,11 @@ def productions(text=GRAMMAR):
         lhs, rhs = line.split(' -> ')
         for alternative in rhs.split(' | '):
             symbols = [] if alternative == EPSILON else alternative.split()
+            for index, symbol in enumerate(symbols):
+                if symbol.startswith('"'):
+                    if symbol not in LITERAL_TOKENS:
+                        raise ValueError('未定义的固定符号：' + symbol)
+                    symbols[index] = LITERAL_TOKENS[symbol]
             rows.append({'id': f'P{len(rows)+1:03}', 'lhs': lhs, 'rhs': symbols, 'function': function})
     return rows
 
@@ -292,14 +312,14 @@ def build_payload():
     order = {name: index for index, name in enumerate(token_names)}
 
     def tokens(values):
-        return '、'.join(sorted(values, key=lambda name: order[name])) or '∅'
+        return '、'.join(grammar_symbol(name) for name in sorted(values, key=lambda name: order[name])) or '∅'
 
     references = {function: source_reference(function, source) for function in
                   {row['function'] for row in rows} | {row[2] for row in CONSTRAINTS}
                   | {row[1] for row in AST} | {row[1] for row in HANDOFF}}
     conflicts, table_rows = [], []
     for (name, token), choices in sorted(dfa['table'].items(), key=lambda pair: (dfa['names'].index(pair[0][0]), order[pair[0][1]])):
-        table_rows.append([name, token, spelling[token], ' / '.join(choices), len(choices)])
+        table_rows.append([name, grammar_symbol(token), spelling[token], ' / '.join(choices), len(choices)])
         if len(choices) > 1:
             raise ValueError(f'文法不是 LL(1)：M[{name}, {token}] = {choices}')
     priority_rows = []
@@ -343,7 +363,7 @@ def build_payload():
     sheets = [
         sheet('文法产生式', 'MiniC 的 LL(1) 文法', count,
               ['编号', '左部', '右部', '实现函数', '源码位置'],
-              [[row['id'], row['lhs'], ' '.join(row['rhs']) or EPSILON, row['function'], references[row['function']]] for row in rows],
+              [[row['id'], row['lhs'], grammar_rhs(row['rhs']), row['function'], references[row['function']]] for row in rows],
               [12, 24, 100, 23, 43], ['实际使用分析栈和预测表；匹配后的 AST 动作保持节点及孩子顺序。',
                                      '开始符号为“程序”，ε 表示空串；END_OF_FILE 为输入结束标记，不放入产生式右部。']),
         sheet('FIRST与FOLLOW', '可空性与 FIRST / FOLLOW', '集合按 TokenType 顺序显示。FIRST 的 ε 单列为“可空”，FOLLOW 不含 ε。',
@@ -372,7 +392,8 @@ def build_payload():
               ['项目', '实现函数', '行为', '结果或限制', '源码位置'], [[title, function, text, limit, references[function]] for title, function, text, limit in HANDOFF], [22, 22, 120, 30, 43]),
     ]
     bnf = '# MiniC 的 LL(1) 文法\n# 开始符号：程序；结束标记：END_OF_FILE；空串：ε\n# 词法值、赋值左部形状和语义检查见《当前文法与约束.md》。\n'
-    bnf += ''.join(f'{row["id"]}: {row["lhs"]} -> {" ".join(row["rhs"]) or EPSILON}\n' for row in rows)
+    bnf += '# 固定符号使用双引号内的半角拼写；其 Token 编号由词法规则映射。\n'
+    bnf += ''.join(f'{row["id"]}: {row["lhs"]} -> {grammar_rhs(row["rhs"])}\n' for row in rows)
     document = '# 当前文法与约束\n\n' + count + '\n\n'
     document += '正式解析器采用分析栈、语义值栈和 LL(1) 预测表。`tools/generate_parser_tables.py` 中的 GRAMMAR 同时生成运行表、FIRST/FOLLOW、SELECT 与 Excel 资料；产生式完成后消费右部语义值并压回一个结果，直接构造 AST，保持节点和孩子顺序。文法直接区分函数定义、变量和成员声明；只允许一维数组、非空具名结构体和具名形参，不接受函数原型、裸类型声明或嵌套声明符。\n\n'
     document += '开始符号为“程序”；空源码允许，`END_OF_FILE` 是输入结束标记，不在产生式右部。FIRST 的可空性单独显示，FOLLOW 不含 ε。预测表采用非空格清单，遗漏的组合为错误格；同一格出现两个候选式时生成器立即报错。文法不代替字面量值、赋值左部形状和语义检查。\n\n'
