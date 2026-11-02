@@ -81,7 +81,7 @@ SEMANTIC_RULES = [
     ('声明与绑定', '变量', '对象类型须可布局；省略字符数组长度时从字符串初值推导。', 'void variable(', 'SEM_DECL_TYPE'),
     ('输入约定', 'AST', '只分析当前解析器成功生成的新树；不重复检查节点结构，同一棵树只分析一次。', 'SemanticResult analyze(Program& program)', '—'),
     ('声明与绑定', 'struct', '按已声明标签绑定记录身份；逐成员计算对齐与布局后完成记录。', 'void record_definition(', 'SEM_TAG / SEM_LAYOUT'),
-    ('初始化', '类型', '检查初值表达式；须与声明类型兼容，必要时插入隐式转换。', 'void initialize(', 'SEM_INIT_TYPE'),
+    ('初始化', '类型', '检查初值表达式；须与声明类型兼容，必要时在原节点标注 converted_type。', 'void initialize(', 'SEM_INIT_TYPE'),
     ('初始化', '全局初值', '全局初值必须满足实现的常量初始化判定；不能依赖普通变量运行求值。', 'bool constant_initializer(', 'SEM_GLOBAL_INIT'),
     ('初始化', 'char 数组', '显式长度须不少于解码字节数，可恰好装满而无末尾零；省略长度时按字节数加一推导。', 'void initialize(', 'SEM_INIT_COUNT'),
     ('表达式', '四则与取余', 'char 提升到 int；含 float 的算术采用 float；取余需要整型。', 'void binary(', 'SEM_OPERANDS'),
@@ -198,7 +198,7 @@ def build(driver):
                 if actual['ok'] != allowed or (not allowed and 'SEM_ASSIGN_TYPE' not in codes):
                     raise ValueError('隐式赋值规则已变化：' + code)
                 conversions.append([target, source, '允许' if allowed else '拒绝',
-                                    '同型' if target == source else 'ImplicitCast' if allowed else 'SEM_ASSIGN_TYPE', code])
+                                    '同型' if target == source else 'converted_type 标注' if allowed else 'SEM_ASSIGN_TYPE', code])
         for title, code, expected in CASES:
             case_path.write_text(code, encoding='utf-8')
             actual = run_driver(driver, case_path)
@@ -233,7 +233,7 @@ def build(driver):
               ['检查项', '源码', '预期且实际出现的代码', '实际消息'], cases, [24, 90, 36, 80]),
         sheet('示例类型标注', '共用示例的 AST 类型标注', '来自 workbench_driver 的语义结果；保留父编号、作用域和源码行。',
               ['节点编号', '父编号', '节点种类', '名字', '类型', '作用域编号', '源码行'],
-              [[n['id'], n['parent'], n['kind'], n['name'] or '—', n['type'] or '—', n['scope'], n['line']] for n in sample['ast']],
+              [[n['id'], n['parent'], n['kind'], n['name'] or '—', (n['type'] + ' -> ' + n['convertedType'] if n.get('convertedType') else n['type']) or '—', n['scope'], n['line']] for n in sample['ast']],
               [13, 12, 25, 43, 35, 16, 12], ['父编号 -1 表示根；示例源码：实验设计/公共示例/表格示例.c。']),
         sheet('语义诊断索引', '语义代码来源索引', '源码字面量诊断代码及所在行；包含内部兼容分支，不作为可用语法列表。',
               ['代码', '源码所在行', '来源'], diagnostic_rows(SEM, 'SEM'), [36, 125, 43]),

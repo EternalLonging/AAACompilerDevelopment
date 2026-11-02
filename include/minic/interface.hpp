@@ -157,7 +157,7 @@ enum class NodeType {
     Program, FunctionDef, ParamDecl, VarDecl, StructDef,
     MemberDecl, Block, ExprStmt, If, While, For, Return, Empty,
     Identifier, IntLiteral, FloatLiteral, CharLiteral, StringLiteral,
-    Assign, BinaryOp, UnaryOp, Call, ImplicitCast,
+    Assign, BinaryOp, UnaryOp, Call, ImplicitCast, // ImplicitCast 仅保留枚举编号，不再生成。
     ArrayAccess, MemberAccess, Break, Continue,
     Error
 };
@@ -168,8 +168,9 @@ struct ASTNode {
     std::string name; // 名字、运算符、标签或字面量原文。
     ConstantValue value; // 解码后的常量值；非常量时为空。
     SourceRange range; // 节点对应的源码范围。
-    TypePtr declared_type = nullptr; // 源码中写出的声明或转换目标类型。
-    TypePtr type = nullptr; // 语义检查后的类型；检查前为空。
+    TypePtr declared_type = nullptr; // 源码中写出的声明类型。
+    TypePtr type = nullptr; // 原表达式的计算或声明类型；检查前为空。
+    TypePtr converted_type = nullptr; // 本次使用的隐式转换目标；为空时保持原类型，不新增节点。
     ValueCategory category = ValueCategory::None; // 节点是左值、右值、函数还是非表达式。
     SymbolId symbol_id = invalid_id; // 对应的变量、形参或函数编号。
     ScopeId scope_id = invalid_id; // 节点所属的作用域编号。

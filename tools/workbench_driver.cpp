@@ -53,6 +53,7 @@ void ast(std::ostream& out, const minic::ASTNode& node, int parent, unsigned& ne
     if (id) out << ',';
     out << "{\"id\":" << id << ",\"parent\":" << parent << ",\"kind\":" << quoted(minic::ast_node_name(node.kind))
         << ",\"name\":" << quoted(node.name) << ",\"type\":" << quoted(minic::describe_type(node.type ? node.type : node.declared_type))
+        << ",\"convertedType\":" << quoted(node.converted_type ? minic::describe_type(node.converted_type) : "")
         << ",\"file\":" << quoted(file_name(node.range.file))
         << ",\"line\":" << node.range.begin.line << ",\"scope\":" << node.scope_id << '}';
     for (const auto& child : node.children) ast(out, *child, static_cast<int>(id), next);

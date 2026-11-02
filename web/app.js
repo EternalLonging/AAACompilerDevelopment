@@ -115,10 +115,11 @@ function graph(nodes) {
   for (const n of map.values()) for (const child of n.children) svg.append(svge("path", {d: `M ${n.x} ${n.y + 26} C ${n.x} ${n.y + 58} ${child.x} ${child.y - 42} ${child.x} ${child.y - 26}`, class: "ast-edge"}));
   for (const n of map.values()) {
     const g = svge("g", {class: "ast-node", tabindex: "0", "data-node": n.kind, transform: `translate(${n.x},${n.y})`, role: "button", "aria-label": `${n.kind} ${n.name} 第${n.line}行`});
-    g.append(svge("title", {}, `${n.kind} ${n.name}\n${n.type}\n${n.file}:${n.line}`));
+    const type = n.convertedType ? `${n.type} → ${n.convertedType}` : n.type;
+    g.append(svge("title", {}, `${n.kind} ${n.name}\n${type}\n${n.file}:${n.line}`));
     g.append(svge("rect", {x: -80, y: -26, width: 160, height: 53, rx: 5}));
     g.append(svge("text", {x: 0, y: -6, "text-anchor": "middle"}, (n.kind + (n.name ? " · " + n.name : "")).slice(0, 22)));
-    g.append(svge("text", {x: 0, y: 12, "text-anchor": "middle", class: "node-type"}, n.type.slice(0, 24)));
+    g.append(svge("text", {x: 0, y: 12, "text-anchor": "middle", class: "node-type"}, type.slice(0, 24)));
     g.addEventListener("click", () => jump(n.line, n.file)); g.addEventListener("keydown", e => { if (e.key === "Enter") jump(n.line, n.file); }); svg.append(g);
   }
   function resize() { svg.style.width = width * scale + "px"; svg.style.height = height * scale + "px"; }

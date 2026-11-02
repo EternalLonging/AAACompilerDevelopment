@@ -10,6 +10,11 @@
 
 namespace minic::detail {
 
+// 返回表达式本次使用的结果类型；原节点 type 始终保留计算或声明类型。
+inline TypePtr value_type(const ASTNode& node) {
+    return node.converted_type ? node.converted_type : node.type;
+}
+
 // 建立一个不带限定符的基本类型。
 inline TypePtr type(TypeKind kind) {
     auto result = make_type_info();
@@ -100,8 +105,8 @@ inline bool address_compatible(const TypePtr& target, const TypePtr& source) {
 }
 
 // 读取纯整型常量表达式；不执行调用、赋值或变量读取。
-inline MaybeValue<long long> integer_constant(const ASTNode& node, std::size_t depth = 0) {
-    if (depth > 128 || !integral(node.type)) return emptyValue;
+inline MaybeValue<long long> integer_constant(const ASTNode& node, std::size_t depth = 0, bool converted = true) {
+    if (depth > 128 || !integral(converted ? value_type(node) : node.type)) return emptyValue;
     if (node.kind == NodeType::IntLiteral || node.kind == NodeType::CharLiteral) {
         if (const auto* value = constant_get_if<long long>(node.value)) return *value;
         return emptyValue;
@@ -110,8 +115,7 @@ inline MaybeValue<long long> integer_constant(const ASTNode& node, std::size_t d
     const auto left = integer_constant(*node.children[0], depth + 1);
     if (!left) return emptyValue;
     long long value;
-    if (node.kind == NodeType::ImplicitCast) value = *left;
-    else if (node.kind == NodeType::UnaryOp) {
+    if (node.kind == NodeType::UnaryOp) {
         if (node.name == "+") value = *left;
         else if (node.name == "-") value = -*left;
         else if (node.name == "!") value = !*left;
@@ -168,9 +172,24 @@ inline double checked_float(double value) {
 }
 
 // 安全折叠数值常量，保留每一步 float 舍入；失败则保留原表达式。
-inline MaybeValue<ConstantValue> folded_value(const ASTNode& node, std::size_t depth = 0) {
+inline MaybeValue<ConstantValue> folded_value(const ASTNode& node, std::size_t depth = 0, bool converted = true) {
     if (depth > 128 || !numeric(node.type)) return emptyValue;
-    if (const auto integer = integer_constant(node, depth)) return ConstantValue{*integer};
+    // 先按原类型求值，再按目标类型转换，不能把整数除法提前变成浮点除法。
+    if (converted && node.converted_type) {
+        if (!numeric(node.converted_type)) return emptyValue;
+        const auto original = folded_value(node, depth, false);
+        if (!original) return emptyValue;
+        try {
+            if (floating(node.converted_type)) {
+                const auto number = constant_get_if<long long>(*original);
+                return ConstantValue{checked_float(number ? static_cast<double>(*number) : constant_get<double>(*original))};
+            }
+            if (const auto number = constant_get_if<long long>(*original))
+                return ConstantValue{checked_integer(*number, node.converted_type->kind)};
+        } catch (const std::runtime_error&) {}
+        return emptyValue;
+    }
+    if (const auto integer = integer_constant(node, depth, false)) return ConstantValue{*integer};
     if (node.kind == NodeType::FloatLiteral) {
         if (const auto* value = constant_get_if<double>(node.value)) return ConstantValue{*value};
         return emptyValue;
@@ -184,8 +203,7 @@ inline MaybeValue<ConstantValue> folded_value(const ASTNode& node, std::size_t d
     };
     const auto left = number(*left_value);
     double result;
-    if (node.kind == NodeType::ImplicitCast) result = left;
-    else if (node.kind == NodeType::UnaryOp) {
+    if (node.kind == NodeType::UnaryOp) {
         if (node.name == "+") result = left;
         else if (node.name == "-") result = -left;
         else if (node.name == "!") result = !left;

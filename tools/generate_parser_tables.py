@@ -362,7 +362,7 @@ def build_payload():
         sheet('运算符优先级', '表达式优先级与结合性', '优先顺序来自表达式文法层级，序号越大越先结合；运行时全部由预测表选择产生式。',
               ['文法层级', '运算符', 'Token 种别', '结合方式', 'AST 节点', '源码位置'], priority_rows, [16, 20, 57, 40, 45, 43],
               ['一般后缀先于前缀，前缀先于二元运算；括号中的表达式单独解析。逗号仅分隔参数、声明或初值，不是表达式运算符。']),
-        sheet('AST孩子顺序', '语法阶段实际生成的 AST', '只列 parser.cpp 使用的节点；ImplicitCast 由语义阶段生成。',
+        sheet('AST孩子顺序', '语法阶段实际生成的 AST', '只列 parser.cpp 使用的节点；语义在原节点标注 converted_type，不创建转换节点。',
               ['节点', '名字或声明类型', '孩子顺序', '孩子数量', '源码位置'], [[name, text, children, number, references[function]] for name, function, text, children, number in AST], [27, 57, 84, 18, 43]),
         sheet('语法约束', '语法结构以外的检查和 AST 约定', '结构限制已写入产生式；字面量值、赋值左部形状、名字、类型及控制流仍由相应阶段检查。',
               ['编号', '类别', '条件', '诊断或阶段', '源码位置'], [[i, title, text, codes, references[function]] for i, title, function, text, codes in CONSTRAINTS], [12, 22, 115, 62, 43]),

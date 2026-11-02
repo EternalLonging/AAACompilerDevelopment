@@ -1,10 +1,10 @@
 #pragma once
 #include "minic/interface.hpp"
-// 用法：analyze(*syntax.root, &syntax.arena)；传入语法树的内存池来保存隐式转换节点。
+// 用法：analyze(*syntax.root, &syntax.arena)；第二个参数仅兼容原调用，语义阶段不再分配节点。
 namespace minic {
 
 // 只接收当前解析器成功生成、未经语义分析的新树；不校验手工 AST 的结构。
-// 填写类型、符号编号并插入转换节点，返回符号表及诊断；同一棵树只分析一次。
+// 填写类型、符号编号及 converted_type 转换目标，不改变树结构，返回符号表及诊断；同一棵树只分析一次。
 // 直接调用前建立 TypeArenaScope，类型管理器须保留到结果用完。
 SemanticResult analyze(Program& program, NodeArena* arena = nullptr);
 
