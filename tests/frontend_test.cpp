@@ -80,7 +80,7 @@ int main() {
         auto terminal_error = syntax(mismatched);
         require(!terminal_error.root && terminal_error.diagnostics.size() == 1 &&
                 terminal_error.diagnostics[0].range.begin.offset == mismatched.find(']') &&
-                terminal_error.diagnostics[0].message == "需要 RPAREN，实际遇到 ]",
+                terminal_error.diagnostics[0].message == "需要 )，实际遇到 ]",
                 "终结符失配立即停止并保留错误位置和提示");
         auto bound_error = syntax("int a[0];\nint b[0];");
         require(!bound_error.root && bound_error.diagnostics.size() == 1 &&

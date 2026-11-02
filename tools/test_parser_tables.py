@@ -10,12 +10,24 @@ import tempfile
 import xml.etree.ElementTree as ET
 import zipfile
 
-from generate_parser_tables import ROOT, TARGET, GRAMMAR_TARGET, END, build_payload, grammar_payload, derive, productions
+from generate_parser_tables import ROOT, TARGET, GRAMMAR_TARGET, END, LITERALS, build_payload, grammar_payload, grammar_rhs, derive, productions
 from generate_lexer_tables import NS, check_workbook
 
 
 def set_checks():
     """用手算结果检查可空传播、循环依赖和两种 SELECT 冲突。"""
+    for token, literal in LITERALS.items():
+        row = productions('S -> ' + json.dumps(literal))[0]
+        assert row['rhs'] == [token]
+        assert grammar_rhs(row['rhs']) == json.dumps(literal)
+    assert productions('S -> "," ID S | ε') == productions('S -> COMMA ID S | ε')
+    for invalid in ['"，"', '"不存在的符号"']:
+        try:
+            productions('S -> ' + invalid)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError('未定义的固定符号未被拒绝：' + invalid)
     result = derive(productions('S -> A B\nA -> a | ε\nB -> b | ε'), 'S', '$')
     assert result['nullable'] == {'S', 'A', 'B'}
     assert result['first'] == {'S': {'a', 'b'}, 'A': {'a'}, 'B': {'b'}}
