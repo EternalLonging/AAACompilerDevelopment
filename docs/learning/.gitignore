@@ -1,0 +1,6 @@
+# 本页本地验证产生的截图、样例及编译程序。
+reduce-actions-*.png
+reduce-native-*.c
+verify-reduce-native
+verify-reduce-native.exe
+__pycache__/
