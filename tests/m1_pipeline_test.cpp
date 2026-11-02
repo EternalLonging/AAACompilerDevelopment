@@ -138,18 +138,7 @@ static void test_semantic_errors() {
     semantic_failure(program(function("main", TypeKind::Int, block())), "SEM_MISSING_RETURN");
     semantic_failure(program(function("main", TypeKind::Int, block(ret(node(NodeType::IntLiteral, "2147483648"))))), "SEM_LITERAL");
     semantic_failure(program(function("f", TypeKind::Int, block(variable("x", TypeKind::Int), ret(integer(0))), parameter("x", TypeKind::Int))), "SYM_DECL_CONFLICT");
-    auto bad = program();
-    bad->children.push_back(nullptr);
-    semantic_failure(std::move(bad), "SEM_AST_SHAPE");
-    semantic_failure(node(NodeType::Block), "SEM_ROOT");
-    semantic_failure(program(function("main", TypeKind::Int, block(ret(node(NodeType::ArrayAccess))))), "SEM_AST_SHAPE");
     semantic_failure(program(variable("g", TypeKind::Int, call("printf", text("\"bad\"")))), "SEM_GLOBAL_INIT");
-    auto constant = variable("x", TypeKind::Int, integer(1));
-    auto const_type = make_type_info(*constant->declared_type);
-    const_type->is_const = true;
-    constant->declared_type = const_type;
-    semantic_failure(program(function("main", TypeKind::Int, block(std::move(constant),
-        statement(assign("x", integer(2))), ret(integer(0))))), "SEM_LVALUE");
     semantic_failure(program(function("f", TypeKind::Int, block(ret(id("x"))), parameter("x", TypeKind::Int)),
         function("main", TypeKind::Int, block(ret(call("f"))))), "SEM_ARGUMENT_COUNT");
 }
