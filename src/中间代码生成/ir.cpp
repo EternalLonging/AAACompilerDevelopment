@@ -78,7 +78,7 @@ class Generator {
         } else if (node.kind == NodeType::ArrayAccess) {
             count(node, 2, 2);
             const bool array_parameter = child(node, 0).type->kind == TypeKind::Address;
-            const auto base = array_parameter ? snapshot(expression(child(node, 0)), child(node, 0).type, node.range) : address(child(node, 0), depth + 1);
+            const auto base = array_parameter ? snapshot(expression(child(node, 0)), detail::value_type(child(node, 0)), node.range) : address(child(node, 0), depth + 1);
             const auto index = expression(child(node, 1));
             emit(array_parameter ? "offsetaddr" : "indexaddr", base, index, result, node.range);
         } else if (node.kind == NodeType::MemberAccess) {
@@ -90,7 +90,7 @@ class Generator {
             const auto base = address(child(node, 0), depth + 1);
             emit("memberaddr", base, std::to_string(*member.offset), result, node.range);
         } else if (detail::aggregate(node.type) && node.category == ValueCategory::RValue) {
-            const auto value = snapshot(expression(node), node.type, node.range);
+            const auto value = snapshot(expression_value(node), node.type, node.range);
             emit("tempaddr", value, "-", result, node.range);
         } else throw std::runtime_error("此表达式不能求对象地址");
         return result;
@@ -111,17 +111,36 @@ class Generator {
             emit("store", expression(init), "-", destination, init.range);
         }
     }
-
+    // 先生成原表达式，再按节点上的目标类型生成转换；数组取首元素地址。
     std::string expression(const ASTNode& node) {
+        if (node.converted_type && node.type && node.type->kind == TypeKind::Array &&
+            node.kind != NodeType::StringLiteral) {
+            current_range_ = node.range;
+            const auto result = temporary(node.converted_type);
+            emit("decay", address(node), "-", result, node.range);
+            return result;
+        }
+        if (options_.constant_folding && node.converted_type) {
+            if (const auto value = detail::folded_value(node))
+                return constant_operand(constants_.intern(node.converted_type, *value, "<折叠常量>", node.range));
+        }
+        const auto source = expression_value(node);
+        if (!node.converted_type) return source;
+        const auto result = temporary(node.converted_type);
+        const bool i2f = node.type->kind == TypeKind::Int && node.converted_type->kind == TypeKind::Float;
+        emit(i2f ? "cvt_i2f" : "cvt", source, "-", result, node.range);
+        return result;
+    }
+    // 按原类型生成表达式值；不修改 AST，也不在这里应用本节点的转换目标。
+    std::string expression_value(const ASTNode& node) {
         current_range_ = node.range;
         if (++depth_ > 512) throw std::runtime_error("语法树嵌套过深");
         if (!node.type || node.type->kind == TypeKind::Unknown || node.type->kind == TypeKind::Error ||
             node.scope_id >= symbols_.scopes.size()) throw std::runtime_error("表达式尚未通过语义检查");
         std::string result;
         // 仅折叠无副作用且不会溢出/除零的数值常量表达式。
-        if (options_.constant_folding && (node.kind == NodeType::BinaryOp || node.kind == NodeType::UnaryOp ||
-            node.kind == NodeType::ImplicitCast)) {
-            if (const auto value = detail::folded_value(node)) {
+        if (options_.constant_folding && (node.kind == NodeType::BinaryOp || node.kind == NodeType::UnaryOp)) {
+            if (const auto value = detail::folded_value(node, 0, false)) {
                 --depth_;
                 return constant_operand(constants_.intern(node.type, *value, "<折叠常量>", node.range));
             }
@@ -142,17 +161,6 @@ class Generator {
             count(node, 0, 0);
             result = constant_operand(constants_.intern(node.type, node.value, node.name, node.range));
             break;
-        case NodeType::ImplicitCast: {
-            count(node, 1, 1);
-            if (child(node, 0).type->kind == TypeKind::Array && child(node, 0).kind != NodeType::StringLiteral && node.type->kind == TypeKind::Address) {
-                result = temporary(node.type); emit("decay", address(child(node, 0)), "-", result, node.range); break;
-            }
-            const auto source = expression(child(node, 0));
-            result = temporary(node.type);
-            const bool i2f = node.type->kind == TypeKind::Float && child(node, 0).type->kind == TypeKind::Int;
-            emit(i2f ? "cvt_i2f" : "cvt", source, "-", result, node.range);
-            break;
-        }
         case NodeType::BinaryOp: {
             count(node, 2, 2);
             const auto left = expression(child(node, 0));
@@ -171,7 +179,7 @@ class Generator {
                 emit("=", integer(node.name == "&&" ? 0 : 1), "-", result, node.range);
                 mark(end, node.range);
             } else {
-                const auto saved = snapshot(left, child(node, 0).type, node.range);
+                const auto saved = snapshot(left, detail::value_type(child(node, 0)), node.range);
                 const auto right = expression(child(node, 1));
                 emit(node.name, saved, right, result, node.range);
             }
@@ -220,7 +228,7 @@ class Generator {
             for (std::size_t i = 1; i < node.children.size(); ++i) {
                 const auto value = expression(child(node, i));
                 // 实参逐个快照，嵌套调用在外层 arg 之前完成。
-                arguments.push_back(snapshot(value, child(node, i).type, child(node, i).range));
+                arguments.push_back(snapshot(value, detail::value_type(child(node, i)), child(node, i).range));
             }
             for (const auto& value : arguments) emit("arg", value, "-", "-", node.range);
             result = node.type->kind == TypeKind::Void ? "-" : temporary(node.type);

@@ -80,6 +80,7 @@ void ast(const ASTNode& node, std::ostream& output, std::size_t depth) {
     output << std::string(depth * 2, ' ') << node_name(node.kind);
     if (!node.name.empty()) output << ' ' << escaped(node.name);
     output << " : " << type_text(node.type);
+    if (node.converted_type) output << " -> " << type_text(node.converted_type);
     if (node.symbol_id != invalid_id) output << " %s" << node.symbol_id;
     if (node.scope_id != invalid_id) output << " scope=" << node.scope_id;
     output << '\n';

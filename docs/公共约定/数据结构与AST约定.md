@@ -40,7 +40,7 @@ v1.4 将 TypePtr 改为普通指针，类型对象由 TypeArena 统一创建和�
 
 `SourceLocation{line, col, offset}`：行列从 **1** 开始，offset 是从 **0** 开始的 UTF-8 字节偏移。列也按字节计数；Tab 算一列；CRLF 算一次换行但占两个字节。界面若要按字符或视觉列展示，应在展示层换算。
 
-`SourceRange{file, begin, end}` 使用左闭右开范围 `[begin, end)`。EOF 的 begin 与 end 相同。合成的隐式转换节点继承原表达式范围；内建声明使用 `file="<builtin>"` 的空范围。
+`SourceRange{file, begin, end}` 使用左闭右开范围 `[begin, end)`。EOF 的 begin 与 end 相同。隐式转换只标注原节点，沿用其源码范围；内建声明使用 `file="<builtin>"` 的空范围。
 
 Token / Diagnostic 保留需求资料中的 `line`、`col` 简便字段，它们必须分别等于 `range.begin.line`、`range.begin.col`。AST 和其他条目统一从 range 取得位置，不再重复维护。
 
@@ -106,7 +106,8 @@ Function.params 保存形参类型，Call.children 保存函数名字和实参�
 | symbol_id | 绑定的变量、形参或函数编号 | 语义 |
 | scope_id | 此节点所属作用域编号 | 语义 |
 | record_id / member_index | 记录身份 / 成员访问的成员下标 | 语义 |
-| children | 按下表顺序保存孩子的普通指针向量，由 ParseResult.arena 统一释放 | 语法；语义可插入转换节点 |
+| converted_type | 本次使用的隐式转换目标；为空时不转换，type 保留原计算类型 | 语义 |
+| children | 按下表顺序保存孩子的普通指针向量，由 ParseResult.arena 统一释放 | 语法；语义不改变树结构 |
 
 `kind` 与 `type` 分开：`BinaryOp("+")` 是节点种类，float 是该表达式的数据类型。不再用一个 type 字段同时表达两者。左值、右值类别必须由语义标注，赋值、scanf 取地址与成员访问要据此检查。
 
@@ -131,7 +132,7 @@ Function.params 保存形参类型，Call.children 保存函数名字和实参�
 | While | — | `[条件, 循环体]` |
 | For | — | 固定 `[初始化, 条件, 更新, 循环体]`，缺失分量为 Empty |
 | Return | — | 无，或 `[返回表达式]` |
-| ImplicitCast | 语义阶段生成的转换目标类型 | `[被转换表达式]` |
+| ImplicitCast | 仅保留枚举编号，不再生成 | 无 |
 | ArrayAccess | — | `[数组表达式, 下标表达式]`；只支持一维数组 |
 | MemberAccess | 成员名 | `[对象表达式]`；使用点号访问 |
 
@@ -145,7 +146,7 @@ Function 节点的 ParamDecl 类型和 declared_type.params 必须一致。定�
 
 比较签名时，数组形参调整为内部 Address。临时 struct 的数组成员可读取，其结果不是可修改左值。
 
-普通窄字符串的 value 保存解码后的字节串（不附终止零），name 保存原文；相邻字符串合为一个 StringLiteral，name 以空格分隔各段完整拼写，语义分别解码再拼接；语义类型是包含终止零的 char 数组，长度为 `value.size()+1`。用于函数实参时，语义插入数组到内部地址的转换。字符常量的 value 用 int64_t 保存解码码值；当前语言只使用窄字符和窄字符串，宽字符前缀不属于语言范围。
+普通窄字符串的 value 保存解码后的字节串（不附终止零），name 保存原文；相邻字符串合为一个 StringLiteral，name 以空格分隔各段完整拼写，语义分别解码再拼接；语义类型是包含终止零的 char 数组，长度为 `value.size()+1`。用于函数实参时，语义在原节点的 converted_type 中标注内部地址类型。字符常量的 value 用 int64_t 保存解码码值；当前语言只使用窄字符和窄字符串，宽字符前缀不属于语言范围。
 
 ### 例：printf("%d", s)
 
@@ -226,7 +227,7 @@ M1 指令合同：
 
 `local` 在变量声明时执行，之后可接初始化赋值。这样循环中重新进入块时，不会把上一轮同一声明的值当作本轮初始值；全局对象在进入初始化序列前统一零初始化。
 
-`&&` / `||` 必须通过跳转实现短路，不可把两侧都算完再做普通二元运算。比较节点类型为 int，操作数的算术提升由语义插入的 ImplicitCast 决定，不能拿“比较结果为 int”去强转两个 float 操作数。
+`&&` / `||` 必须通过跳转实现短路，不可把两侧都算完再做普通二元运算。比较节点类型为 int，操作数的算术提升由各操作数原节点的 converted_type 标注决定，不能拿“比较结果为 int”去强转两个 float 操作数。
 
 本组解释器选择实参 **从左到右** 求值。先分别求值并在需要时复制到临时量，保留本次求值的值，再连续 emit 本调用的 arg 和 call。嵌套调用必须在外层 arg 序列开始前完成，避免内外参数混入一个队列；后面的实参若会改变变量，前面读出的值必须先快照。call 将参数转移到新调用帧，局部变量和临时量每个调用帧独立，才能支持递归。C 标准未规定一般实参的求值顺序，本组选择只是解释器行为约定。
 

@@ -9,10 +9,6 @@ namespace minic {
 namespace {
 
 class Analyzer {
-    NodeArena* arena_ = nullptr; // 保存新增转换节点的池；总控传入 ParseResult.arena。
-public:
-    explicit Analyzer(NodeArena* arena = nullptr) : arena_(arena) {}
-private:
     DiagnosticEngine diagnostics_{Phase::Semantic}; // 本阶段的报错列表。
     SymbolTable table_{diagnostics_}; // 名字和作用域信息。
     TypePtr return_type_ = nullptr; // 当前函数的返回类型。
@@ -50,15 +46,15 @@ private:
     }
     // 判断数值、数组参数地址或同一结构体类型能否赋值；返回是否兼容。
     bool assignable(const TypePtr& target, const ASTNode& source) const {
-        return can_assign(target, source.type) ||
-               detail::address_compatible(target, source.type) ||
-               (target->kind == TypeKind::Struct && same_type(target, source.type));
+        const auto type = detail::value_type(source);
+        return can_assign(target, type) || detail::address_compatible(target, type) ||
+               (target->kind == TypeKind::Struct && same_type(target, type));
     }
 
     // 数组传参和字符串输入输出使用首元素地址；源码不提供指针类型。
-    void decay(ASTNode*& node) {
-        if (node->type->kind != TypeKind::Array) return;
-        convert(node, detail::address_type(node->type->base));
+    void decay(ASTNode& node) {
+        if (node.type->kind == TypeKind::Array)
+            convert(node, detail::address_type(node.type->base));
     }
     // 登记结构体标签，按成员顺序计算偏移、总大小和对齐，再补齐记录表。
     void record_definition(ASTNode& node) {
@@ -93,28 +89,28 @@ private:
             } catch (const std::runtime_error& exception) { error(node, exception.what(), "SEM_LAYOUT"); }
         }
     }
-    // 检查初始化值和目标类型；必要时插入转换，全局初值另做常量表达式检查。
-    void initialize(ASTNode*& init, const TypePtr& target, bool global) {
-        expression(*init);
-        if (!valid_expression(*init)) return;
+    // 检查初始化值和目标类型；必要时标注转换目标，全局初值另做常量表达式检查。
+    void initialize(ASTNode& init, const TypePtr& target, bool global) {
+        expression(init);
+        if (!valid_expression(init)) return;
 
         if (target->kind == TypeKind::Array &&
             target->base->kind == TypeKind::Char &&
-            init->kind == NodeType::StringLiteral) {
-            if (constant_get<std::string>(init->value).size() > *target->array_length)
-                error(*init, "字符串超过 char 数组长度", "SEM_INIT_COUNT");
+            init.kind == NodeType::StringLiteral) {
+            if (constant_get<std::string>(init.value).size() > *target->array_length)
+                error(init, "字符串超过 char 数组长度", "SEM_INIT_COUNT");
             return;
         }
 
-        if (global && !constant_initializer(*init)) {
-            error(*init, "全局初始化必须是常量表达式", "SEM_GLOBAL_INIT");
+        if (global && !constant_initializer(init)) {
+            error(init, "全局初始化必须是常量表达式", "SEM_GLOBAL_INIT");
             return;
         }
 
-        if (target->kind == TypeKind::Struct && assignable(target, *init)) return;
+        if (target->kind == TypeKind::Struct && assignable(target, init)) return;
 
-        if (!assignable(target, *init)) {
-            error(*init, "初始化类型不兼容", "SEM_INIT_TYPE");
+        if (!assignable(target, init)) {
+            error(init, "初始化类型不兼容", "SEM_INIT_TYPE");
             return;
         }
 
@@ -126,7 +122,7 @@ private:
         case NodeType::IntLiteral: case NodeType::FloatLiteral:
         case NodeType::CharLiteral: case NodeType::StringLiteral:
             return true;
-        case NodeType::BinaryOp: case NodeType::UnaryOp: case NodeType::ImplicitCast:
+        case NodeType::BinaryOp: case NodeType::UnaryOp:
             return std::all_of(node.children.begin(), node.children.end(),
                 [this](const ASTNode* child) { return constant_initializer(*child); });
         default:
@@ -134,18 +130,9 @@ private:
         }
     }
 
-    // 在表达式外包一层隐式转换，并改写调用者持有的节点指针；新节点由 arena_ 管理。
-    void convert(ASTNode*& node, const TypePtr& target) {
-        if (same_type(node->type, target)) return;
-        auto cast = arena_->make();
-        cast->kind = NodeType::ImplicitCast;
-        cast->range = node->range;
-        cast->scope_id = node->scope_id;
-        cast->declared_type = target;
-        cast->type = target;
-        cast->category = ValueCategory::RValue;
-        cast->children.push_back(node);
-        node = cast;
+    // 在原节点记录转换目标；保留原计算类型、符号绑定和孩子，不创建节点。
+    void convert(ASTNode& node, const TypePtr& target) {
+        node.converted_type = same_type(node.type, target) ? nullptr : target;
     }
     // 检查 if/循环的条件表达式；仅接受数值条件，零和非零的分支行为留给 IR。
     void require_condition(ASTNode& node) {
@@ -197,7 +184,7 @@ private:
         node.type = entry->type;
         node.category = entry->kind == SymbolKind::Function ? ValueCategory::Function : ValueCategory::LValue;
     }
-    // 检查两侧表达式和运算符，插入必要转换并确定结果类型；比较和逻辑结果为 int。
+    // 检查两侧表达式和运算符，标注必要转换并确定结果类型；比较和逻辑结果为 int。
     void binary(ASTNode& node) {
         expression(*node.children[0]);
         expression(*node.children[1]);
@@ -212,11 +199,11 @@ private:
             (node.name == "%" && detail::floating(common))) {
             error(node, "运算符或操作数类型不受支持", "SEM_OPERANDS"); return;
         }
-        if (!logic) { convert(left, common); convert(right, common); }
+        if (!logic) { convert(*left, common); convert(*right, common); }
         node.type = compare || logic ? detail::type(TypeKind::Int) : common;
         node.category = ValueCategory::RValue;
     }
-    // 检查左边能否被赋值以及右边类型是否允许，再给右边插入隐式转换。
+    // 检查左边能否被赋值以及右边类型是否允许，再给右边标注隐式转换目标。
     void assignment(ASTNode& node) {
         expression(*node.children[0]);
         expression(*node.children[1]);
@@ -231,7 +218,7 @@ private:
             error(node, "赋值目标必须是可修改的数值变量", "SEM_LVALUE"); return;
         }
         if (!can_assign(left->type, right->type)) { error(node, "赋值需要不允许的隐式类型转换", "SEM_ASSIGN_TYPE"); return; }
-        convert(right, left->type);
+        convert(*right, left->type);
         node.type = left->type;
         node.category = ValueCategory::RValue;
     }
@@ -249,7 +236,7 @@ private:
         } else {
             if (!detail::numeric(child->type)) { error(node, "一元运算需要数值类型", "SEM_OPERANDS"); return; }
             const auto promoted = arithmetic_result(child->type, child->type);
-            convert(child, promoted);
+            convert(*child, promoted);
             node.type = node.name == "!" ? detail::type(TypeKind::Int) : promoted;
         }
         node.category = ValueCategory::RValue;
@@ -282,23 +269,24 @@ private:
                     auto& argument = node.children[index++];
                     if (!valid_expression(*argument)) continue;
                     const auto expected = detail::format_type(part, scanning);
-                    if (part.conversion == 's') decay(argument);
+                    if (part.conversion == 's') decay(*argument);
+                    const auto type = detail::value_type(*argument);
                     if (scanning) {
-                        if (argument->type->kind != TypeKind::Address ||
-                            !same_type(argument->type->base, expected))
+                        if (type->kind != TypeKind::Address ||
+                            !same_type(type->base, expected))
                             throw std::runtime_error("scanf 实参地址类型与格式转换符不匹配");
                     } else if (part.conversion == 's') {
-                        if (argument->type->kind != TypeKind::Address || argument->type->base->kind != TypeKind::Char)
+                        if (type->kind != TypeKind::Address || type->base->kind != TypeKind::Char)
                             throw std::runtime_error("%s 需要字符数组或字符串");
                     } else {
-                        if (!detail::numeric(argument->type) ||
-                            (part.conversion == 'f' ? !detail::floating(argument->type) : !detail::integral(argument->type)))
+                        if (!detail::numeric(type) ||
+                            (part.conversion == 'f' ? !detail::floating(type) : !detail::integral(type)))
                             throw std::runtime_error("printf 实参类型与格式转换符不匹配");
-                        if (part.conversion != 'f') convert(argument, part.conversion == 'c' ? detail::type(TypeKind::Int) : expected);
+                        if (part.conversion != 'f') convert(*argument, part.conversion == 'c' ? detail::type(TypeKind::Int) : expected);
                     }
                 }
                 if (index != node.children.size()) throw std::runtime_error("实参数量多于格式转换符数量");
-                convert(node.children[1], entry.type->params[0]);
+                convert(*node.children[1], entry.type->params[0]);
             } catch (const std::exception& exception) { error(node, exception.what(), "SEM_FORMAT"); return; }
         } else {
             if (node.children.size() - 1 != entry.type->params.size()) {
@@ -306,10 +294,10 @@ private:
             }
             for (std::size_t i = 1; i < node.children.size(); ++i) {
                 if (!valid_expression(*node.children[i])) continue;
-                decay(node.children[i]);
+                decay(*node.children[i]);
                 const auto& target = entry.type->params[i - 1];
                 if (!assignable(target, *node.children[i])) error(node, "函数实参类型不兼容", "SEM_ARGUMENT_TYPE");
-                else convert(node.children[i], target);
+                else convert(*node.children[i], target);
             }
         }
         if (node.type && node.type->kind == TypeKind::Error) return;
@@ -340,7 +328,7 @@ private:
             catch (const std::runtime_error& exception) { error(node, exception.what(), "SEM_INDEX"); break; }
             node.type = array.type->base;
             node.category = array.type->kind == TypeKind::Address || array.category == ValueCategory::LValue ? ValueCategory::LValue : ValueCategory::RValue;
-            convert(node.children[1], detail::type(TypeKind::Int));
+            convert(*node.children[1], detail::type(TypeKind::Int));
             break;
         }
         case NodeType::MemberAccess: {
@@ -385,7 +373,7 @@ private:
         node.symbol_id = *id;
         node.type = table_.symbol(*id)->type;
         if (!node.children.empty()) {
-            initialize(node.children[0], node.type, global);
+            initialize(*node.children[0], node.type, global);
         }
     }
 
@@ -416,7 +404,7 @@ private:
                 if (return_type_->kind == TypeKind::Void) error(node, "void 函数不能返回一个值", "SEM_RETURN");
                 else if (valid_expression(*node.children[0])) {
                     if (!assignable(return_type_, *node.children[0])) error(node, "返回值类型不兼容", "SEM_RETURN");
-                    else convert(node.children[0], return_type_);
+                    else convert(*node.children[0], return_type_);
                 }
             }
             returned = true;
@@ -502,8 +490,6 @@ private:
 public:
     // 遍历解析器给出的顶层声明，返回符号表和诊断；类型等标注直接写回 AST。
     SemanticResult analyze(Program& program) {
-        static NodeArena fallback_arena;
-        if (!arena_) arena_ = &fallback_arena;
         register_builtins(table_);
         program.scope_id = 0;
         for (auto& child : program.children) {
@@ -525,8 +511,8 @@ public:
 
 }
 // 为本次调用新建检查器；修改 AST 标注，返回符号表和诊断。
-SemanticResult analyze(Program& program, NodeArena* arena) {
-    return Analyzer(arena).analyze(program);
+SemanticResult analyze(Program& program, NodeArena*) {
+    return Analyzer().analyze(program);
 }
 
 }
