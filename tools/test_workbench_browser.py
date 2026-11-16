@@ -156,7 +156,7 @@ def main():
         expect(page.locator("#file")).to_have_value("src/demo.c")
         expect(page.locator("#entry")).to_have_value("src/demo.c")
         expect(editor).to_have_value("int main(void) {\n    return 0;\n}\n")
-        editor.fill('int main(void){const int N=42;printf("%d\\n",N);return 0;}\n')
+        editor.fill('int main(void){int N=42;printf("%d\\n",N);return 0;}\n')
         # 未保存的新源文件不能直接切换到新建另一源文件。
         page.locator("#add-file").click()
         expect(page.locator("#unsaved-file-dialog")).to_be_visible()

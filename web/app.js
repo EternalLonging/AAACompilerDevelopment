@@ -1,6 +1,8 @@
 "use strict";
 const $ = id => document.getElementById(id);
 const editor = $("editor"), result = $("result");
+const browserRuntime = document.documentElement.dataset.runtime === "wasm";
+const browserCompiler = browserRuntime ? import("./compiler-client.js").then(({BrowserCompiler}) => new BrowserCompiler()) : null;
 let files = {"main.c": ""}, activeFile = "main.c", entryFile = "main.c", data = null, view = "ast", examples = [], dirty = false;
 let revision = 0, busy = false;
 const newFiles = new Set(); // 还没保存到电脑的新文件，切换前必须保存或放弃。
@@ -16,6 +18,7 @@ const labels = {
 function toast(message) { $("toast").textContent = message; $("toast").hidden = false; clearTimeout(toast.timer); toast.timer = setTimeout(() => $("toast").hidden = true, 4500); }
 function textElement(tag, text, cls) { const e = document.createElement(tag); e.textContent = text; if (cls) e.className = cls; return e; }
 async function api(path, payload) {
+  if (browserRuntime) return (await browserCompiler).request(path === "/api/run" ? "run" : "inspect", payload);
   const response = await fetch(path, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(payload)});
   const body = await response.json(); if (!response.ok || body.error) throw new Error(body.error || "操作失败"); return body;
 }
@@ -293,5 +296,20 @@ $("reset").onclick = async () => { if (!await allowFileChange() || !confirm("清
 $("export").onclick = () => { if (!data || dirty) { toast("请先分析当前源码"); return; } if (view === "ast") { const current = result.querySelector("svg"); if (!current) { toast("当前没有可导出的语法树"); return; } const svg = current.cloneNode(true); svg.style.removeProperty("width"); svg.style.removeProperty("height"); const style = document.createElementNS(svg.namespaceURI, "style"); style.textContent = ".ast-edge{stroke:#aec4a6;fill:none}.ast-node rect{fill:#fffef9;stroke:#b6cbb0}.ast-node text{font:11px monospace;fill:#183a35}.node-type{font-size:9px}"; svg.prepend(style); download("minic-ast.svg", new XMLSerializer().serializeToString(svg), "image/svg+xml"); } else if (view === "compare") download("minic-optimization.txt", "优化前\n" + (data.baseline?.text || "") + "\n优化后\n" + (data.optimized?.text || "")); else download("minic-results.json", JSON.stringify(data, null, 2), "application/json"); };
 $("example").onchange = async e => { const choice = e.target.value; if (!choice) return; if (!await allowFileChange() || (dirty && !confirm("载入示例会替换当前项目，是否继续？"))) { e.target.value = ""; return; } const item = examples[Number(choice) - 1]; files = {"main.c": item.source, ...item.files}; newFiles.clear(); entryFile = activeFile = "main.c"; editor.value = files[activeFile]; $("stdin").value = item.input; refreshFiles(); data = null; changed(); render(); };
 window.addEventListener("beforeunload", e => { if (newFiles.size) { e.preventDefault(); e.returnValue = ""; } });
-async function init() { try { examples = await (await fetch("/api/examples")).json(); examples.forEach((e, i) => $("example").add(new Option(e.name, String(i + 1)))); files["main.c"] = examples[0].source; editor.value = files["main.c"]; refreshFiles(); updateEditor(); } catch (e) { toast("无法载入示例：" + e.message); } }
+async function init() {
+  try {
+    if (browserRuntime) {
+      document.querySelector(".local-dot").textContent = "浏览器运行";
+      $("status").textContent = "正在加载编译器";
+      $("analyze").disabled = $("run").disabled = true;
+    }
+    const response = await fetch(browserRuntime ? "./examples.json" : "/api/examples");
+    if (!response.ok) throw new Error("示例加载失败");
+    examples = await response.json();
+    examples.forEach((e, i) => $("example").add(new Option(e.name, String(i + 1))));
+    files["main.c"] = examples[0].source; editor.value = files["main.c"]; refreshFiles(); updateEditor();
+    if (browserRuntime) { await (await browserCompiler).initialize(); $("status").textContent = "准备就绪"; }
+  } catch (e) { $("status").textContent = "加载失败"; toast("无法载入工作台：" + e.message); }
+  finally { $("analyze").disabled = $("run").disabled = false; }
+}
 init();

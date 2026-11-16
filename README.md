@@ -14,6 +14,10 @@
 
 词法 DFA 由 `src/词法分析/词法规则.json` 自动生成，规则和生成结果保持一致。
 
+## 在线使用
+
+打开 [MiniC 编译实验室](https://eternallonging.github.io/AAACompilerDevelopment/)，无需安装编译器。源码分析和执行均在浏览器中完成，支持查看各阶段结果及优化对比。自动发布与本地预览见[网站部署](docs/使用指南/网站部署.md)。
+
 ## 构建和运行
 
 需要 C++17 编译器、CMake、Ninja 和 Python 3.10+。在项目根目录执行；Windows 的中文路径建议使用 Ninja。
