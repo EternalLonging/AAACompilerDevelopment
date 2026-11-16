@@ -156,7 +156,7 @@ def main():
         expect(page.locator("#file")).to_have_value("src/demo.c")
         expect(page.locator("#entry")).to_have_value("src/demo.c")
         expect(editor).to_have_value("int main(void) {\n    return 0;\n}\n")
-        editor.fill('int main(void){const int N=42;printf("%d\\n",N);return 0;}\n')
+        editor.fill('int main(void){int N=42;printf("%d\\n",N);return 0;}\n')
         # 未保存的新源文件不能直接切换到新建另一源文件。
         page.locator("#add-file").click()
         expect(page.locator("#unsaved-file-dialog")).to_be_visible()
@@ -197,7 +197,7 @@ def main():
         project["files"].pop("main.c")
         page.locator("#upload").set_input_files({"name": "project.json", "mimeType": "application/json", "buffer": json.dumps(project).encode("utf-8")})
         expect(page.locator("#entry")).to_have_value("src/demo.c")
-        assert page.locator('#file option[value="main.c"]').count() == 0
+        expect(page.locator('#file option[value="main.c"]')).to_have_count(0)
         page.locator("#run").click()
         expect(page.locator("#status")).to_have_text("运行完成", timeout=20000)
         expect(page.locator("#output")).to_have_text("42\n")

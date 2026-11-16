@@ -161,7 +161,7 @@ int driver(const std::vector<std::string>& args) {
         if (!before || !after || !before->ok() || !after->ok()) std::cout << "null";
         else std::cout << ((before_out.str() == after_out.str() && before->exit_code == after->exit_code) ? "true" : "false");
     }
-    std::cout << '}'; return 0;
+    std::cout << '}' << std::endl; return 0;
 }
 }
 

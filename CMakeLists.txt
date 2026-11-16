@@ -4,6 +4,9 @@ project(AAACompilerDevelopment LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+if(EMSCRIPTEN)
+    add_compile_options(-fexceptions)
+endif()
 if(MSVC)
     add_compile_options(/utf-8)
 endif()
@@ -70,6 +73,17 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/src/词法分析/lexer.cpp")
     target_link_libraries(compile_and_run PRIVATE minic_compiler)
     add_executable(workbench_driver tools/workbench_driver.cpp)
     target_link_libraries(workbench_driver PRIVATE minic_compiler)
+    if(EMSCRIPTEN)
+        set_target_properties(minic PROPERTIES OUTPUT_NAME minic-cli)
+        set_target_properties(workbench_driver PROPERTIES OUTPUT_NAME minic SUFFIX ".js")
+        target_link_options(workbench_driver PRIVATE
+            -sMODULARIZE=1 -sEXPORT_ES6=1 -sEXPORT_NAME=createMiniC
+            "-sENVIRONMENT=web,worker,node" "-sEXPORTED_RUNTIME_METHODS=callMain,FS"
+            -sINVOKE_RUN=0 -sEXIT_RUNTIME=0 -sALLOW_MEMORY_GROWTH=1
+            -sINITIAL_MEMORY=33554432 -sMAXIMUM_MEMORY=268435456
+            -sSTACK_SIZE=8388608 -sDISABLE_EXCEPTION_CATCHING=0
+        )
+    endif()
     if(MINGW)
         target_link_options(workbench_driver PRIVATE -municode)
     endif()
