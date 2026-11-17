@@ -99,8 +99,8 @@ def lex(source):
     return tokens
 
 
-def value(begin=0, end=0, typ=None, nodes=None, unary=False):
-    return dict(begin=begin, end=end, type=typ, nodes=nodes or [], unary=unary)
+def value(begin=0, end=0, typ=None, nodes=None):
+    return dict(begin=begin, end=end, type=typ, nodes=nodes or [])
 
 
 SEQUENCES = {'程序', '成员序列', '局部声明序列', '语句序列', '表达后缀序列', '形参表可选', '实参可选'}
@@ -281,15 +281,12 @@ class Simulator:
             mark('丢开用于匹配的 = 或 else，只传递第二个右部符号的节点结果。', 'out.nodes = std::move(v[1].nodes);')
         elif lhs in EXPRESSIONS:
             n = v[0]['nodes'][0]
-            out['unary'] = v[0]['unary']
-            mark('先取左边已经完成的表达式；尾表按源码逆序保存，接下来反向遍历。', 'auto n = v[0].nodes[0];\nout.unary_form = v[0].unary_form;', working=n)
+            mark('先取左边已经完成的表达式；尾表按源码逆序保存，接下来反向遍历。赋值目标是否可修改由语义分析检查。', 'auto n = v[0].nodes[0];', working=n)
             for op in reversed(v[1]['nodes']):
-                assert self.nodes[op]['kind'] != 'Assign' or out['unary'], '赋值左部形状错误'
                 self.nodes[op]['children'].insert(0, n)
                 self.nodes[op]['begin'] = self.nodes[n]['begin']
                 n = op
-                out['unary'] = False
-                mark('把当前左子树插入运算节点的第一个孩子位置；右孩子原先已经存在。这个运算节点成为新结果。', 'op->children.insert(op->children.begin(), n);\nn = op; out.unary_form = false;', working=n)
+                mark('把当前左子树插入运算节点的第一个孩子位置；右孩子原先已经存在。这个运算节点成为新结果。', 'op->children.insert(op->children.begin(), n);\nn = op;', working=n)
             if not v[1]['nodes']: steps[-1]['note'] = '尾表为空，直接沿用左边的根节点；这一层不新建节点。'
             node_result(n, '循环结束，把工作根 n 放进 out.nodes；返回结果只有这一个根。', 'out.nodes.push_back(n);')
         elif lhs in TAILS:
@@ -299,7 +296,6 @@ class Simulator:
         elif lhs in {'一元式', '主式', '字符串'}:
             begin, end = v[0]['begin'], v[-1]['end']
             token = self.tokens[begin]
-            out['unary'] = True
             if lhs == '一元式':
                 n = v[0]['nodes'][0] if count == 1 else self.node('UnaryOp', begin, end, token['text'], v[1]['nodes'])
                 note = '沿用后缀式的节点。' if count == 1 else '新建一元运算节点，把操作数接成唯一孩子。'
@@ -316,11 +312,10 @@ class Simulator:
             else:
                 n = self.node({'INT_LITERAL': 'IntLiteral', 'FLOAT_LITERAL': 'FloatLiteral', 'CHAR_LITERAL': 'CharLiteral'}.get(token['kind'], 'Identifier'), begin, end, token['text'])
                 note = '把 Token 建成叶节点，名字保存 Token 原文。'
-            node_result(n, note + ' out.unary_form=true，供赋值左部形状检查。', 'unary(out, v, symbol, count);\n// 新建或沿用节点；out.unary_form = true')
+            node_result(n, note, 'unary(out, v, symbol, count);\n// 新建或沿用节点')
         elif lhs == '后缀式':
             n = v[0]['nodes'][0]
-            out['unary'] = True
-            mark('先取主式根，再按源码顺序接入调用、下标、成员访问后缀。', 'auto n = v[0].nodes[0]; out.unary_form = true;', working=n)
+            mark('先取主式根，再按源码顺序接入调用、下标、成员访问后缀。', 'auto n = v[0].nodes[0];', working=n)
             for suffix in reversed(v[1]['nodes']):
                 s = self.nodes[suffix]
                 if s['kind'] == 'Call' and self.nodes[n]['kind'] == 'Identifier': s['name'] = self.nodes[n]['name']
@@ -345,7 +340,7 @@ class Simulator:
         else:
             if count == 1:
                 out = deepcopy(v[0])
-                mark('单个右部结果直接向上传递；节点、类型与一元式标记都随它传递。', 'default: if (count == 1) out = std::move(v[0]);')
+                mark('单个右部结果直接向上传递，节点和类型也随它传递。', 'default: if (count == 1) out = std::move(v[0]);')
             else:
                 mark('字符串续只负责匹配后续字符串；nodes 仍为空，run() 会统一记录起止 Token 区间。', 'default: if (count == 1) out = std::move(v[0]);\n// count == 2，保留空 out')
 

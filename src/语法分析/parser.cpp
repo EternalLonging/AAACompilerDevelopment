@@ -20,7 +20,6 @@ class Parser {
         std::size_t begin = 0, end = 0; // 已匹配的单词区间，右端不包含。
         TypePtr type = nullptr; // 基础类型或尚未填入基础类型的数组。
         std::vector<Node> nodes; // 所有节点结果；单节点在下标 0，多节点按源码逆序保存。
-        bool unary_form = false; // 是否具有一元式形状，供赋值左部检查。
     };
     struct Frame {
         int symbol; // 待匹配的终结符或非终结符。
@@ -165,22 +164,20 @@ class Parser {
         else if (kind == NodeType::ExprStmt) children.push_back(v[0].nodes[0]);
         finish(n); out.nodes.push_back(n);
     }
-    // 从左向右接上运算尾表；赋值右部已是完整表达式，所以自然右结合。
+    // 接上运算尾表；赋值按右结合建树，目标是否可修改由语义分析检查。
     void expression(Value& out, Value* v) {
-        auto n = v[0].nodes[0]; out.unary_form = v[0].unary_form;
+        auto n = v[0].nodes[0];
         for (auto i = v[1].nodes.rbegin(); i != v[1].nodes.rend(); ++i) {
             auto op = *i;
-            if (op->kind == NodeType::Assign && !out.unary_form)
-                fail("赋值左部必须符合一元表达式形状", "PARSE_ASSIGNMENT_TARGET", Level::Error, v[1].begin);
             op->range.begin = n->range.begin; op->children.insert(op->children.begin(), n);
-            finish(op); n = op; out.unary_form = false;
+            finish(op); n = op;
         }
         out.nodes.push_back(n);
     }
-    // 完成一元式、主式或字符串；括号主式保留一元式形状。
+    // 完成一元式、主式或字符串，括号只更新表达式的源码范围。
     void unary(Value& out, Value* v, int symbol, int count) {
         const auto begin = v[0].begin, end = v[count - 1].end;
-        const auto& token = tokens[begin]; out.unary_form = true;
+        const auto& token = tokens[begin];
         Node n;
         if (symbol == 一元式) {
             n = count == 1 ? v[0].nodes[0] : node(NodeType::UnaryOp, begin, end, token.lexeme, {v[1].nodes[0]});
@@ -208,7 +205,7 @@ class Parser {
     }
     // 将调用、下标或成员后缀依次接到主式上。
     void postfix(Value& out, Value* v) {
-        auto n = v[0].nodes[0]; out.unary_form = true;
+        auto n = v[0].nodes[0];
         for (auto i = v[1].nodes.rbegin(); i != v[1].nodes.rend(); ++i) {
             auto suffix = *i;
             if (suffix->kind == NodeType::Call && n->kind == NodeType::Identifier) suffix->name = n->name;
