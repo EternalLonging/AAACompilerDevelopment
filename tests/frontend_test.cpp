@@ -69,8 +69,22 @@ int main() {
         require(product->name == "*" && product->children[0]->name == "+" &&
                 product->children[0]->range.begin.offset == 15 && product->children[0]->range.end.offset == 20,
                 "括号影响优先级并保留完整源码范围");
-        rejects("int f(){int a,b,c;a+b=c;return 0;}");
+        auto invalid_assignment = syntax("int f(){int a,b,c;a+b=c;return 0;}");
+        require(invalid_assignment.ok(), "赋值目标合法性留给语义分析");
+        auto invalid_body = invalid_assignment.root->children[0]->children.back();
+        auto invalid_assign = invalid_body->children[3]->children[0];
+        require(invalid_assign->kind == NodeType::Assign && invalid_assign->children.size() == 2 &&
+                invalid_assign->children[0]->name == "+" && invalid_assign->children[1]->name == "c",
+                "非左值目标仍生成左右孩子正确的赋值 AST");
         require(syntax("int f(){int a,b,c;(a+b)=c;return 0;}").ok(), "括号主式的左值合法性交给语义检查");
+        for (const auto& target : {"a+b", "(a+b)", "a*b", "a<b", "a||b", "1"}) {
+            auto assignment_error = compile(std::string("int main(){int a,b,c;") + target + "=c;return 0;}", "assignment.c");
+            require(!assignment_error.ok() && assignment_error.syntax && assignment_error.syntax->ok() &&
+                    assignment_error.semantic && !assignment_error.semantic->ok() && !assignment_error.ir &&
+                    assignment_error.diagnostics.size() == 1 && assignment_error.diagnostics[0].phase == Phase::Semantic &&
+                    assignment_error.diagnostics[0].code == "SEM_LVALUE",
+                    "非左值赋值目标在语义分析阶段报告并停止生成中间代码");
+        }
         auto first_error = compile("int f(){\na=;\nb=;\nreturn 0;}", "first_error.c");
         require(!first_error.ok() && first_error.syntax && !first_error.syntax->root &&
                 first_error.diagnostics.size() == 1 && first_error.diagnostics[0].line == 2 &&

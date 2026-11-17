@@ -141,7 +141,7 @@ GRAMMAR = '''@run
 CONSTRAINTS = [
     ('C01', '数组长度', 'declarator', 'INT_LITERAL 的值必须为可表示的正整数；对象长度推断和越界检查属于语义阶段。', 'PARSE_ARRAY_BOUND / 语义'),
     ('C02', '字面量', 'unary', '整数不接受后缀，浮点不接受 L 后缀；字符和字符串由语义阶段解码。', 'PARSE_LITERAL / 语义'),
-    ('C03', '赋值左部', 'expression', '左部应符合一元表达式形状；是否为可修改左值由语义阶段检查。', 'PARSE_ASSIGNMENT_TARGET / 语义'),
+    ('C03', '赋值左部', 'expression', '语法阶段只构建赋值 AST；目标是否为可修改左值由语义阶段 assignment() 统一检查。', 'SEM_LVALUE / 语义'),
     ('C04', '名字和类型', 'declaration', '声明可见性、重名、结构体布局、赋值和调用类型兼容由语义阶段检查。', '语义'),
     ('C05', '控制流', 'statement', 'break/continue 所在循环、return 所在函数和返回类型由语义阶段检查。', '语义'),
     ('C06', 'AST 交接', 'finish', '重复后缀按从左到右建立 AST；节点类型、孩子顺序和类型归属保持公共接口约定。', 'AST'),
@@ -384,19 +384,19 @@ def build_payload():
               ['一般后缀先于前缀，前缀先于二元运算；括号中的表达式单独解析。逗号仅分隔参数、声明或初值，不是表达式运算符。']),
         sheet('AST孩子顺序', '语法阶段实际生成的 AST', '只列 parser.cpp 使用的节点；语义在原节点标注 converted_type，不创建转换节点。',
               ['节点', '名字或声明类型', '孩子顺序', '孩子数量', '源码位置'], [[name, text, children, number, references[function]] for name, function, text, children, number in AST], [27, 57, 84, 18, 43]),
-        sheet('语法约束', '语法结构以外的检查和 AST 约定', '结构限制已写入产生式；字面量值、赋值左部形状、名字、类型及控制流仍由相应阶段检查。',
+        sheet('语法约束', '语法结构以外的检查和 AST 约定', '结构限制已写入产生式；字面量值由相应阶段检查，赋值目标、名字、类型及控制流由语义阶段检查。',
               ['编号', '类别', '条件', '诊断或阶段', '源码位置'], [[i, title, text, codes, references[function]] for i, title, function, text, codes in CONSTRAINTS], [12, 22, 115, 62, 43]),
         sheet('语法诊断', '当前语法错误代码', '错误码与出现行号从源码提取。消息列保留所在行的字符串片段；动态消息按实际 Token 拼接。',
               ['错误代码', '级别', '消息片段', 'parser.cpp 行号'], diagnostic_rows, [42, 12, 150, 32]),
         sheet('出错与接口', '输入、首次出错停止与阶段交接', '语法分析只报告第一条错误并立即退出；不向后续阶段交付部分 AST。',
               ['项目', '实现函数', '行为', '结果或限制', '源码位置'], [[title, function, text, limit, references[function]] for title, function, text, limit in HANDOFF], [22, 22, 120, 30, 43]),
     ]
-    bnf = '# MiniC 的 LL(1) 文法\n# 开始符号：程序；结束标记：END_OF_FILE；空串：ε\n# 词法值、赋值左部形状和语义检查见《当前文法与约束.md》。\n'
+    bnf = '# MiniC 的 LL(1) 文法\n# 开始符号：程序；结束标记：END_OF_FILE；空串：ε\n# 词法值和语义检查见《当前文法与约束.md》；赋值目标由语义阶段检查。\n'
     bnf += '# 固定符号使用双引号内的半角拼写；其 Token 编号由词法规则映射。\n'
     bnf += ''.join(f'{row["id"]}: {row["lhs"]} -> {grammar_rhs(row["rhs"])}\n' for row in rows)
     document = '# 当前文法与约束\n\n' + count + '\n\n'
     document += '正式解析器采用分析栈、语义值栈和 LL(1) 预测表。`tools/generate_parser_tables.py` 中的 GRAMMAR 同时生成运行表、FIRST/FOLLOW、SELECT 与 Excel 资料；产生式完成后消费右部语义值并压回一个结果，直接构造 AST，保持节点和孩子顺序。文法直接区分函数定义、变量和成员声明；只允许一维数组、非空具名结构体和具名形参，不接受函数原型、裸类型声明或嵌套声明符。\n\n'
-    document += '开始符号为“程序”；空源码允许，`END_OF_FILE` 是输入结束标记，不在产生式右部。FIRST 的可空性单独显示，FOLLOW 不含 ε。预测表采用非空格清单，遗漏的组合为错误格；同一格出现两个候选式时生成器立即报错。文法不代替字面量值、赋值左部形状和语义检查。\n\n'
+    document += '开始符号为“程序”；空源码允许，`END_OF_FILE` 是输入结束标记，不在产生式右部。FIRST 的可空性单独显示，FOLLOW 不含 ε。预测表采用非空格清单，遗漏的组合为错误格；同一格出现两个候选式时生成器立即报错。语法阶段先构建赋值 AST，目标是否为可修改左值由语义阶段统一检查；文法不代替字面量值和语义检查。\n\n'
     document += '## 文法\n\n```bnf\n' + bnf + '```\n\n## 上下文约束\n\n| 编号 | 类别 | 条件 | 实现 |\n|---|---|---|---|\n'
     document += ''.join(f'| {i} | {title} | {text} | `{function}()` |\n' for i, title, function, text, _ in CONSTRAINTS)
     document += '\n## 预测冲突\n\n| 非终结符 | 向前看 | 候选式 | 实际处理 |\n|---|---|---|---|\n'
@@ -436,7 +436,7 @@ def overview(payload):
 
 开始符号为“程序”。ε 表示空串，END_OF_FILE 表示输入结束。FIRST 中的 ε 单独列在“可空”列，FOLLOW 不含 ε。预测表每格至多一条产生式，未列出的格子表示语法错误。
 
-函数定义、变量、成员、单层数组和非空结构体的形状直接写在产生式中。字面量数值、赋值左部形状、名字和类型检查仍由对应阶段完成。
+函数定义、变量、成员、单层数组和非空结构体的形状直接写在产生式中。字面量数值由相应阶段检查；赋值目标是否可修改、名字和类型由语义阶段检查。
 
 正式解析器使用分析栈、语义值栈和 LL(1) 预测表；运行表和这些资料从同一份文法生成。产生式完成后直接消费右部结果并压回一个语义值，不建立中间匹配树。AST 节点及孩子顺序未改变，语义分析继续使用原接口。
 
