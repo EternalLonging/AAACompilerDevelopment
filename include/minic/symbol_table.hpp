@@ -37,7 +37,8 @@ public:
     MaybeValue<RecordId> declare_record(const std::string& tag,
                                           RecordKind kind,
                                           const SourceRange& range);
-    // 补齐记录的成员和布局信息。成功返回 true，失败返回 false 并报错。
+    // 提交同一记录的成员和布局；调用方保证类型及布局有效，成员非空且有名字。
+    // 重复定义或成员重名时报错并返回 false，成功返回 true；身份由调试断言检查。
     bool complete_record(RecordId id, StructEntry definition);
     // 从当前作用域向外查标签。找到返回记录编号，未找到返回空值。
     MaybeValue<RecordId> lookup_tag(const std::string& tag) const;

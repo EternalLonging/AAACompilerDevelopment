@@ -211,9 +211,6 @@ static void test_records() {
             "普通名字与标签应使用独立名字表");
     require(table.declare_record("Node", RecordKind::Struct, at(20)) == node, "前向声明应复用");
     require(!table.find_member(node, "value") && !table.record(invalid_id), "不完整记录不能查成员");
-    auto node_type = make_type_info();
-    node_type->kind = TypeKind::Struct;
-    node_type->record_id = node;
     StructEntry definition = *table.record(node);
     definition.size = 8;
     definition.alignment = 4;
@@ -223,18 +220,6 @@ static void test_records() {
     bad.members[1].name = "value";
     require(!table.complete_record(node, bad) && !table.record(node)->is_complete &&
             table.record(node)->members.empty(), "重复成员失败不能留下半成品");
-    bad = definition;
-    bad.members[1].offset.reset();
-    require(!table.complete_record(node, bad), "缺少成员偏移应拒绝");
-    bad = definition;
-    bad.id = invalid_id;
-    require(!table.complete_record(node, bad), "错误记录身份应拒绝");
-    bad = definition;
-    bad.members[1].type = node_type;
-    require(!table.complete_record(node, bad), "结构体不能直接包含自身");
-    bad = definition;
-    bad.alignment = 3;
-    require(!table.complete_record(node, bad), "非法对齐应拒绝");
     require(table.complete_record(node, definition) && table.record(node)->is_complete &&
             table.find_member(node, "count") == 1 && !table.find_member(node, "unknown"),
             "完成定义后应能按成员名查下标");
@@ -248,16 +233,13 @@ static void test_records() {
     auto inner_definition = *table.record(inner);
     inner_definition.size = 4;
     inner_definition.alignment = 4;
-    inner_definition.members = {{"number", basic(TypeKind::Int), 4, at(60)}};
-    require(!table.complete_record(inner, inner_definition), "成员偏移不能超出结构体大小");
-    inner_definition.members[0].offset = 0;
+    inner_definition.members = {{"number", basic(TypeKind::Int), 0, at(60)}};
     require(table.complete_record(inner, inner_definition), "有效结构体应可完成");
     table.exit_scope();
     require(table.lookup_tag("Node") == node, "退出作用域应恢复外层标签");
     const auto anonymous = table.declare_record("", RecordKind::Struct, at(70)).value();
     require(anonymous != table.declare_record("", RecordKind::Struct, at(71)).value() &&
             !table.lookup_tag(""), "匿名记录不能加入标签名映射");
-    require(!table.complete_record(invalid_id, definition), "非法记录编号不能越界");
 }
 
 static void test_builtins() {
