@@ -255,25 +255,6 @@ class Parser {
         if (n) { finish(n); out.nodes.push_back(n); }
         return out;
     }
-    // 报告期望的符号和当前单词，立即退出分析。
-    [[noreturn]] void expected(int state) {
-        std::string expected_tokens;
-        int expected_count = 0;
-        int only_expected = -1;
-        for (int token = 0; token < terminal_count; ++token) {
-            if (action_table[state][token] == 0) continue;
-            ++expected_count;
-            only_expected = token;
-            if (!expected_tokens.empty()) expected_tokens += "、";
-            expected_tokens += names[token];
-        }
-        const auto actual = tokens[pos].type == TT::END_OF_FILE ? "文件结束" : tokens[pos].lexeme;
-        if (expected_count == 1)
-            fail(std::string("需要 ") + names[only_expected] + "，实际遇到 " + actual, "PARSE_EXPECTED");
-        fail("语法错误，实际遇到 " + actual +
-             (expected_tokens.empty() ? "" : "；可接受：" + expected_tokens), "PARSE_EXPECTED");
-    }
-
 public:
     // 保存词法单词表引用，解析期间不改变输入。
     explicit Parser(const std::vector<Token>& input) : tokens(input) {}
@@ -284,7 +265,9 @@ public:
             while (true) {
                 const auto lookahead = static_cast<int>(tokens[pos].type);
                 const short action = action_table[states.back()][lookahead];
-                if (action == 0) expected(states.back());
+                if (action == 0)
+                    fail(std::string("语法错误，实际遇到 ") +
+                         (tokens[pos].type == TT::END_OF_FILE ? "文件结束" : tokens[pos].lexeme), "PARSE_EXPECTED");
                 if (action == accept_action) break;
                 if (action > 0) {
                     Value value; value.begin = pos; value.end = pos + 1;
