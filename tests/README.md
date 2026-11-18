@@ -3,7 +3,7 @@
 | 部分 | 入口 | 检查内容 |
 |---|---|---|
 | 词法分析 | frontend_test.cpp、lexer_probe.cpp 与词法工具 | Token、位置、恢复及独立正则对照 |
-| 语法分析 | frontend_test.cpp、[语法资料核对](../tools/generate_parser_tables.py)、[集合与文法回归](../tools/test_parser_tables.py) | AST 顺序、优先级、拒绝范围、表格一致性和独立文法覆盖 |
+| 语法分析 | frontend_test.cpp、[LR 表核对](../tools/generate_lr_tables.py)、[文法回归](../tools/test_parser_tables.py) | AST 顺序、优先级、结合性、拒绝范围及独立文法覆盖；LL 表另作对照 |
 | 语义分析 | type_arena_test.cpp、arena_lifetime_test.cpp、m1_pipeline_test.cpp 至 m4_pipeline_test.cpp | 类型归属、声明、类型和控制语句检查 |
 | 中间代码生成 | constant_pool_test.cpp、各 pipeline 测试、workbench_test.cpp | 常量去重、四元式、执行和折叠对比 |
 | 符号表管理 | symbol_table_test.cpp | 作用域、遮蔽、重复声明、记录和成员 |

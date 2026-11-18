@@ -129,9 +129,12 @@ def workbook_checks():
     print('表格反向核对通过：丢行、值变化、意外公式')
 
 
-def corpus_checks(driver):
+def corpus_checks(driver, lr_mode=False):
     """使用真实前端产生的 Token，检查有效源码属于文法及典型结构错误被排除。"""
     rules = productions()
+    if lr_mode:
+        from generate_lr_tables import productions as lr_productions
+        lr_rules = lr_productions()
     fixtures = ROOT / 'tests/integration'
     cases = json.loads((fixtures / 'manifest.json').read_text(encoding='utf-8'))['cases']
     sources = [(case['id'], (fixtures / case['source']).read_text(encoding='utf-8'), None, None) for case in cases]
@@ -180,6 +183,8 @@ def corpus_checks(driver):
             assert tokens[-1] == END and END not in tokens[:-1]
             grammar_accepts = accepts(tokens[:-1], rules)
             assert predicts(tokens[:-1], rules) == grammar_accepts, 'LL(1) 表与独立识别器不一致：' + name
+            if lr_mode:
+                assert accepts(tokens[:-1], lr_rules) == grammar_accepts, 'LR 与 LL 文法接受范围不同：' + name
             parser_accepts = bool(actual['ast'])
             if parser_accepts:
                 assert grammar_accepts, '运行文法遗漏了实际接受的源码：' + name
@@ -192,8 +197,10 @@ def corpus_checks(driver):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) != 2:
-        raise SystemExit('用法：python tools/test_parser_tables.py <workbench_driver>')
+    if len(sys.argv) not in (2, 3) or (len(sys.argv) == 3 and sys.argv[2] != '--lr'):
+        raise SystemExit('用法：python tools/test_parser_tables.py <workbench_driver> [--lr]')
+    lr_mode = len(sys.argv) == 3
     set_checks()
-    workbook_checks()
-    corpus_checks(Path(sys.argv[1]).resolve())
+    if not lr_mode:
+        workbook_checks()
+    corpus_checks(Path(sys.argv[1]).resolve(), lr_mode)

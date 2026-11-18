@@ -5,7 +5,8 @@
 | 词法分析 | [generate_lexer_dfa.py](generate_lexer_dfa.py) | 从词法规则生成 C++ DFA；`--check` 检查是否过期 |
 | 词法分析 | [generate_lexer_tables.py](generate_lexer_tables.py)、[generate_lexer_tables.mjs](generate_lexer_tables.mjs) | 推导并生成中文 Excel；`--check` 逐单元格核对已提交表格 |
 | 词法分析 | [check_lexer_patterns.py](check_lexer_patterns.py)、[test_lexer_dfa.py](test_lexer_dfa.py) | 正则规则检查、独立对照真实扫描器 |
-| 语法分析 | [generate_parser_tables.py](generate_parser_tables.py) | 整理当前文法并推导 FIRST/FOLLOW/SELECT、预测格；`--check` 核对交付资料 |
+| 语法分析 | [generate_lr_tables.py](generate_lr_tables.py) | 从左递归文法生成规范 LR(1) ACTION/GOTO 表；`--check` 核对运行表 |
+| LL 对照 | [generate_parser_tables.py](generate_parser_tables.py) | 保留原 LL(1) 文法、预测表和资料生成器，用于比较 |
 | 语法分析 | [test_parser_tables.py](test_parser_tables.py) | 手算集合对照、损坏文件拒绝、真实语法样例的独立 Earley 覆盖 |
 | 五部分设计 | [generate_design_tables.py](generate_design_tables.py) | 生成集合、预测、语义、IR 与符号表六份 Excel 数据；真实编译验证示例与转换规则，逐格核对成品 |
 | 词法与语法 | [export_frontend_tables.mjs](export_frontend_tables.mjs) | 共用中文 Excel 导出与预览；词法原入口保持兼容 |

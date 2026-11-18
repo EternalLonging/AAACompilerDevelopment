@@ -1,5 +1,5 @@
 #include "minic/parser.hpp"
-#include "predictive_table.hpp"
+#include "lr_table.hpp"
 
 #include <algorithm>
 #include <limits>
@@ -11,26 +11,21 @@ namespace minic {
 namespace {
 using TT = TokenType;
 using Node = ASTNode*;
-using namespace predictive;
+using namespace lr;
 struct ParseFailure {};
 
-// 分析栈查预测表，语义值栈保存已完成的结果；不建立中间语法树。
+// LR 状态栈查 ACTION/GOTO 表，语义值栈在归约时直接构造 AST。
 class Parser {
     struct Value {
         std::size_t begin = 0, end = 0; // 已匹配的单词区间，右端不包含。
         TypePtr type = nullptr; // 基础类型或尚未填入基础类型的数组。
         std::vector<Node> nodes; // 所有节点结果；单节点在下标 0，多节点按源码逆序保存。
     };
-    struct Frame {
-        int symbol; // 待匹配的终结符或非终结符。
-        int production = -1; // -1 表示匹配符号，否则完成该产生式的 AST 动作。
-        std::size_t base = 0; // 产生式第一个右部符号在语义值栈中的位置。
-    };
     const std::vector<Token>& tokens; // 词法阶段给出的单词表，末尾为 EOF。
     std::size_t pos = 0; // 下一个输入单词的下标。
     unsigned nesting = 0; // 尚未闭合的括号层数。
     ParseResult result; // 返回的 AST 内存池、根节点和诊断。
-    std::vector<Frame> stack; // 分析栈：文法符号和完成动作。
+    std::vector<int> states; // LR 分析状态栈，栈底状态为 0。
     std::vector<Value> values; // 语义值栈：每个已匹配符号对应一个结果。
     std::unordered_map<Node, unsigned> heights; // 已完成 AST 节点的高度。
 
@@ -164,16 +159,6 @@ class Parser {
         else if (kind == NodeType::ExprStmt) children.push_back(v[0].nodes[0]);
         finish(n); out.nodes.push_back(n);
     }
-    // 接上运算尾表；赋值按右结合建树，目标是否可修改由语义分析检查。
-    void expression(Value& out, Value* v) {
-        auto n = v[0].nodes[0];
-        for (auto i = v[1].nodes.rbegin(); i != v[1].nodes.rend(); ++i) {
-            auto op = *i;
-            op->range.begin = n->range.begin; op->children.insert(op->children.begin(), n);
-            finish(op); n = op;
-        }
-        out.nodes.push_back(n);
-    }
     // 完成一元式、主式或字符串，括号只更新表达式的源码范围。
     void unary(Value& out, Value* v, int symbol, int count) {
         const auto begin = v[0].begin, end = v[count - 1].end;
@@ -203,24 +188,13 @@ class Parser {
         }
         finish(n); out.nodes.push_back(n);
     }
-    // 将调用、下标或成员后缀依次接到主式上。
-    void postfix(Value& out, Value* v) {
-        auto n = v[0].nodes[0];
-        for (auto i = v[1].nodes.rbegin(); i != v[1].nodes.rend(); ++i) {
-            auto suffix = *i;
-            if (suffix->kind == NodeType::Call && n->kind == NodeType::Identifier) suffix->name = n->name;
-            suffix->range.begin = n->range.begin; suffix->children.insert(suffix->children.begin(), n);
-            finish(suffix); n = suffix;
-        }
-        out.nodes.push_back(n);
-    }
     // 消费产生式右部的语义值，返回一个结果；不保存文法孩子或匹配树。
     Value reduce(int symbol, Value* v, int count) {
         Value out;
         if (!count) return out;
         Node n = nullptr; // 本次新建的单节点；完成后统一加入结果列表。
         switch (symbol) {
-        case 程序: case 成员序列: case 局部声明序列: case 语句序列: case 表达后缀序列:
+        case 程序: case 成员序列: case 局部声明序列: case 语句序列:
         case 形参表可选: case 实参可选:
             if (count == 2) out = sequence(v[0], v[1]);
             break;
@@ -260,18 +234,21 @@ class Parser {
         case 语句: statement(out, v, count); break;
         case 初值可选: case 否则可选: out.nodes = std::move(v[1].nodes); break;
         case 表达式: case 逻辑或式: case 逻辑与式: case 相等式: case 关系式: case 加法式: case 乘法式:
-            expression(out, v); break;
-        case 赋值续: case 逻辑或续: case 逻辑与续: case 相等续: case 关系续: case 加法续: case 乘法续:
-            if (count == 3) out = std::move(v[2]);
-            out.nodes.push_back(node(symbol == 赋值续 ? NodeType::Assign : NodeType::BinaryOp,
-                                     v[0].begin, v[1].end, tokens[v[0].begin].lexeme, {v[1].nodes[0]})); break;
+            if (count == 1) out = std::move(v[0]);
+            else n = node(symbol == 表达式 ? NodeType::Assign : NodeType::BinaryOp, v[0].begin, v[2].end,
+                          tokens[v[1].begin].lexeme, {v[0].nodes[0], v[2].nodes[0]});
+            break;
         case 一元式: case 主式: case 字符串: unary(out, v, symbol, count); break;
-        case 后缀式: postfix(out, v); break;
-        case 表达后缀:
-            if (count == 2) n = node(NodeType::MemberAccess, v[0].begin, v[1].end, tokens[v[1].begin].lexeme);
-            else if (tokens[v[0].begin].type == TT::LPAREN)
-                n = node(NodeType::Call, v[0].begin, v[2].end, "", {v[1].nodes.rbegin(), v[1].nodes.rend()});
-            else n = node(NodeType::ArrayAccess, v[0].begin, v[2].end, "", {v[1].nodes[0]});
+        case 后缀式:
+            if (count == 1) out = std::move(v[0]);
+            else if (count == 3)
+                n = node(NodeType::MemberAccess, v[0].begin, v[2].end, tokens[v[2].begin].lexeme, {v[0].nodes[0]});
+            else if (tokens[v[1].begin].type == TT::LPAREN) {
+                std::vector<Node> children = {v[0].nodes[0]};
+                children.insert(children.end(), v[2].nodes.rbegin(), v[2].nodes.rend());
+                const auto name = v[0].nodes[0]->kind == NodeType::Identifier ? v[0].nodes[0]->name : "";
+                n = node(NodeType::Call, v[0].begin, v[3].end, name, std::move(children));
+            } else n = node(NodeType::ArrayAccess, v[0].begin, v[3].end, "", {v[0].nodes[0], v[2].nodes[0]});
             break;
         default: if (count == 1) out = std::move(v[0]); break;
         }
@@ -279,46 +256,64 @@ class Parser {
         return out;
     }
     // 报告期望的符号和当前单词，立即退出分析。
-    [[noreturn]] void expected(int symbol) {
-        fail(std::string("需要 ") + names[symbol] + "，实际遇到 " +
-             (tokens[pos].type == TT::END_OF_FILE ? "文件结束" : tokens[pos].lexeme), "PARSE_EXPECTED");
+    [[noreturn]] void expected(int state) {
+        std::string expected_tokens;
+        int expected_count = 0;
+        int only_expected = -1;
+        for (int token = 0; token < terminal_count; ++token) {
+            if (action_table[state][token] == 0) continue;
+            ++expected_count;
+            only_expected = token;
+            if (!expected_tokens.empty()) expected_tokens += "、";
+            expected_tokens += names[token];
+        }
+        const auto actual = tokens[pos].type == TT::END_OF_FILE ? "文件结束" : tokens[pos].lexeme;
+        if (expected_count == 1)
+            fail(std::string("需要 ") + names[only_expected] + "，实际遇到 " + actual, "PARSE_EXPECTED");
+        fail("语法错误，实际遇到 " + actual +
+             (expected_tokens.empty() ? "" : "；可接受：" + expected_tokens), "PARSE_EXPECTED");
     }
 
 public:
     // 保存词法单词表引用，解析期间不改变输入。
     explicit Parser(const std::vector<Token>& input) : tokens(input) {}
-    // 匹配终结符、查表展开、完成 AST 动作，返回整棵树或错误诊断。
+    // 查 ACTION/GOTO 表执行移进、归约和 AST 动作。
     ParseResult run() {
         try {
-            stack = {{static_cast<int>(TT::END_OF_FILE)}, {程序}};
-            while (!stack.empty()) {
-                const auto frame = stack.back();
-                if (frame.production >= 0) {
-                    stack.pop_back();
-                    const int count = productions[frame.production].length;
-                    const auto begin = count ? values[frame.base].begin : pos;
-                    auto value = reduce(frame.symbol, count ? &values[frame.base] : nullptr, count);
-                    value.begin = begin; value.end = pos;
-                    values.resize(frame.base); values.push_back(std::move(value));
-                } else if (frame.symbol < terminal_count) {
-                    if (frame.symbol != static_cast<int>(tokens[pos].type)) expected(frame.symbol);
-                    stack.pop_back();
-                    Value value; value.begin = pos; value.end = pos + (frame.symbol != 0);
+            states = {0};
+            while (true) {
+                const auto lookahead = static_cast<int>(tokens[pos].type);
+                const short action = action_table[states.back()][lookahead];
+                if (action == 0) expected(states.back());
+                if (action == accept_action) break;
+                if (action > 0) {
+                    Value value; value.begin = pos; value.end = pos + 1;
                     values.push_back(std::move(value));
-                    if (frame.symbol == 0) continue;
-                    const auto t = tokens[pos++].type;
-                    if (t == TT::LPAREN || t == TT::LBRACE || t == TT::LBRACKET) {
+                    states.push_back(action - 1);
+                    const auto token = tokens[pos++].type;
+                    if (token == TT::LPAREN || token == TT::LBRACE || token == TT::LBRACKET) {
                         if (++nesting > 128) fail("括号嵌套超过 128 层", "PARSE_DEPTH", Level::Fatal);
-                    } else if (nesting && (t == TT::RPAREN || t == TT::RBRACE || t == TT::RBRACKET)) --nesting;
-                } else {
-                    const int choice = table[frame.symbol - terminal_count][static_cast<int>(tokens[pos].type)];
-                    if (choice < 0) expected(frame.symbol);
-                    stack.pop_back(); stack.push_back({frame.symbol, choice, values.size()});
-                    const auto& production = productions[choice];
-                    for (int i = production.length - 1; i >= 0; --i) stack.push_back({production.rhs[i]});
+                    } else if (nesting && (token == TT::RPAREN || token == TT::RBRACE || token == TT::RBRACKET)) {
+                        --nesting;
+                    }
+                    continue;
                 }
+
+                const int production_index = -action - 1;
+                const auto& production = productions[production_index];
+                const int count = production.length;
+                const auto base = values.size() - static_cast<std::size_t>(count);
+                const auto begin = count ? values[base].begin : pos;
+                auto value = reduce(production.lhs, count ? &values[base] : nullptr, count);
+                value.begin = begin; value.end = pos;
+                values.resize(base);
+                states.resize(states.size() - static_cast<std::size_t>(count));
+                const int next = goto_table[states.back()][production.lhs - terminal_count];
+                if (next < 0) fail("LR 分析表缺少 GOTO 项", "PARSE_TABLE", Level::Fatal);
+                values.push_back(std::move(value));
+                states.push_back(next);
             }
-            auto root = node(NodeType::Program, 0, pos, "", {values[0].nodes.rbegin(), values[0].nodes.rend()});
+            auto root = node(NodeType::Program, 0, pos, "", {values.back().nodes.rbegin(), values.back().nodes.rend()});
             root->range.end = tokens[pos].range.end;
             finish(root); result.root = root;
         } catch (const ParseFailure&) {} // 第一条错误已保存，根节点保持为空。

@@ -46,6 +46,14 @@ int main() {
         require(sum->name == "+" && sum->children[0]->name == "-" &&
                 sum->children[0]->children[0]->name == "-" && sum->children[1]->name == "*",
                 "减法左结合，乘法先于加法");
+        auto division = syntax("int main(void){return 12/3/2;}");
+        require(division.ok(), "LR 左递归乘法产生式接受连续除法");
+        auto quotient = division.root->children[0]->children.back()->children[0]->children[0];
+        require(quotient->kind == NodeType::BinaryOp && quotient->name == "/" &&
+                quotient->children[0]->name == "/" && quotient->children[1]->name == "2" &&
+                quotient->children[0]->children[0]->name == "12" &&
+                quotient->children[0]->children[1]->name == "3",
+                "除法 AST 直接形成 (12/3)/2，右孩子不是另一棵除法树");
         auto suffixes = syntax("struct S{int a[3],b;};int f(struct S s[],int i){return s[i].a[1];}");
         require(suffixes.ok(), "结构体数组形参和后缀序列");
         auto access = suffixes.root->children[1]->children.back()->children[0]->children[0];
@@ -94,7 +102,8 @@ int main() {
         auto terminal_error = syntax(mismatched);
         require(!terminal_error.root && terminal_error.diagnostics.size() == 1 &&
                 terminal_error.diagnostics[0].range.begin.offset == mismatched.find(']') &&
-                terminal_error.diagnostics[0].message == "需要 )，实际遇到 ]",
+                terminal_error.diagnostics[0].message.find("实际遇到 ]") != std::string::npos &&
+                terminal_error.diagnostics[0].message.find(")") != std::string::npos,
                 "终结符失配立即停止并保留错误位置和提示");
         auto bound_error = syntax("int a[0];\nint b[0];");
         require(!bound_error.root && bound_error.diagnostics.size() == 1 &&
@@ -166,6 +175,7 @@ int main() {
                 errors.diagnostics[0].message.find("错误过多") == std::string::npos,
                 "连续错误只返回第一条诊断，不追加错误上限提示");
         execute("int main(void){return 2+3*4-8/2;}", 10);
+        execute("int main(void){return 12/3/2;}", 2);
         execute("int main(void){int a=0,b=0;a=b=7;return a+b;}", 14);
         execute("int sum(int a[],int n){int i=0,s=0;for(i=0;i<n;i=i+1){s=s+a[i];}return s;} int main(void){int a[3];a[0]=1;a[1]=2;a[2]=3;return sum(a,3);}", 6);
         execute("struct S{int x;};int main(void){struct S s;s.x=8;return s.x;}", 8);
