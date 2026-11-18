@@ -1,6 +1,7 @@
 #include "minic/modules.hpp"
 
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
 
 using namespace minic;
@@ -31,6 +32,11 @@ int main() {
         rejects("int main(void){int a[2];return a[1.5];}", "SEM_INDEX");
         rejects("struct S{int x;};int main(void){struct S s;return s.missing;}", "SEM_MEMBER");
         rejects("struct S{int x;};int main(void){struct S s;if(s){return 1;}return 0;}", "SEM_CONDITION");
+        rejects("struct S{int x;int x;};int main(void){return 0;}", "SYM_RECORD_INVALID");
+        rejects("struct S{int x;};struct S{int y;};int main(void){return 0;}", "SYM_RECORD_INVALID");
+        rejects("struct S{struct S child;};int main(void){return 0;}", "SEM_LAYOUT");
+        rejects("struct S{struct Missing child;};int main(void){return 0;}", "SEM_TAG");
+        rejects("struct S{int items[4194305];};int main(void){return 0;}", "SEM_LAYOUT");
         rejects("int main(void){break;return 0;}", "SEM_LOOP");
         rejects("int main(void){continue;return 0;}", "SEM_LOOP");
         rejects("int main(void){return 1.5;}", "SEM_RETURN");
@@ -46,6 +52,28 @@ int main() {
         rejects("int main(void){return 2147483648;}", "SEM_LITERAL");
         rejects("int main(void){struct Missing s;return 0;}", "SEM_TAG");
         rejects("int f(struct Missing a[]){return 0;}int main(void){return 0;}", "SEM_TAG");
+
+        // 用真实源码检查结构体填充、嵌套成员和数组成员的布局及执行。
+        auto records = compile(
+            "struct Inner{char tag;int value;};"
+            "struct Outer{char prefix;struct Inner item;int values[2];};"
+            "int main(void){struct Outer object;object.prefix='A';object.item.tag='B';"
+            "object.item.value=7;object.values[1]=9;"
+            "printf(\"%c %c %d %d\",object.prefix,object.item.tag,object.item.value,object.values[1]);return 0;}");
+        if (!records.ok()) print_diagnostics(records.diagnostics, std::cerr);
+        require(records.ok(), "嵌套结构体和数组成员须能生成 IR");
+        const auto& layouts = records.semantic->symbols.records;
+        require(layouts.size() == 2 && layouts[0].size == 8 && layouts[0].alignment == 4 &&
+                layouts[0].members[0].offset == 0 && layouts[0].members[1].offset == 4 &&
+                layouts[1].size == 20 && layouts[1].alignment == 4 &&
+                layouts[1].members[0].offset == 0 && layouts[1].members[1].offset == 4 &&
+                layouts[1].members[2].offset == 12,
+                "语义阶段须计算正确的结构体大小、对齐和成员偏移");
+        std::istringstream input;
+        std::ostringstream output;
+        const auto execution = run(records.ir->program, records.semantic->symbols, input, output);
+        require(execution.ok() && execution.exit_code == 0 && output.str() == "A B 7 9",
+                "嵌套结构体和数组成员须按语义布局正确读写");
 
         // 参数只解析一次；保留数组传参、隐式转换和递归绑定。
         auto result = compile(

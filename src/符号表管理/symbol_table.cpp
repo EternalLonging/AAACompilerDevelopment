@@ -1,7 +1,7 @@
 #include "minic/symbol_table.hpp"
 #include "minic/semantic.hpp"
 
-#include <algorithm>
+#include <cassert>
 #include <stdexcept>
 #include <unordered_set>
 #include <utility>
@@ -20,25 +20,6 @@ bool object_kind(SymbolKind kind) {
     return kind == SymbolKind::Variable || kind == SymbolKind::Parameter ||
            kind == SymbolKind::Array;
 }
-
-// 成员必须是可存储的类型，数组必须有长度。
-bool member_type(const TypePtr& type, const SymbolTableData& data) {
-    if (!type || !same_type(type, type)) return false;
-    switch (type->kind) {
-    case TypeKind::Void: case TypeKind::Function:
-        return false;
-    case TypeKind::Array:
-        return type->array_length && *type->array_length > 0 &&
-               member_type(type->base, data);
-    case TypeKind::Struct:
-        return type->record_id < data.records.size() &&
-               data.records[type->record_id].is_complete &&
-               data.records[type->record_id].kind == RecordKind::Struct;
-    default:
-        return true;
-    }
-}
-
 
 }
 
@@ -186,29 +167,21 @@ MaybeValue<RecordId> SymbolTable::declare_record(const std::string& tag, RecordK
 }
 
 bool SymbolTable::complete_record(RecordId id, StructEntry definition) {
-    const auto* previous = record(id);
+    // 身份来自已登记的记录；成员类型和布局由语义模块保证。
+    assert(id < data_.records.size());
+    const auto& previous = data_.records[id];
+    assert(definition.id == id && definition.tag == previous.tag &&
+           definition.kind == previous.kind && definition.scope == previous.scope);
     const auto fail = [&](const std::string& message) {
         diagnostics_.report(Level::Error, definition.range, message, "SYM_RECORD_INVALID",
-                            previous ? std::vector<SourceRange>{previous->range} : std::vector<SourceRange>{});
+                            {previous.range});
         return false;
     };
-    if (!previous || definition.id != id || definition.tag != previous->tag ||
-        definition.kind != previous->kind || definition.scope != previous->scope)
-        return fail("记录编号、标签或作用域不一致");
-    if (previous->is_complete) return fail("记录已经定义：" + previous->tag);
-    if (!definition.size || !definition.alignment || *definition.size == 0 ||
-        *definition.alignment == 0 ||
-        (*definition.alignment & (*definition.alignment - 1)) != 0 ||
-        *definition.size % *definition.alignment != 0)
-        return fail("记录缺少有效的大小或对齐信息");
+    if (previous.is_complete) return fail("记录已经定义：" + previous.tag);
     std::unordered_set<std::string> names;
-    if (definition.members.empty()) return fail("结构体必须包含成员");
-    for (const auto& member : definition.members) {
-        if (member.name.empty() || !names.insert(member.name).second)
-            return fail("成员名字为空或重复：" + member.name);
-        if (!member_type(member.type, data_) || !member.offset || *member.offset >= *definition.size)
-            return fail("成员类型或偏移无效：" + member.name);
-    }
+    for (const auto& member : definition.members)
+        if (!names.insert(member.name).second)
+            return fail("成员名字重复：" + member.name);
     definition.is_complete = true;
     data_.records[id] = std::move(definition);
     return true;
