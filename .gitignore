@@ -5,6 +5,7 @@
 
 # 构建目录与编译产物
 build/
+out/
 cmake-build*/
 .vs/
 *.exe
@@ -15,6 +16,12 @@ cmake-build*/
 *.lib
 *.so
 *.pdb
+
+# 本地学习资料、办公原稿和旧启动说明
+/output/
+/*.docx
+/*.pptx
+/start-workbench.txt
 
 # Python 缓存及编辑器/办公软件临时文件
 __pycache__/
