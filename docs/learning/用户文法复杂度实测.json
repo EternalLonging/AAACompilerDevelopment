@@ -30,12 +30,7 @@
       }
     }
   },
-  "candidate": {
-    "productions": 114,
-    "nonterminals": 55,
-    "rhs_symbols": 208,
-    "prediction_cells": 397,
-    "dense_table_cells": 2365,
+  "adapted": {
     "lines": 358,
     "code_lines": 333,
     "functions": {
@@ -54,6 +49,41 @@
       "reduce": {
         "lines": 82,
         "code_lines": 82
+      },
+      "run": {
+        "lines": 36,
+        "code_lines": 36
+      }
+    }
+  },
+  "candidate": {
+    "productions": 114,
+    "nonterminals": 55,
+    "rhs_symbols": 208,
+    "prediction_cells": 397,
+    "dense_table_cells": 2365,
+    "lines": 371,
+    "code_lines": 345,
+    "functions": {
+      "declaration": {
+        "lines": 19,
+        "code_lines": 19
+      },
+      "named_object": {
+        "lines": 6,
+        "code_lines": 6
+      },
+      "statement": {
+        "lines": 26,
+        "code_lines": 26
+      },
+      "expression": {
+        "lines": 9,
+        "code_lines": 9
+      },
+      "reduce": {
+        "lines": 86,
+        "code_lines": 86
       },
       "run": {
         "lines": 36,
@@ -187,5 +217,6 @@
     "联调/e03_for_declaration",
     "联调/e04_mixed_declaration",
     "联调/e05_unbraced_if"
-  ]
+  ],
+  "neutral_matches_adapted": 118
 }

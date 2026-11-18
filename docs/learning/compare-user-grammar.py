@@ -46,7 +46,7 @@ def replace_once(text, old, new):
     return text.replace(old, new)
 
 
-def candidate_parser(original):
+def adapted_parser(original):
     text = rename(original, RENAMES)
     text = replace_once(text, '#include "predictive_table.hpp"', '#include "user-predictive-table.hpp"')
     text = replace_once(text, '''        if (symbol == 结构体成员声明) {
@@ -138,6 +138,42 @@ def candidate_parser(original):
     return text
 
 
+def candidate_parser(original):
+    """形参只交付声明信息；参数和成员节点由使用它的外层创建。"""
+    text = adapted_parser(original)
+    text = replace_once(text, '        TypePtr type = nullptr; // 基础类型或尚未填入基础类型的数组。',
+                        '''        TypePtr type = nullptr; // 基础类型或尚未填入基础类型的数组。
+        TypePtr array = nullptr; // 形参规则识别的数组部分；普通声明时为空。
+        std::size_t name = 0; // 形参规则识别的名字在单词表中的下标。''')
+    marker = '    // 完成声明：为对象补名字、基础类型和声明起点，或完成函数与结构体。'
+    text = replace_once(text, marker, '''    // 根据声明信息建立指定种类的节点；形参规则本身不建立 AST 节点。
+    Node named_object(NodeType kind, Value& item) {
+        auto n = node(kind, item.begin, item.end, tokens[item.name].lexeme);
+        n->declared_type = item.array;
+        bind_type(n, item.type);
+        finish(n); return n;
+    }
+''' + marker)
+    text = replace_once(text, '''        case 局部声明序列: case 语句序列: case 后缀序列: case 函数形参: case 函数实参:''',
+                        '''        case 局部声明序列: case 语句序列: case 后缀序列: case 函数实参:''')
+    text = replace_once(text, '        case 函数形参2: case 函数实参2: out = sequence(v[1], v[2]); break;',
+                        '''        case 函数实参2: out = sequence(v[1], v[2]); break;
+        case 函数形参: case 函数形参2:
+            if (count > 1) {
+                out = std::move(v[count - 1]);
+                out.nodes.push_back(named_object(NodeType::ParamDecl, v[count - 2]));
+            }
+            break;''')
+    text = replace_once(text, '            n = v[0].nodes[0]; n->kind = NodeType::MemberDecl; out.nodes.push_back(n); n = nullptr;',
+                        '            out.nodes.push_back(named_object(NodeType::MemberDecl, v[0]));')
+    text = replace_once(text, '''        case 形参:
+            n = node(NodeType::ParamDecl, v[0].begin, v[2].end, tokens[v[1].begin].lexeme);
+            n->declared_type = v[2].type; out.type = v[0].type;
+            bind_type(n, v[0].type); break;''', '''        case 形参:
+            out.type = v[0].type; out.array = v[2].type; out.name = v[1].begin; break;''')
+    return text
+
+
 PROBE = r'''#include "minic/lexer.hpp"
 #include "minic/parser.hpp"
 #include "minic/display.hpp"
@@ -192,8 +228,11 @@ def metrics(text):
 
 def function_metrics(text):
     result = {}
-    for name in ('declaration', 'statement', 'expression', 'reduce', 'run'):
-        start = re.search(r'^    [^\n]*\b' + name + r'\([^\n]*\) \{', text, re.M).start()
+    for name in ('declaration', 'named_object', 'statement', 'expression', 'reduce', 'run'):
+        match = re.search(r'^    [^\n]*\b' + name + r'\([^\n]*\) \{', text, re.M)
+        if not match:
+            continue
+        start = match.start()
         end = text.index('\n    }', start) + len('\n    }')
         result[name] = metrics(text[start:end])
     return result
@@ -226,6 +265,7 @@ def main():
     experiment = build / 'user-grammar-comparison'
     experiment.mkdir(exist_ok=True)
     original = (ROOT / 'src/语法分析/parser.cpp').read_text(encoding='utf-8')
+    adapted = adapted_parser(original)
     candidate = candidate_parser(original)
     current_rows = tables.productions()
     user_rows = grammar.load(grammar.GRAMMAR)
@@ -239,10 +279,11 @@ def main():
         tables.productions = original_productions
     (experiment / 'user-predictive-table.hpp').write_text(generated_table, encoding='utf-8')
     (experiment / 'original.cpp').write_text(original, encoding='utf-8')
+    (experiment / 'adapted.cpp').write_text(adapted, encoding='utf-8')
     (experiment / 'candidate.cpp').write_text(candidate, encoding='utf-8')
     (experiment / 'probe.cpp').write_text(PROBE, encoding='utf-8')
     executables = []
-    for source in ('original', 'candidate'):
+    for source in ('original', 'adapted', 'candidate'):
         exe = experiment / (source + '.exe')
         run([args.cxx, '-std=c++17', '-O2', '-Wall', '-Wextra', '-Wpedantic', '-finput-charset=UTF-8',
              '-I' + str(ROOT / 'include'), '-I' + str(ROOT / 'src/语法分析'),
@@ -266,6 +307,10 @@ def main():
                for exe in executables]
     if any(len(items) != len(cases) for items in outputs):
         raise ValueError('C++ 探针响应数量不匹配')
+    for (name, _), before, after in zip(cases, outputs[1], outputs[2]):
+        if before != after:
+            raise AssertionError(('声明信息改造后 AST 或诊断不一致', name, before, after))
+    outputs = [outputs[0], outputs[2]]
     expected = {item['name']: item for item in json.loads(grammar.OUTPUT.read_text(encoding='utf-8'))['cases']}
     matches, rejections, differences = [], [], []
     for (name, source), old, new in zip(cases, *outputs):
@@ -297,15 +342,20 @@ def main():
     terminals = len(re.findall(r'\b[A-Z][A-Z_]+\b', enum))
     output = {'current': {**grammar_metrics(current_rows, terminals), **metrics(original),
                           'functions': function_metrics(original)},
+              'adapted': {**metrics(adapted), 'functions': function_metrics(adapted)},
               'candidate': {**grammar_metrics(user_rows, terminals), **metrics(candidate),
                             'functions': function_metrics(candidate)},
               'ast_matches': len(matches), 'both_rejected': len(rejections), 'language_differences': differences,
               'cases': len(cases), 'matched_case_names': matches, 'rejected_case_names': rejections}
+    output['neutral_matches_adapted'] = len(cases)
     (experiment / 'comparison.json').write_text(json.dumps(output, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     normalized = rename(original, RENAMES).replace('#include "predictive_table.hpp"', '#include "user-predictive-table.hpp"')
     patch = ''.join(difflib.unified_diff(normalized.splitlines(True), candidate.splitlines(True),
                                         fromfile='原版（只统一名字）', tofile='用户版（独立实验）'))
     (experiment / 'ast-actions.diff').write_text(patch, encoding='utf-8')
+    neutral_patch = ''.join(difflib.unified_diff(adapted.splitlines(True), candidate.splitlines(True),
+                                                fromfile='用户版（首次适配）', tofile='用户版（声明信息）'))
+    (experiment / 'declaration-info.diff').write_text(neutral_patch, encoding='utf-8')
     print(json.dumps({k: v for k, v in output.items() if not k.endswith('_names')}, ensure_ascii=True, indent=2))
     print('Generated experiment: ' + str(experiment))
 
