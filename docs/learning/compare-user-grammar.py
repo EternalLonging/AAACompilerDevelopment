@@ -373,7 +373,10 @@ def main():
                 'reused': reused_parser(original), 'ranged': ranged_parser(original),
                 'delayed': delayed_parser(original), 'context': context_parser(original)}
     current_rows = grammar.baseline_productions()
-    user_rows = grammar.load(grammar.GRAMMAR)
+    # 保留当时六种实现的比较输入，不随之后的正式文法改名而变化。
+    experiment_bnf = run(['git', 'show', '5b50939:docs/learning/用户文法整理版.bnf'], cwd=ROOT).stdout
+    user_rows = tables.productions('\n'.join(line for line in experiment_bnf.splitlines()
+                                          if line.strip() and not line.lstrip().startswith('#')))
     cpp_rows = [{**row, 'lhs': CPP_NAMES.get(row['lhs'], row['lhs']),
                  'rhs': [CPP_NAMES.get(s, s) for s in row['rhs']]} for row in user_rows]
     original_productions = tables.productions

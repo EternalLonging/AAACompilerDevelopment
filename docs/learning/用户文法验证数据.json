@@ -1,9 +1,9 @@
 {
   "comparison_baseline": "9251b89",
   "grammar": "用户文法整理版.bnf",
-  "production_count": 114,
-  "nonterminal_count": 55,
-  "prediction_cells": 397,
+  "production_count": 116,
+  "nonterminal_count": 56,
+  "prediction_cells": 403,
   "conflict_count": 0,
   "productions": [
     {
@@ -11,7 +11,7 @@
       "lhs": "程序",
       "rhs": [
         "外部定义",
-        "程序"
+        "外部定义序列"
       ],
       "function": "run"
     },
@@ -23,6 +23,21 @@
     },
     {
       "id": "P003",
+      "lhs": "外部定义序列",
+      "rhs": [
+        "外部定义",
+        "外部定义序列"
+      ],
+      "function": "run"
+    },
+    {
+      "id": "P004",
+      "lhs": "外部定义序列",
+      "rhs": [],
+      "function": "run"
+    },
+    {
+      "id": "P005",
       "lhs": "基本类型",
       "rhs": [
         "KW_INT"
@@ -30,7 +45,7 @@
       "function": "run"
     },
     {
-      "id": "P004",
+      "id": "P006",
       "lhs": "基本类型",
       "rhs": [
         "KW_FLOAT"
@@ -38,7 +53,7 @@
       "function": "run"
     },
     {
-      "id": "P005",
+      "id": "P007",
       "lhs": "基本类型",
       "rhs": [
         "KW_CHAR"
@@ -46,7 +61,7 @@
       "function": "run"
     },
     {
-      "id": "P006",
+      "id": "P008",
       "lhs": "变量类型",
       "rhs": [
         "基本类型"
@@ -54,7 +69,7 @@
       "function": "run"
     },
     {
-      "id": "P007",
+      "id": "P009",
       "lhs": "变量类型",
       "rhs": [
         "KW_STRUCT",
@@ -63,7 +78,7 @@
       "function": "run"
     },
     {
-      "id": "P008",
+      "id": "P010",
       "lhs": "外部定义",
       "rhs": [
         "基本类型",
@@ -73,7 +88,7 @@
       "function": "run"
     },
     {
-      "id": "P009",
+      "id": "P011",
       "lhs": "外部定义",
       "rhs": [
         "KW_VOID",
@@ -83,7 +98,7 @@
       "function": "run"
     },
     {
-      "id": "P010",
+      "id": "P012",
       "lhs": "外部定义",
       "rhs": [
         "结构体声明"
@@ -91,7 +106,7 @@
       "function": "run"
     },
     {
-      "id": "P011",
+      "id": "P013",
       "lhs": "结构体声明",
       "rhs": [
         "KW_STRUCT",
@@ -101,7 +116,7 @@
       "function": "run"
     },
     {
-      "id": "P012",
+      "id": "P014",
       "lhs": "外部定义后续",
       "rhs": [
         "函数定义后续"
@@ -109,7 +124,7 @@
       "function": "run"
     },
     {
-      "id": "P013",
+      "id": "P015",
       "lhs": "外部定义后续",
       "rhs": [
         "变量声明后续"
@@ -117,7 +132,7 @@
       "function": "run"
     },
     {
-      "id": "P014",
+      "id": "P016",
       "lhs": "函数定义后续",
       "rhs": [
         "LPAREN",
@@ -128,7 +143,7 @@
       "function": "run"
     },
     {
-      "id": "P015",
+      "id": "P017",
       "lhs": "结构体后续",
       "rhs": [
         "LBRACE",
@@ -139,7 +154,7 @@
       "function": "run"
     },
     {
-      "id": "P016",
+      "id": "P018",
       "lhs": "结构体后续",
       "rhs": [
         "ID",
@@ -148,7 +163,7 @@
       "function": "run"
     },
     {
-      "id": "P017",
+      "id": "P019",
       "lhs": "结构体定义后续",
       "rhs": [
         "SEMI"
@@ -156,7 +171,7 @@
       "function": "run"
     },
     {
-      "id": "P018",
+      "id": "P020",
       "lhs": "结构体定义后续",
       "rhs": [
         "ID",
@@ -165,7 +180,7 @@
       "function": "run"
     },
     {
-      "id": "P019",
+      "id": "P021",
       "lhs": "形参",
       "rhs": [
         "变量类型",
@@ -175,7 +190,7 @@
       "function": "run"
     },
     {
-      "id": "P020",
+      "id": "P022",
       "lhs": "变量声明后续",
       "rhs": [
         "数组定义",
@@ -185,7 +200,7 @@
       "function": "run"
     },
     {
-      "id": "P021",
+      "id": "P023",
       "lhs": "变量声明后续2",
       "rhs": [
         "COMMA",
@@ -195,7 +210,7 @@
       "function": "run"
     },
     {
-      "id": "P022",
+      "id": "P024",
       "lhs": "变量声明后续2",
       "rhs": [
         "SEMI"
@@ -203,7 +218,7 @@
       "function": "run"
     },
     {
-      "id": "P023",
+      "id": "P025",
       "lhs": "数组定义",
       "rhs": [
         "LBRACKET",
@@ -213,13 +228,13 @@
       "function": "run"
     },
     {
-      "id": "P024",
+      "id": "P026",
       "lhs": "数组定义",
       "rhs": [],
       "function": "run"
     },
     {
-      "id": "P025",
+      "id": "P027",
       "lhs": "数组长度",
       "rhs": [
         "INT_LITERAL"
@@ -227,13 +242,13 @@
       "function": "run"
     },
     {
-      "id": "P026",
+      "id": "P028",
       "lhs": "数组长度",
       "rhs": [],
       "function": "run"
     },
     {
-      "id": "P027",
+      "id": "P029",
       "lhs": "赋值",
       "rhs": [
         "ASSIGN",
@@ -242,13 +257,13 @@
       "function": "run"
     },
     {
-      "id": "P028",
+      "id": "P030",
       "lhs": "赋值",
       "rhs": [],
       "function": "run"
     },
     {
-      "id": "P029",
+      "id": "P031",
       "lhs": "函数形参",
       "rhs": [
         "形参",
@@ -257,7 +272,7 @@
       "function": "run"
     },
     {
-      "id": "P030",
+      "id": "P032",
       "lhs": "函数形参",
       "rhs": [
         "KW_VOID"
@@ -265,13 +280,13 @@
       "function": "run"
     },
     {
-      "id": "P031",
+      "id": "P033",
       "lhs": "函数形参",
       "rhs": [],
       "function": "run"
     },
     {
-      "id": "P032",
+      "id": "P034",
       "lhs": "函数形参2",
       "rhs": [
         "COMMA",
@@ -281,13 +296,13 @@
       "function": "run"
     },
     {
-      "id": "P033",
+      "id": "P035",
       "lhs": "函数形参2",
       "rhs": [],
       "function": "run"
     },
     {
-      "id": "P034",
+      "id": "P036",
       "lhs": "代码块",
       "rhs": [
         "LBRACE",
@@ -298,7 +313,7 @@
       "function": "run"
     },
     {
-      "id": "P035",
+      "id": "P037",
       "lhs": "局部声明序列",
       "rhs": [
         "局部声明",
@@ -307,13 +322,13 @@
       "function": "run"
     },
     {
-      "id": "P036",
+      "id": "P038",
       "lhs": "局部声明序列",
       "rhs": [],
       "function": "run"
     },
     {
-      "id": "P037",
+      "id": "P039",
       "lhs": "局部声明",
       "rhs": [
         "基本类型",
@@ -323,7 +338,7 @@
       "function": "run"
     },
     {
-      "id": "P038",
+      "id": "P040",
       "lhs": "局部声明",
       "rhs": [
         "结构体声明"
@@ -331,7 +346,7 @@
       "function": "run"
     },
     {
-      "id": "P039",
+      "id": "P041",
       "lhs": "语句序列",
       "rhs": [
         "语句",
@@ -340,13 +355,13 @@
       "function": "run"
     },
     {
-      "id": "P040",
+      "id": "P042",
       "lhs": "语句序列",
       "rhs": [],
       "function": "run"
     },
     {
-      "id": "P041",
+      "id": "P043",
       "lhs": "语句",
       "rhs": [
         "表达式2",
@@ -355,7 +370,7 @@
       "function": "run"
     },
     {
-      "id": "P042",
+      "id": "P044",
       "lhs": "语句",
       "rhs": [
         "返回语句"
@@ -363,7 +378,7 @@
       "function": "run"
     },
     {
-      "id": "P043",
+      "id": "P045",
       "lhs": "语句",
       "rhs": [
         "代码块"
@@ -371,7 +386,7 @@
       "function": "run"
     },
     {
-      "id": "P044",
+      "id": "P046",
       "lhs": "语句",
       "rhs": [
         "if"
@@ -379,7 +394,7 @@
       "function": "run"
     },
     {
-      "id": "P045",
+      "id": "P047",
       "lhs": "语句",
       "rhs": [
         "while"
@@ -387,7 +402,7 @@
       "function": "run"
     },
     {
-      "id": "P046",
+      "id": "P048",
       "lhs": "语句",
       "rhs": [
         "for"
@@ -395,7 +410,7 @@
       "function": "run"
     },
     {
-      "id": "P047",
+      "id": "P049",
       "lhs": "语句",
       "rhs": [
         "KW_BREAK",
@@ -404,7 +419,7 @@
       "function": "run"
     },
     {
-      "id": "P048",
+      "id": "P050",
       "lhs": "语句",
       "rhs": [
         "KW_CONTINUE",
@@ -413,7 +428,7 @@
       "function": "run"
     },
     {
-      "id": "P049",
+      "id": "P051",
       "lhs": "返回语句",
       "rhs": [
         "KW_RETURN",
@@ -423,7 +438,7 @@
       "function": "run"
     },
     {
-      "id": "P050",
+      "id": "P052",
       "lhs": "表达式2",
       "rhs": [
         "表达式"
@@ -431,13 +446,13 @@
       "function": "run"
     },
     {
-      "id": "P051",
+      "id": "P053",
       "lhs": "表达式2",
       "rhs": [],
       "function": "run"
     },
     {
-      "id": "P052",
+      "id": "P054",
       "lhs": "if",
       "rhs": [
         "KW_IF",
@@ -450,7 +465,7 @@
       "function": "run"
     },
     {
-      "id": "P053",
+      "id": "P055",
       "lhs": "else2",
       "rhs": [
         "KW_ELSE",
@@ -459,13 +474,13 @@
       "function": "run"
     },
     {
-      "id": "P054",
+      "id": "P056",
       "lhs": "else2",
       "rhs": [],
       "function": "run"
     },
     {
-      "id": "P055",
+      "id": "P057",
       "lhs": "else",
       "rhs": [
         "代码块"
@@ -473,7 +488,7 @@
       "function": "run"
     },
     {
-      "id": "P056",
+      "id": "P058",
       "lhs": "else",
       "rhs": [
         "if"
@@ -481,7 +496,7 @@
       "function": "run"
     },
     {
-      "id": "P057",
+      "id": "P059",
       "lhs": "while",
       "rhs": [
         "KW_WHILE",
@@ -493,7 +508,7 @@
       "function": "run"
     },
     {
-      "id": "P058",
+      "id": "P060",
       "lhs": "for",
       "rhs": [
         "KW_FOR",
@@ -509,7 +524,7 @@
       "function": "run"
     },
     {
-      "id": "P059",
+      "id": "P061",
       "lhs": "表达式",
       "rhs": [
         "逻辑或式",
@@ -518,7 +533,7 @@
       "function": "run"
     },
     {
-      "id": "P060",
+      "id": "P062",
       "lhs": "逻辑或式",
       "rhs": [
         "逻辑与式",
@@ -527,7 +542,7 @@
       "function": "run"
     },
     {
-      "id": "P061",
+      "id": "P063",
       "lhs": "逻辑或式2",
       "rhs": [
         "OR",
@@ -537,13 +552,13 @@
       "function": "run"
     },
     {
-      "id": "P062",
+      "id": "P064",
       "lhs": "逻辑或式2",
       "rhs": [],
       "function": "run"
     },
     {
-      "id": "P063",
+      "id": "P065",
       "lhs": "逻辑与式",
       "rhs": [
         "相等式",
@@ -552,7 +567,7 @@
       "function": "run"
     },
     {
-      "id": "P064",
+      "id": "P066",
       "lhs": "逻辑与式2",
       "rhs": [
         "AND",
@@ -562,13 +577,13 @@
       "function": "run"
     },
     {
-      "id": "P065",
+      "id": "P067",
       "lhs": "逻辑与式2",
       "rhs": [],
       "function": "run"
     },
     {
-      "id": "P066",
+      "id": "P068",
       "lhs": "相等式",
       "rhs": [
         "关系式",
@@ -577,7 +592,7 @@
       "function": "run"
     },
     {
-      "id": "P067",
+      "id": "P069",
       "lhs": "相等式2",
       "rhs": [
         "EQ",
@@ -587,7 +602,7 @@
       "function": "run"
     },
     {
-      "id": "P068",
+      "id": "P070",
       "lhs": "相等式2",
       "rhs": [
         "NE",
@@ -597,35 +612,15 @@
       "function": "run"
     },
     {
-      "id": "P069",
+      "id": "P071",
       "lhs": "相等式2",
       "rhs": [],
       "function": "run"
     },
     {
-      "id": "P070",
+      "id": "P072",
       "lhs": "关系式",
       "rhs": [
-        "加法式",
-        "关系式2"
-      ],
-      "function": "run"
-    },
-    {
-      "id": "P071",
-      "lhs": "关系式2",
-      "rhs": [
-        "LT",
-        "加法式",
-        "关系式2"
-      ],
-      "function": "run"
-    },
-    {
-      "id": "P072",
-      "lhs": "关系式2",
-      "rhs": [
-        "LE",
         "加法式",
         "关系式2"
       ],
@@ -635,7 +630,7 @@
       "id": "P073",
       "lhs": "关系式2",
       "rhs": [
-        "GT",
+        "LT",
         "加法式",
         "关系式2"
       ],
@@ -645,7 +640,7 @@
       "id": "P074",
       "lhs": "关系式2",
       "rhs": [
-        "GE",
+        "LE",
         "加法式",
         "关系式2"
       ],
@@ -654,11 +649,31 @@
     {
       "id": "P075",
       "lhs": "关系式2",
-      "rhs": [],
+      "rhs": [
+        "GT",
+        "加法式",
+        "关系式2"
+      ],
       "function": "run"
     },
     {
       "id": "P076",
+      "lhs": "关系式2",
+      "rhs": [
+        "GE",
+        "加法式",
+        "关系式2"
+      ],
+      "function": "run"
+    },
+    {
+      "id": "P077",
+      "lhs": "关系式2",
+      "rhs": [],
+      "function": "run"
+    },
+    {
+      "id": "P078",
       "lhs": "加法式",
       "rhs": [
         "乘法式",
@@ -667,7 +682,7 @@
       "function": "run"
     },
     {
-      "id": "P077",
+      "id": "P079",
       "lhs": "加法式2",
       "rhs": [
         "PLUS",
@@ -677,7 +692,7 @@
       "function": "run"
     },
     {
-      "id": "P078",
+      "id": "P080",
       "lhs": "加法式2",
       "rhs": [
         "MINUS",
@@ -687,35 +702,15 @@
       "function": "run"
     },
     {
-      "id": "P079",
+      "id": "P081",
       "lhs": "加法式2",
       "rhs": [],
       "function": "run"
     },
     {
-      "id": "P080",
+      "id": "P082",
       "lhs": "乘法式",
       "rhs": [
-        "一元式",
-        "乘法式2"
-      ],
-      "function": "run"
-    },
-    {
-      "id": "P081",
-      "lhs": "乘法式2",
-      "rhs": [
-        "STAR",
-        "一元式",
-        "乘法式2"
-      ],
-      "function": "run"
-    },
-    {
-      "id": "P082",
-      "lhs": "乘法式2",
-      "rhs": [
-        "SLASH",
         "一元式",
         "乘法式2"
       ],
@@ -725,7 +720,7 @@
       "id": "P083",
       "lhs": "乘法式2",
       "rhs": [
-        "PERCENT",
+        "STAR",
         "一元式",
         "乘法式2"
       ],
@@ -734,11 +729,31 @@
     {
       "id": "P084",
       "lhs": "乘法式2",
-      "rhs": [],
+      "rhs": [
+        "SLASH",
+        "一元式",
+        "乘法式2"
+      ],
       "function": "run"
     },
     {
       "id": "P085",
+      "lhs": "乘法式2",
+      "rhs": [
+        "PERCENT",
+        "一元式",
+        "乘法式2"
+      ],
+      "function": "run"
+    },
+    {
+      "id": "P086",
+      "lhs": "乘法式2",
+      "rhs": [],
+      "function": "run"
+    },
+    {
+      "id": "P087",
       "lhs": "一元式",
       "rhs": [
         "PLUS",
@@ -747,7 +762,7 @@
       "function": "run"
     },
     {
-      "id": "P086",
+      "id": "P088",
       "lhs": "一元式",
       "rhs": [
         "MINUS",
@@ -756,7 +771,7 @@
       "function": "run"
     },
     {
-      "id": "P087",
+      "id": "P089",
       "lhs": "一元式",
       "rhs": [
         "NOT",
@@ -765,7 +780,7 @@
       "function": "run"
     },
     {
-      "id": "P088",
+      "id": "P090",
       "lhs": "一元式",
       "rhs": [
         "AMP",
@@ -774,7 +789,7 @@
       "function": "run"
     },
     {
-      "id": "P089",
+      "id": "P091",
       "lhs": "一元式",
       "rhs": [
         "后缀式"
@@ -782,7 +797,7 @@
       "function": "run"
     },
     {
-      "id": "P090",
+      "id": "P092",
       "lhs": "后缀式",
       "rhs": [
         "主式",
@@ -791,7 +806,7 @@
       "function": "run"
     },
     {
-      "id": "P091",
+      "id": "P093",
       "lhs": "后缀序列",
       "rhs": [
         "后缀",
@@ -800,13 +815,13 @@
       "function": "run"
     },
     {
-      "id": "P092",
+      "id": "P094",
       "lhs": "后缀序列",
       "rhs": [],
       "function": "run"
     },
     {
-      "id": "P093",
+      "id": "P095",
       "lhs": "后缀",
       "rhs": [
         "LPAREN",
@@ -816,7 +831,7 @@
       "function": "run"
     },
     {
-      "id": "P094",
+      "id": "P096",
       "lhs": "后缀",
       "rhs": [
         "LBRACKET",
@@ -826,7 +841,7 @@
       "function": "run"
     },
     {
-      "id": "P095",
+      "id": "P097",
       "lhs": "后缀",
       "rhs": [
         "DOT",
@@ -835,7 +850,7 @@
       "function": "run"
     },
     {
-      "id": "P096",
+      "id": "P098",
       "lhs": "主式",
       "rhs": [
         "LPAREN",
@@ -845,7 +860,7 @@
       "function": "run"
     },
     {
-      "id": "P097",
+      "id": "P099",
       "lhs": "主式",
       "rhs": [
         "ID"
@@ -853,7 +868,7 @@
       "function": "run"
     },
     {
-      "id": "P098",
+      "id": "P100",
       "lhs": "主式",
       "rhs": [
         "INT_LITERAL"
@@ -861,7 +876,7 @@
       "function": "run"
     },
     {
-      "id": "P099",
+      "id": "P101",
       "lhs": "主式",
       "rhs": [
         "FLOAT_LITERAL"
@@ -869,7 +884,7 @@
       "function": "run"
     },
     {
-      "id": "P100",
+      "id": "P102",
       "lhs": "主式",
       "rhs": [
         "CHAR_LITERAL"
@@ -877,7 +892,7 @@
       "function": "run"
     },
     {
-      "id": "P101",
+      "id": "P103",
       "lhs": "主式",
       "rhs": [
         "字符串"
@@ -885,7 +900,7 @@
       "function": "run"
     },
     {
-      "id": "P102",
+      "id": "P104",
       "lhs": "字符串",
       "rhs": [
         "STRING_LITERAL",
@@ -894,7 +909,7 @@
       "function": "run"
     },
     {
-      "id": "P103",
+      "id": "P105",
       "lhs": "字符串2",
       "rhs": [
         "STRING_LITERAL",
@@ -903,19 +918,19 @@
       "function": "run"
     },
     {
-      "id": "P104",
+      "id": "P106",
       "lhs": "字符串2",
       "rhs": [],
       "function": "run"
     },
     {
-      "id": "P105",
+      "id": "P107",
       "lhs": "函数实参",
       "rhs": [],
       "function": "run"
     },
     {
-      "id": "P106",
+      "id": "P108",
       "lhs": "函数实参",
       "rhs": [
         "表达式",
@@ -924,7 +939,7 @@
       "function": "run"
     },
     {
-      "id": "P107",
+      "id": "P109",
       "lhs": "函数实参2",
       "rhs": [
         "COMMA",
@@ -934,13 +949,13 @@
       "function": "run"
     },
     {
-      "id": "P108",
+      "id": "P110",
       "lhs": "函数实参2",
       "rhs": [],
       "function": "run"
     },
     {
-      "id": "P109",
+      "id": "P111",
       "lhs": "结构体成员声明序列",
       "rhs": [
         "结构体成员声明",
@@ -949,13 +964,13 @@
       "function": "run"
     },
     {
-      "id": "P110",
+      "id": "P112",
       "lhs": "结构体成员声明序列2",
       "rhs": [],
       "function": "run"
     },
     {
-      "id": "P111",
+      "id": "P113",
       "lhs": "结构体成员声明序列2",
       "rhs": [
         "结构体成员声明",
@@ -964,7 +979,7 @@
       "function": "run"
     },
     {
-      "id": "P112",
+      "id": "P114",
       "lhs": "结构体成员声明",
       "rhs": [
         "形参",
@@ -973,7 +988,7 @@
       "function": "run"
     },
     {
-      "id": "P113",
+      "id": "P115",
       "lhs": "结构体成员声明2",
       "rhs": [
         "COMMA",
@@ -984,7 +999,7 @@
       "function": "run"
     },
     {
-      "id": "P114",
+      "id": "P116",
       "lhs": "结构体成员声明2",
       "rhs": [
         "SEMI"
@@ -1002,6 +1017,7 @@
     "函数形参2",
     "加法式2",
     "后缀序列",
+    "外部定义序列",
     "字符串2",
     "局部声明序列",
     "数组定义",
@@ -1017,6 +1033,13 @@
   ],
   "first": {
     "程序": [
+      "KW_CHAR",
+      "KW_FLOAT",
+      "KW_INT",
+      "KW_STRUCT",
+      "KW_VOID"
+    ],
+    "外部定义序列": [
       "KW_CHAR",
       "KW_FLOAT",
       "KW_INT",
@@ -1376,6 +1399,9 @@
   },
   "follow": {
     "程序": [
+      "END_OF_FILE"
+    ],
+    "外部定义序列": [
       "END_OF_FILE"
     ],
     "基本类型": [
@@ -2128,21 +2154,23 @@
       "END_OF_FILE"
     ],
     "P003": [
-      "KW_INT"
-    ],
-    "P004": [
-      "KW_FLOAT"
-    ],
-    "P005": [
-      "KW_CHAR"
-    ],
-    "P006": [
       "KW_CHAR",
       "KW_FLOAT",
+      "KW_INT",
+      "KW_STRUCT",
+      "KW_VOID"
+    ],
+    "P004": [
+      "END_OF_FILE"
+    ],
+    "P005": [
       "KW_INT"
     ],
+    "P006": [
+      "KW_FLOAT"
+    ],
     "P007": [
-      "KW_STRUCT"
+      "KW_CHAR"
     ],
     "P008": [
       "KW_CHAR",
@@ -2150,108 +2178,116 @@
       "KW_INT"
     ],
     "P009": [
-      "KW_VOID"
+      "KW_STRUCT"
     ],
     "P010": [
-      "KW_STRUCT"
+      "KW_CHAR",
+      "KW_FLOAT",
+      "KW_INT"
     ],
     "P011": [
-      "KW_STRUCT"
+      "KW_VOID"
     ],
     "P012": [
-      "LPAREN"
+      "KW_STRUCT"
     ],
     "P013": [
-      "ASSIGN",
-      "COMMA",
-      "LBRACKET",
-      "SEMI"
+      "KW_STRUCT"
     ],
     "P014": [
       "LPAREN"
     ],
     "P015": [
-      "LBRACE"
-    ],
-    "P016": [
-      "ID"
-    ],
-    "P017": [
-      "SEMI"
-    ],
-    "P018": [
-      "ID"
-    ],
-    "P019": [
-      "KW_CHAR",
-      "KW_FLOAT",
-      "KW_INT",
-      "KW_STRUCT"
-    ],
-    "P020": [
       "ASSIGN",
       "COMMA",
       "LBRACKET",
       "SEMI"
     ],
+    "P016": [
+      "LPAREN"
+    ],
+    "P017": [
+      "LBRACE"
+    ],
+    "P018": [
+      "ID"
+    ],
+    "P019": [
+      "SEMI"
+    ],
+    "P020": [
+      "ID"
+    ],
     "P021": [
-      "COMMA"
+      "KW_CHAR",
+      "KW_FLOAT",
+      "KW_INT",
+      "KW_STRUCT"
     ],
     "P022": [
+      "ASSIGN",
+      "COMMA",
+      "LBRACKET",
       "SEMI"
     ],
     "P023": [
-      "LBRACKET"
+      "COMMA"
     ],
     "P024": [
+      "SEMI"
+    ],
+    "P025": [
+      "LBRACKET"
+    ],
+    "P026": [
       "ASSIGN",
       "COMMA",
       "RPAREN",
       "SEMI"
     ],
-    "P025": [
+    "P027": [
       "INT_LITERAL"
     ],
-    "P026": [
+    "P028": [
       "RBRACKET"
     ],
-    "P027": [
+    "P029": [
       "ASSIGN"
     ],
-    "P028": [
+    "P030": [
       "COMMA",
       "RBRACKET",
       "RPAREN",
       "SEMI"
     ],
-    "P029": [
+    "P031": [
       "KW_CHAR",
       "KW_FLOAT",
       "KW_INT",
       "KW_STRUCT"
     ],
-    "P030": [
-      "KW_VOID"
-    ],
-    "P031": [
-      "RPAREN"
-    ],
     "P032": [
-      "COMMA"
+      "KW_VOID"
     ],
     "P033": [
       "RPAREN"
     ],
     "P034": [
-      "LBRACE"
+      "COMMA"
     ],
     "P035": [
+      "RPAREN"
+    ],
+    "P036": [
+      "LBRACE"
+    ],
+    "P037": [
       "KW_CHAR",
       "KW_FLOAT",
       "KW_INT",
       "KW_STRUCT"
     ],
-    "P036": [
+    "P038": [
       "AMP",
       "CHAR_LITERAL",
       "FLOAT_LITERAL",
@@ -2272,15 +2308,15 @@
       "SEMI",
       "STRING_LITERAL"
     ],
-    "P037": [
+    "P039": [
       "KW_CHAR",
       "KW_FLOAT",
       "KW_INT"
     ],
-    "P038": [
+    "P040": [
       "KW_STRUCT"
     ],
-    "P039": [
+    "P041": [
       "AMP",
       "CHAR_LITERAL",
       "FLOAT_LITERAL",
@@ -2293,22 +2329,6 @@
       "KW_RETURN",
       "KW_WHILE",
       "LBRACE",
-      "LPAREN",
-      "MINUS",
-      "NOT",
-      "PLUS",
-      "SEMI",
-      "STRING_LITERAL"
-    ],
-    "P040": [
-      "RBRACE"
-    ],
-    "P041": [
-      "AMP",
-      "CHAR_LITERAL",
-      "FLOAT_LITERAL",
-      "ID",
-      "INT_LITERAL",
       "LPAREN",
       "MINUS",
       "NOT",
@@ -2317,30 +2337,46 @@
       "STRING_LITERAL"
     ],
     "P042": [
-      "KW_RETURN"
+      "RBRACE"
     ],
     "P043": [
-      "LBRACE"
+      "AMP",
+      "CHAR_LITERAL",
+      "FLOAT_LITERAL",
+      "ID",
+      "INT_LITERAL",
+      "LPAREN",
+      "MINUS",
+      "NOT",
+      "PLUS",
+      "SEMI",
+      "STRING_LITERAL"
     ],
     "P044": [
-      "KW_IF"
-    ],
-    "P045": [
-      "KW_WHILE"
-    ],
-    "P046": [
-      "KW_FOR"
-    ],
-    "P047": [
-      "KW_BREAK"
-    ],
-    "P048": [
-      "KW_CONTINUE"
-    ],
-    "P049": [
       "KW_RETURN"
     ],
+    "P045": [
+      "LBRACE"
+    ],
+    "P046": [
+      "KW_IF"
+    ],
+    "P047": [
+      "KW_WHILE"
+    ],
+    "P048": [
+      "KW_FOR"
+    ],
+    "P049": [
+      "KW_BREAK"
+    ],
     "P050": [
+      "KW_CONTINUE"
+    ],
+    "P051": [
+      "KW_RETURN"
+    ],
+    "P052": [
       "AMP",
       "CHAR_LITERAL",
       "FLOAT_LITERAL",
@@ -2352,17 +2388,17 @@
       "PLUS",
       "STRING_LITERAL"
     ],
-    "P051": [
+    "P053": [
       "RPAREN",
       "SEMI"
     ],
-    "P052": [
+    "P054": [
       "KW_IF"
     ],
-    "P053": [
+    "P055": [
       "KW_ELSE"
     ],
-    "P054": [
+    "P056": [
       "AMP",
       "CHAR_LITERAL",
       "FLOAT_LITERAL",
@@ -2383,171 +2419,138 @@
       "SEMI",
       "STRING_LITERAL"
     ],
-    "P055": [
+    "P057": [
       "LBRACE"
     ],
-    "P056": [
+    "P058": [
       "KW_IF"
     ],
-    "P057": [
+    "P059": [
       "KW_WHILE"
     ],
-    "P058": [
+    "P060": [
       "KW_FOR"
     ],
-    "P059": [
-      "AMP",
-      "CHAR_LITERAL",
-      "FLOAT_LITERAL",
-      "ID",
-      "INT_LITERAL",
-      "LPAREN",
-      "MINUS",
-      "NOT",
-      "PLUS",
-      "STRING_LITERAL"
-    ],
-    "P060": [
-      "AMP",
-      "CHAR_LITERAL",
-      "FLOAT_LITERAL",
-      "ID",
-      "INT_LITERAL",
-      "LPAREN",
-      "MINUS",
-      "NOT",
-      "PLUS",
-      "STRING_LITERAL"
-    ],
     "P061": [
-      "OR"
+      "AMP",
+      "CHAR_LITERAL",
+      "FLOAT_LITERAL",
+      "ID",
+      "INT_LITERAL",
+      "LPAREN",
+      "MINUS",
+      "NOT",
+      "PLUS",
+      "STRING_LITERAL"
     ],
     "P062": [
-      "ASSIGN",
-      "COMMA",
-      "RBRACKET",
-      "RPAREN",
-      "SEMI"
+      "AMP",
+      "CHAR_LITERAL",
+      "FLOAT_LITERAL",
+      "ID",
+      "INT_LITERAL",
+      "LPAREN",
+      "MINUS",
+      "NOT",
+      "PLUS",
+      "STRING_LITERAL"
     ],
     "P063": [
-      "AMP",
-      "CHAR_LITERAL",
-      "FLOAT_LITERAL",
-      "ID",
-      "INT_LITERAL",
-      "LPAREN",
-      "MINUS",
-      "NOT",
-      "PLUS",
-      "STRING_LITERAL"
+      "OR"
     ],
     "P064": [
-      "AND"
+      "ASSIGN",
+      "COMMA",
+      "RBRACKET",
+      "RPAREN",
+      "SEMI"
     ],
     "P065": [
-      "ASSIGN",
-      "COMMA",
-      "OR",
-      "RBRACKET",
-      "RPAREN",
-      "SEMI"
+      "AMP",
+      "CHAR_LITERAL",
+      "FLOAT_LITERAL",
+      "ID",
+      "INT_LITERAL",
+      "LPAREN",
+      "MINUS",
+      "NOT",
+      "PLUS",
+      "STRING_LITERAL"
     ],
     "P066": [
-      "AMP",
-      "CHAR_LITERAL",
-      "FLOAT_LITERAL",
-      "ID",
-      "INT_LITERAL",
-      "LPAREN",
-      "MINUS",
-      "NOT",
-      "PLUS",
-      "STRING_LITERAL"
+      "AND"
     ],
     "P067": [
-      "EQ"
+      "ASSIGN",
+      "COMMA",
+      "OR",
+      "RBRACKET",
+      "RPAREN",
+      "SEMI"
     ],
     "P068": [
-      "NE"
+      "AMP",
+      "CHAR_LITERAL",
+      "FLOAT_LITERAL",
+      "ID",
+      "INT_LITERAL",
+      "LPAREN",
+      "MINUS",
+      "NOT",
+      "PLUS",
+      "STRING_LITERAL"
     ],
     "P069": [
-      "AND",
-      "ASSIGN",
-      "COMMA",
-      "OR",
-      "RBRACKET",
-      "RPAREN",
-      "SEMI"
+      "EQ"
     ],
     "P070": [
-      "AMP",
-      "CHAR_LITERAL",
-      "FLOAT_LITERAL",
-      "ID",
-      "INT_LITERAL",
-      "LPAREN",
-      "MINUS",
-      "NOT",
-      "PLUS",
-      "STRING_LITERAL"
+      "NE"
     ],
     "P071": [
-      "LT"
+      "AND",
+      "ASSIGN",
+      "COMMA",
+      "OR",
+      "RBRACKET",
+      "RPAREN",
+      "SEMI"
     ],
     "P072": [
-      "LE"
+      "AMP",
+      "CHAR_LITERAL",
+      "FLOAT_LITERAL",
+      "ID",
+      "INT_LITERAL",
+      "LPAREN",
+      "MINUS",
+      "NOT",
+      "PLUS",
+      "STRING_LITERAL"
     ],
     "P073": [
-      "GT"
+      "LT"
     ],
     "P074": [
-      "GE"
+      "LE"
     ],
     "P075": [
-      "AND",
-      "ASSIGN",
-      "COMMA",
-      "EQ",
-      "NE",
-      "OR",
-      "RBRACKET",
-      "RPAREN",
-      "SEMI"
+      "GT"
     ],
     "P076": [
-      "AMP",
-      "CHAR_LITERAL",
-      "FLOAT_LITERAL",
-      "ID",
-      "INT_LITERAL",
-      "LPAREN",
-      "MINUS",
-      "NOT",
-      "PLUS",
-      "STRING_LITERAL"
+      "GE"
     ],
     "P077": [
-      "PLUS"
-    ],
-    "P078": [
-      "MINUS"
-    ],
-    "P079": [
       "AND",
       "ASSIGN",
       "COMMA",
       "EQ",
-      "GE",
-      "GT",
-      "LE",
-      "LT",
       "NE",
       "OR",
       "RBRACKET",
       "RPAREN",
       "SEMI"
     ],
-    "P080": [
+    "P078": [
       "AMP",
       "CHAR_LITERAL",
       "FLOAT_LITERAL",
@@ -2559,16 +2562,49 @@
       "PLUS",
       "STRING_LITERAL"
     ],
+    "P079": [
+      "PLUS"
+    ],
+    "P080": [
+      "MINUS"
+    ],
     "P081": [
-      "STAR"
+      "AND",
+      "ASSIGN",
+      "COMMA",
+      "EQ",
+      "GE",
+      "GT",
+      "LE",
+      "LT",
+      "NE",
+      "OR",
+      "RBRACKET",
+      "RPAREN",
+      "SEMI"
     ],
     "P082": [
-      "SLASH"
+      "AMP",
+      "CHAR_LITERAL",
+      "FLOAT_LITERAL",
+      "ID",
+      "INT_LITERAL",
+      "LPAREN",
+      "MINUS",
+      "NOT",
+      "PLUS",
+      "STRING_LITERAL"
     ],
     "P083": [
-      "PERCENT"
+      "STAR"
     ],
     "P084": [
+      "SLASH"
+    ],
+    "P085": [
+      "PERCENT"
+    ],
+    "P086": [
       "AND",
       "ASSIGN",
       "COMMA",
@@ -2585,40 +2621,40 @@
       "RPAREN",
       "SEMI"
     ],
-    "P085": [
+    "P087": [
       "PLUS"
     ],
-    "P086": [
+    "P088": [
       "MINUS"
     ],
-    "P087": [
+    "P089": [
       "NOT"
     ],
-    "P088": [
+    "P090": [
       "AMP"
     ],
-    "P089": [
-      "CHAR_LITERAL",
-      "FLOAT_LITERAL",
-      "ID",
-      "INT_LITERAL",
-      "LPAREN",
-      "STRING_LITERAL"
-    ],
-    "P090": [
-      "CHAR_LITERAL",
-      "FLOAT_LITERAL",
-      "ID",
-      "INT_LITERAL",
-      "LPAREN",
-      "STRING_LITERAL"
-    ],
     "P091": [
+      "CHAR_LITERAL",
+      "FLOAT_LITERAL",
+      "ID",
+      "INT_LITERAL",
+      "LPAREN",
+      "STRING_LITERAL"
+    ],
+    "P092": [
+      "CHAR_LITERAL",
+      "FLOAT_LITERAL",
+      "ID",
+      "INT_LITERAL",
+      "LPAREN",
+      "STRING_LITERAL"
+    ],
+    "P093": [
       "DOT",
       "LBRACKET",
       "LPAREN"
     ],
-    "P092": [
+    "P094": [
       "AND",
       "ASSIGN",
       "COMMA",
@@ -2638,40 +2674,40 @@
       "SLASH",
       "STAR"
     ],
-    "P093": [
-      "LPAREN"
-    ],
-    "P094": [
-      "LBRACKET"
-    ],
     "P095": [
-      "DOT"
+      "LPAREN"
     ],
     "P096": [
-      "LPAREN"
+      "LBRACKET"
     ],
     "P097": [
-      "ID"
+      "DOT"
     ],
     "P098": [
-      "INT_LITERAL"
+      "LPAREN"
     ],
     "P099": [
-      "FLOAT_LITERAL"
+      "ID"
     ],
     "P100": [
-      "CHAR_LITERAL"
+      "INT_LITERAL"
     ],
     "P101": [
-      "STRING_LITERAL"
+      "FLOAT_LITERAL"
     ],
     "P102": [
-      "STRING_LITERAL"
+      "CHAR_LITERAL"
     ],
     "P103": [
       "STRING_LITERAL"
     ],
     "P104": [
+      "STRING_LITERAL"
+    ],
+    "P105": [
+      "STRING_LITERAL"
+    ],
+    "P106": [
       "AND",
       "ASSIGN",
       "COMMA",
@@ -2694,10 +2730,10 @@
       "SLASH",
       "STAR"
     ],
-    "P105": [
+    "P107": [
       "RPAREN"
     ],
-    "P106": [
+    "P108": [
       "AMP",
       "CHAR_LITERAL",
       "FLOAT_LITERAL",
@@ -2709,20 +2745,11 @@
       "PLUS",
       "STRING_LITERAL"
     ],
-    "P107": [
+    "P109": [
       "COMMA"
     ],
-    "P108": [
-      "RPAREN"
-    ],
-    "P109": [
-      "KW_CHAR",
-      "KW_FLOAT",
-      "KW_INT",
-      "KW_STRUCT"
-    ],
     "P110": [
-      "RBRACE"
+      "RPAREN"
     ],
     "P111": [
       "KW_CHAR",
@@ -2731,15 +2758,24 @@
       "KW_STRUCT"
     ],
     "P112": [
+      "RBRACE"
+    ],
+    "P113": [
       "KW_CHAR",
       "KW_FLOAT",
       "KW_INT",
       "KW_STRUCT"
     ],
-    "P113": [
+    "P114": [
+      "KW_CHAR",
+      "KW_FLOAT",
+      "KW_INT",
+      "KW_STRUCT"
+    ],
+    "P115": [
       "COMMA"
     ],
-    "P114": [
+    "P116": [
       "SEMI"
     ]
   },
@@ -2747,1367 +2783,1397 @@
     {
       "nonterminal": "else",
       "lookahead": "KW_IF",
-      "production": "P056"
+      "production": "P058"
     },
     {
       "nonterminal": "else",
       "lookahead": "LBRACE",
-      "production": "P055"
+      "production": "P057"
     },
     {
       "nonterminal": "else2",
       "lookahead": "AMP",
-      "production": "P054"
+      "production": "P056"
     },
     {
       "nonterminal": "else2",
       "lookahead": "CHAR_LITERAL",
-      "production": "P054"
+      "production": "P056"
     },
     {
       "nonterminal": "else2",
       "lookahead": "FLOAT_LITERAL",
-      "production": "P054"
+      "production": "P056"
     },
     {
       "nonterminal": "else2",
       "lookahead": "ID",
-      "production": "P054"
+      "production": "P056"
     },
     {
       "nonterminal": "else2",
       "lookahead": "INT_LITERAL",
-      "production": "P054"
+      "production": "P056"
     },
     {
       "nonterminal": "else2",
       "lookahead": "KW_BREAK",
-      "production": "P054"
+      "production": "P056"
     },
     {
       "nonterminal": "else2",
       "lookahead": "KW_CONTINUE",
-      "production": "P054"
+      "production": "P056"
     },
     {
       "nonterminal": "else2",
       "lookahead": "KW_ELSE",
-      "production": "P053"
+      "production": "P055"
     },
     {
       "nonterminal": "else2",
       "lookahead": "KW_FOR",
-      "production": "P054"
+      "production": "P056"
     },
     {
       "nonterminal": "else2",
       "lookahead": "KW_IF",
-      "production": "P054"
+      "production": "P056"
     },
     {
       "nonterminal": "else2",
       "lookahead": "KW_RETURN",
-      "production": "P054"
+      "production": "P056"
     },
     {
       "nonterminal": "else2",
       "lookahead": "KW_WHILE",
-      "production": "P054"
+      "production": "P056"
     },
     {
       "nonterminal": "else2",
       "lookahead": "LBRACE",
-      "production": "P054"
+      "production": "P056"
     },
     {
       "nonterminal": "else2",
       "lookahead": "LPAREN",
-      "production": "P054"
+      "production": "P056"
     },
     {
       "nonterminal": "else2",
       "lookahead": "MINUS",
-      "production": "P054"
+      "production": "P056"
     },
     {
       "nonterminal": "else2",
       "lookahead": "NOT",
-      "production": "P054"
+      "production": "P056"
     },
     {
       "nonterminal": "else2",
       "lookahead": "PLUS",
-      "production": "P054"
+      "production": "P056"
     },
     {
       "nonterminal": "else2",
       "lookahead": "RBRACE",
-      "production": "P054"
+      "production": "P056"
     },
     {
       "nonterminal": "else2",
       "lookahead": "SEMI",
-      "production": "P054"
+      "production": "P056"
     },
     {
       "nonterminal": "else2",
       "lookahead": "STRING_LITERAL",
-      "production": "P054"
+      "production": "P056"
     },
     {
       "nonterminal": "for",
       "lookahead": "KW_FOR",
-      "production": "P058"
+      "production": "P060"
     },
     {
       "nonterminal": "if",
       "lookahead": "KW_IF",
-      "production": "P052"
+      "production": "P054"
     },
     {
       "nonterminal": "while",
       "lookahead": "KW_WHILE",
-      "production": "P057"
+      "production": "P059"
     },
     {
       "nonterminal": "一元式",
       "lookahead": "AMP",
+      "production": "P090"
+    },
+    {
+      "nonterminal": "一元式",
+      "lookahead": "CHAR_LITERAL",
+      "production": "P091"
+    },
+    {
+      "nonterminal": "一元式",
+      "lookahead": "FLOAT_LITERAL",
+      "production": "P091"
+    },
+    {
+      "nonterminal": "一元式",
+      "lookahead": "ID",
+      "production": "P091"
+    },
+    {
+      "nonterminal": "一元式",
+      "lookahead": "INT_LITERAL",
+      "production": "P091"
+    },
+    {
+      "nonterminal": "一元式",
+      "lookahead": "LPAREN",
+      "production": "P091"
+    },
+    {
+      "nonterminal": "一元式",
+      "lookahead": "MINUS",
       "production": "P088"
     },
     {
       "nonterminal": "一元式",
-      "lookahead": "CHAR_LITERAL",
-      "production": "P089"
-    },
-    {
-      "nonterminal": "一元式",
-      "lookahead": "FLOAT_LITERAL",
-      "production": "P089"
-    },
-    {
-      "nonterminal": "一元式",
-      "lookahead": "ID",
-      "production": "P089"
-    },
-    {
-      "nonterminal": "一元式",
-      "lookahead": "INT_LITERAL",
-      "production": "P089"
-    },
-    {
-      "nonterminal": "一元式",
-      "lookahead": "LPAREN",
-      "production": "P089"
-    },
-    {
-      "nonterminal": "一元式",
-      "lookahead": "MINUS",
-      "production": "P086"
-    },
-    {
-      "nonterminal": "一元式",
       "lookahead": "NOT",
+      "production": "P089"
+    },
+    {
+      "nonterminal": "一元式",
+      "lookahead": "PLUS",
       "production": "P087"
     },
     {
       "nonterminal": "一元式",
-      "lookahead": "PLUS",
-      "production": "P085"
-    },
-    {
-      "nonterminal": "一元式",
       "lookahead": "STRING_LITERAL",
-      "production": "P089"
+      "production": "P091"
     },
     {
       "nonterminal": "主式",
       "lookahead": "CHAR_LITERAL",
-      "production": "P100"
+      "production": "P102"
     },
     {
       "nonterminal": "主式",
       "lookahead": "FLOAT_LITERAL",
+      "production": "P101"
+    },
+    {
+      "nonterminal": "主式",
+      "lookahead": "ID",
       "production": "P099"
     },
     {
       "nonterminal": "主式",
-      "lookahead": "ID",
-      "production": "P097"
+      "lookahead": "INT_LITERAL",
+      "production": "P100"
     },
     {
       "nonterminal": "主式",
-      "lookahead": "INT_LITERAL",
+      "lookahead": "LPAREN",
       "production": "P098"
     },
     {
       "nonterminal": "主式",
-      "lookahead": "LPAREN",
-      "production": "P096"
-    },
-    {
-      "nonterminal": "主式",
       "lookahead": "STRING_LITERAL",
-      "production": "P101"
+      "production": "P103"
     },
     {
       "nonterminal": "乘法式",
       "lookahead": "AMP",
-      "production": "P080"
+      "production": "P082"
     },
     {
       "nonterminal": "乘法式",
       "lookahead": "CHAR_LITERAL",
-      "production": "P080"
+      "production": "P082"
     },
     {
       "nonterminal": "乘法式",
       "lookahead": "FLOAT_LITERAL",
-      "production": "P080"
+      "production": "P082"
     },
     {
       "nonterminal": "乘法式",
       "lookahead": "ID",
-      "production": "P080"
+      "production": "P082"
     },
     {
       "nonterminal": "乘法式",
       "lookahead": "INT_LITERAL",
-      "production": "P080"
+      "production": "P082"
     },
     {
       "nonterminal": "乘法式",
       "lookahead": "LPAREN",
-      "production": "P080"
+      "production": "P082"
     },
     {
       "nonterminal": "乘法式",
       "lookahead": "MINUS",
-      "production": "P080"
+      "production": "P082"
     },
     {
       "nonterminal": "乘法式",
       "lookahead": "NOT",
-      "production": "P080"
+      "production": "P082"
     },
     {
       "nonterminal": "乘法式",
       "lookahead": "PLUS",
-      "production": "P080"
+      "production": "P082"
     },
     {
       "nonterminal": "乘法式",
       "lookahead": "STRING_LITERAL",
-      "production": "P080"
-    },
-    {
-      "nonterminal": "乘法式2",
-      "lookahead": "AND",
-      "production": "P084"
-    },
-    {
-      "nonterminal": "乘法式2",
-      "lookahead": "ASSIGN",
-      "production": "P084"
-    },
-    {
-      "nonterminal": "乘法式2",
-      "lookahead": "COMMA",
-      "production": "P084"
-    },
-    {
-      "nonterminal": "乘法式2",
-      "lookahead": "EQ",
-      "production": "P084"
-    },
-    {
-      "nonterminal": "乘法式2",
-      "lookahead": "GE",
-      "production": "P084"
-    },
-    {
-      "nonterminal": "乘法式2",
-      "lookahead": "GT",
-      "production": "P084"
-    },
-    {
-      "nonterminal": "乘法式2",
-      "lookahead": "LE",
-      "production": "P084"
-    },
-    {
-      "nonterminal": "乘法式2",
-      "lookahead": "LT",
-      "production": "P084"
-    },
-    {
-      "nonterminal": "乘法式2",
-      "lookahead": "MINUS",
-      "production": "P084"
-    },
-    {
-      "nonterminal": "乘法式2",
-      "lookahead": "NE",
-      "production": "P084"
-    },
-    {
-      "nonterminal": "乘法式2",
-      "lookahead": "OR",
-      "production": "P084"
-    },
-    {
-      "nonterminal": "乘法式2",
-      "lookahead": "PERCENT",
-      "production": "P083"
-    },
-    {
-      "nonterminal": "乘法式2",
-      "lookahead": "PLUS",
-      "production": "P084"
-    },
-    {
-      "nonterminal": "乘法式2",
-      "lookahead": "RBRACKET",
-      "production": "P084"
-    },
-    {
-      "nonterminal": "乘法式2",
-      "lookahead": "RPAREN",
-      "production": "P084"
-    },
-    {
-      "nonterminal": "乘法式2",
-      "lookahead": "SEMI",
-      "production": "P084"
-    },
-    {
-      "nonterminal": "乘法式2",
-      "lookahead": "SLASH",
       "production": "P082"
     },
     {
       "nonterminal": "乘法式2",
+      "lookahead": "AND",
+      "production": "P086"
+    },
+    {
+      "nonterminal": "乘法式2",
+      "lookahead": "ASSIGN",
+      "production": "P086"
+    },
+    {
+      "nonterminal": "乘法式2",
+      "lookahead": "COMMA",
+      "production": "P086"
+    },
+    {
+      "nonterminal": "乘法式2",
+      "lookahead": "EQ",
+      "production": "P086"
+    },
+    {
+      "nonterminal": "乘法式2",
+      "lookahead": "GE",
+      "production": "P086"
+    },
+    {
+      "nonterminal": "乘法式2",
+      "lookahead": "GT",
+      "production": "P086"
+    },
+    {
+      "nonterminal": "乘法式2",
+      "lookahead": "LE",
+      "production": "P086"
+    },
+    {
+      "nonterminal": "乘法式2",
+      "lookahead": "LT",
+      "production": "P086"
+    },
+    {
+      "nonterminal": "乘法式2",
+      "lookahead": "MINUS",
+      "production": "P086"
+    },
+    {
+      "nonterminal": "乘法式2",
+      "lookahead": "NE",
+      "production": "P086"
+    },
+    {
+      "nonterminal": "乘法式2",
+      "lookahead": "OR",
+      "production": "P086"
+    },
+    {
+      "nonterminal": "乘法式2",
+      "lookahead": "PERCENT",
+      "production": "P085"
+    },
+    {
+      "nonterminal": "乘法式2",
+      "lookahead": "PLUS",
+      "production": "P086"
+    },
+    {
+      "nonterminal": "乘法式2",
+      "lookahead": "RBRACKET",
+      "production": "P086"
+    },
+    {
+      "nonterminal": "乘法式2",
+      "lookahead": "RPAREN",
+      "production": "P086"
+    },
+    {
+      "nonterminal": "乘法式2",
+      "lookahead": "SEMI",
+      "production": "P086"
+    },
+    {
+      "nonterminal": "乘法式2",
+      "lookahead": "SLASH",
+      "production": "P084"
+    },
+    {
+      "nonterminal": "乘法式2",
       "lookahead": "STAR",
-      "production": "P081"
+      "production": "P083"
     },
     {
       "nonterminal": "代码块",
       "lookahead": "LBRACE",
-      "production": "P034"
+      "production": "P036"
     },
     {
       "nonterminal": "关系式",
       "lookahead": "AMP",
-      "production": "P070"
+      "production": "P072"
     },
     {
       "nonterminal": "关系式",
       "lookahead": "CHAR_LITERAL",
-      "production": "P070"
+      "production": "P072"
     },
     {
       "nonterminal": "关系式",
       "lookahead": "FLOAT_LITERAL",
-      "production": "P070"
+      "production": "P072"
     },
     {
       "nonterminal": "关系式",
       "lookahead": "ID",
-      "production": "P070"
+      "production": "P072"
     },
     {
       "nonterminal": "关系式",
       "lookahead": "INT_LITERAL",
-      "production": "P070"
+      "production": "P072"
     },
     {
       "nonterminal": "关系式",
       "lookahead": "LPAREN",
-      "production": "P070"
+      "production": "P072"
     },
     {
       "nonterminal": "关系式",
       "lookahead": "MINUS",
-      "production": "P070"
+      "production": "P072"
     },
     {
       "nonterminal": "关系式",
       "lookahead": "NOT",
-      "production": "P070"
+      "production": "P072"
     },
     {
       "nonterminal": "关系式",
       "lookahead": "PLUS",
-      "production": "P070"
+      "production": "P072"
     },
     {
       "nonterminal": "关系式",
       "lookahead": "STRING_LITERAL",
-      "production": "P070"
-    },
-    {
-      "nonterminal": "关系式2",
-      "lookahead": "AND",
-      "production": "P075"
-    },
-    {
-      "nonterminal": "关系式2",
-      "lookahead": "ASSIGN",
-      "production": "P075"
-    },
-    {
-      "nonterminal": "关系式2",
-      "lookahead": "COMMA",
-      "production": "P075"
-    },
-    {
-      "nonterminal": "关系式2",
-      "lookahead": "EQ",
-      "production": "P075"
-    },
-    {
-      "nonterminal": "关系式2",
-      "lookahead": "GE",
-      "production": "P074"
-    },
-    {
-      "nonterminal": "关系式2",
-      "lookahead": "GT",
-      "production": "P073"
-    },
-    {
-      "nonterminal": "关系式2",
-      "lookahead": "LE",
       "production": "P072"
     },
     {
       "nonterminal": "关系式2",
+      "lookahead": "AND",
+      "production": "P077"
+    },
+    {
+      "nonterminal": "关系式2",
+      "lookahead": "ASSIGN",
+      "production": "P077"
+    },
+    {
+      "nonterminal": "关系式2",
+      "lookahead": "COMMA",
+      "production": "P077"
+    },
+    {
+      "nonterminal": "关系式2",
+      "lookahead": "EQ",
+      "production": "P077"
+    },
+    {
+      "nonterminal": "关系式2",
+      "lookahead": "GE",
+      "production": "P076"
+    },
+    {
+      "nonterminal": "关系式2",
+      "lookahead": "GT",
+      "production": "P075"
+    },
+    {
+      "nonterminal": "关系式2",
+      "lookahead": "LE",
+      "production": "P074"
+    },
+    {
+      "nonterminal": "关系式2",
       "lookahead": "LT",
-      "production": "P071"
+      "production": "P073"
     },
     {
       "nonterminal": "关系式2",
       "lookahead": "NE",
-      "production": "P075"
+      "production": "P077"
     },
     {
       "nonterminal": "关系式2",
       "lookahead": "OR",
-      "production": "P075"
+      "production": "P077"
     },
     {
       "nonterminal": "关系式2",
       "lookahead": "RBRACKET",
-      "production": "P075"
+      "production": "P077"
     },
     {
       "nonterminal": "关系式2",
       "lookahead": "RPAREN",
-      "production": "P075"
+      "production": "P077"
     },
     {
       "nonterminal": "关系式2",
       "lookahead": "SEMI",
-      "production": "P075"
+      "production": "P077"
     },
     {
       "nonterminal": "函数定义后续",
       "lookahead": "LPAREN",
-      "production": "P014"
+      "production": "P016"
     },
     {
       "nonterminal": "函数实参",
       "lookahead": "AMP",
-      "production": "P106"
+      "production": "P108"
     },
     {
       "nonterminal": "函数实参",
       "lookahead": "CHAR_LITERAL",
-      "production": "P106"
+      "production": "P108"
     },
     {
       "nonterminal": "函数实参",
       "lookahead": "FLOAT_LITERAL",
-      "production": "P106"
+      "production": "P108"
     },
     {
       "nonterminal": "函数实参",
       "lookahead": "ID",
-      "production": "P106"
+      "production": "P108"
     },
     {
       "nonterminal": "函数实参",
       "lookahead": "INT_LITERAL",
-      "production": "P106"
+      "production": "P108"
     },
     {
       "nonterminal": "函数实参",
       "lookahead": "LPAREN",
-      "production": "P106"
+      "production": "P108"
     },
     {
       "nonterminal": "函数实参",
       "lookahead": "MINUS",
-      "production": "P106"
+      "production": "P108"
     },
     {
       "nonterminal": "函数实参",
       "lookahead": "NOT",
-      "production": "P106"
+      "production": "P108"
     },
     {
       "nonterminal": "函数实参",
       "lookahead": "PLUS",
-      "production": "P106"
+      "production": "P108"
     },
     {
       "nonterminal": "函数实参",
       "lookahead": "RPAREN",
-      "production": "P105"
+      "production": "P107"
     },
     {
       "nonterminal": "函数实参",
       "lookahead": "STRING_LITERAL",
-      "production": "P106"
+      "production": "P108"
     },
     {
       "nonterminal": "函数实参2",
       "lookahead": "COMMA",
-      "production": "P107"
+      "production": "P109"
     },
     {
       "nonterminal": "函数实参2",
       "lookahead": "RPAREN",
-      "production": "P108"
+      "production": "P110"
     },
     {
       "nonterminal": "函数形参",
       "lookahead": "KW_CHAR",
-      "production": "P029"
+      "production": "P031"
     },
     {
       "nonterminal": "函数形参",
       "lookahead": "KW_FLOAT",
-      "production": "P029"
+      "production": "P031"
     },
     {
       "nonterminal": "函数形参",
       "lookahead": "KW_INT",
-      "production": "P029"
+      "production": "P031"
     },
     {
       "nonterminal": "函数形参",
       "lookahead": "KW_STRUCT",
-      "production": "P029"
+      "production": "P031"
     },
     {
       "nonterminal": "函数形参",
       "lookahead": "KW_VOID",
-      "production": "P030"
+      "production": "P032"
     },
     {
       "nonterminal": "函数形参",
       "lookahead": "RPAREN",
-      "production": "P031"
+      "production": "P033"
     },
     {
       "nonterminal": "函数形参2",
       "lookahead": "COMMA",
-      "production": "P032"
+      "production": "P034"
     },
     {
       "nonterminal": "函数形参2",
       "lookahead": "RPAREN",
-      "production": "P033"
+      "production": "P035"
     },
     {
       "nonterminal": "加法式",
       "lookahead": "AMP",
-      "production": "P076"
+      "production": "P078"
     },
     {
       "nonterminal": "加法式",
       "lookahead": "CHAR_LITERAL",
-      "production": "P076"
+      "production": "P078"
     },
     {
       "nonterminal": "加法式",
       "lookahead": "FLOAT_LITERAL",
-      "production": "P076"
+      "production": "P078"
     },
     {
       "nonterminal": "加法式",
       "lookahead": "ID",
-      "production": "P076"
+      "production": "P078"
     },
     {
       "nonterminal": "加法式",
       "lookahead": "INT_LITERAL",
-      "production": "P076"
+      "production": "P078"
     },
     {
       "nonterminal": "加法式",
       "lookahead": "LPAREN",
-      "production": "P076"
+      "production": "P078"
     },
     {
       "nonterminal": "加法式",
-      "lookahead": "MINUS",
-      "production": "P076"
-    },
-    {
-      "nonterminal": "加法式",
-      "lookahead": "NOT",
-      "production": "P076"
-    },
-    {
-      "nonterminal": "加法式",
-      "lookahead": "PLUS",
-      "production": "P076"
-    },
-    {
-      "nonterminal": "加法式",
-      "lookahead": "STRING_LITERAL",
-      "production": "P076"
-    },
-    {
-      "nonterminal": "加法式2",
-      "lookahead": "AND",
-      "production": "P079"
-    },
-    {
-      "nonterminal": "加法式2",
-      "lookahead": "ASSIGN",
-      "production": "P079"
-    },
-    {
-      "nonterminal": "加法式2",
-      "lookahead": "COMMA",
-      "production": "P079"
-    },
-    {
-      "nonterminal": "加法式2",
-      "lookahead": "EQ",
-      "production": "P079"
-    },
-    {
-      "nonterminal": "加法式2",
-      "lookahead": "GE",
-      "production": "P079"
-    },
-    {
-      "nonterminal": "加法式2",
-      "lookahead": "GT",
-      "production": "P079"
-    },
-    {
-      "nonterminal": "加法式2",
-      "lookahead": "LE",
-      "production": "P079"
-    },
-    {
-      "nonterminal": "加法式2",
-      "lookahead": "LT",
-      "production": "P079"
-    },
-    {
-      "nonterminal": "加法式2",
       "lookahead": "MINUS",
       "production": "P078"
     },
     {
+      "nonterminal": "加法式",
+      "lookahead": "NOT",
+      "production": "P078"
+    },
+    {
+      "nonterminal": "加法式",
+      "lookahead": "PLUS",
+      "production": "P078"
+    },
+    {
+      "nonterminal": "加法式",
+      "lookahead": "STRING_LITERAL",
+      "production": "P078"
+    },
+    {
+      "nonterminal": "加法式2",
+      "lookahead": "AND",
+      "production": "P081"
+    },
+    {
+      "nonterminal": "加法式2",
+      "lookahead": "ASSIGN",
+      "production": "P081"
+    },
+    {
+      "nonterminal": "加法式2",
+      "lookahead": "COMMA",
+      "production": "P081"
+    },
+    {
+      "nonterminal": "加法式2",
+      "lookahead": "EQ",
+      "production": "P081"
+    },
+    {
+      "nonterminal": "加法式2",
+      "lookahead": "GE",
+      "production": "P081"
+    },
+    {
+      "nonterminal": "加法式2",
+      "lookahead": "GT",
+      "production": "P081"
+    },
+    {
+      "nonterminal": "加法式2",
+      "lookahead": "LE",
+      "production": "P081"
+    },
+    {
+      "nonterminal": "加法式2",
+      "lookahead": "LT",
+      "production": "P081"
+    },
+    {
+      "nonterminal": "加法式2",
+      "lookahead": "MINUS",
+      "production": "P080"
+    },
+    {
       "nonterminal": "加法式2",
       "lookahead": "NE",
-      "production": "P079"
+      "production": "P081"
     },
     {
       "nonterminal": "加法式2",
       "lookahead": "OR",
-      "production": "P079"
+      "production": "P081"
     },
     {
       "nonterminal": "加法式2",
       "lookahead": "PLUS",
-      "production": "P077"
+      "production": "P079"
     },
     {
       "nonterminal": "加法式2",
       "lookahead": "RBRACKET",
-      "production": "P079"
+      "production": "P081"
     },
     {
       "nonterminal": "加法式2",
       "lookahead": "RPAREN",
-      "production": "P079"
+      "production": "P081"
     },
     {
       "nonterminal": "加法式2",
       "lookahead": "SEMI",
-      "production": "P079"
+      "production": "P081"
     },
     {
       "nonterminal": "变量声明后续",
       "lookahead": "ASSIGN",
-      "production": "P020"
+      "production": "P022"
     },
     {
       "nonterminal": "变量声明后续",
       "lookahead": "COMMA",
-      "production": "P020"
+      "production": "P022"
     },
     {
       "nonterminal": "变量声明后续",
       "lookahead": "LBRACKET",
-      "production": "P020"
+      "production": "P022"
     },
     {
       "nonterminal": "变量声明后续",
-      "lookahead": "SEMI",
-      "production": "P020"
-    },
-    {
-      "nonterminal": "变量声明后续2",
-      "lookahead": "COMMA",
-      "production": "P021"
-    },
-    {
-      "nonterminal": "变量声明后续2",
       "lookahead": "SEMI",
       "production": "P022"
     },
     {
+      "nonterminal": "变量声明后续2",
+      "lookahead": "COMMA",
+      "production": "P023"
+    },
+    {
+      "nonterminal": "变量声明后续2",
+      "lookahead": "SEMI",
+      "production": "P024"
+    },
+    {
       "nonterminal": "变量类型",
       "lookahead": "KW_CHAR",
-      "production": "P006"
+      "production": "P008"
     },
     {
       "nonterminal": "变量类型",
       "lookahead": "KW_FLOAT",
-      "production": "P006"
+      "production": "P008"
     },
     {
       "nonterminal": "变量类型",
       "lookahead": "KW_INT",
-      "production": "P006"
+      "production": "P008"
     },
     {
       "nonterminal": "变量类型",
       "lookahead": "KW_STRUCT",
-      "production": "P007"
+      "production": "P009"
     },
     {
       "nonterminal": "后缀",
       "lookahead": "DOT",
-      "production": "P095"
+      "production": "P097"
     },
     {
       "nonterminal": "后缀",
       "lookahead": "LBRACKET",
-      "production": "P094"
+      "production": "P096"
     },
     {
       "nonterminal": "后缀",
+      "lookahead": "LPAREN",
+      "production": "P095"
+    },
+    {
+      "nonterminal": "后缀序列",
+      "lookahead": "AND",
+      "production": "P094"
+    },
+    {
+      "nonterminal": "后缀序列",
+      "lookahead": "ASSIGN",
+      "production": "P094"
+    },
+    {
+      "nonterminal": "后缀序列",
+      "lookahead": "COMMA",
+      "production": "P094"
+    },
+    {
+      "nonterminal": "后缀序列",
+      "lookahead": "DOT",
+      "production": "P093"
+    },
+    {
+      "nonterminal": "后缀序列",
+      "lookahead": "EQ",
+      "production": "P094"
+    },
+    {
+      "nonterminal": "后缀序列",
+      "lookahead": "GE",
+      "production": "P094"
+    },
+    {
+      "nonterminal": "后缀序列",
+      "lookahead": "GT",
+      "production": "P094"
+    },
+    {
+      "nonterminal": "后缀序列",
+      "lookahead": "LBRACKET",
+      "production": "P093"
+    },
+    {
+      "nonterminal": "后缀序列",
+      "lookahead": "LE",
+      "production": "P094"
+    },
+    {
+      "nonterminal": "后缀序列",
       "lookahead": "LPAREN",
       "production": "P093"
     },
     {
       "nonterminal": "后缀序列",
-      "lookahead": "AND",
-      "production": "P092"
-    },
-    {
-      "nonterminal": "后缀序列",
-      "lookahead": "ASSIGN",
-      "production": "P092"
-    },
-    {
-      "nonterminal": "后缀序列",
-      "lookahead": "COMMA",
-      "production": "P092"
-    },
-    {
-      "nonterminal": "后缀序列",
-      "lookahead": "DOT",
-      "production": "P091"
-    },
-    {
-      "nonterminal": "后缀序列",
-      "lookahead": "EQ",
-      "production": "P092"
-    },
-    {
-      "nonterminal": "后缀序列",
-      "lookahead": "GE",
-      "production": "P092"
-    },
-    {
-      "nonterminal": "后缀序列",
-      "lookahead": "GT",
-      "production": "P092"
-    },
-    {
-      "nonterminal": "后缀序列",
-      "lookahead": "LBRACKET",
-      "production": "P091"
-    },
-    {
-      "nonterminal": "后缀序列",
-      "lookahead": "LE",
-      "production": "P092"
-    },
-    {
-      "nonterminal": "后缀序列",
-      "lookahead": "LPAREN",
-      "production": "P091"
-    },
-    {
-      "nonterminal": "后缀序列",
       "lookahead": "LT",
-      "production": "P092"
+      "production": "P094"
     },
     {
       "nonterminal": "后缀序列",
       "lookahead": "MINUS",
-      "production": "P092"
+      "production": "P094"
     },
     {
       "nonterminal": "后缀序列",
       "lookahead": "NE",
-      "production": "P092"
+      "production": "P094"
     },
     {
       "nonterminal": "后缀序列",
       "lookahead": "OR",
-      "production": "P092"
+      "production": "P094"
     },
     {
       "nonterminal": "后缀序列",
       "lookahead": "PERCENT",
-      "production": "P092"
+      "production": "P094"
     },
     {
       "nonterminal": "后缀序列",
       "lookahead": "PLUS",
-      "production": "P092"
+      "production": "P094"
     },
     {
       "nonterminal": "后缀序列",
       "lookahead": "RBRACKET",
-      "production": "P092"
+      "production": "P094"
     },
     {
       "nonterminal": "后缀序列",
       "lookahead": "RPAREN",
-      "production": "P092"
+      "production": "P094"
     },
     {
       "nonterminal": "后缀序列",
       "lookahead": "SEMI",
-      "production": "P092"
+      "production": "P094"
     },
     {
       "nonterminal": "后缀序列",
       "lookahead": "SLASH",
-      "production": "P092"
+      "production": "P094"
     },
     {
       "nonterminal": "后缀序列",
       "lookahead": "STAR",
-      "production": "P092"
+      "production": "P094"
     },
     {
       "nonterminal": "后缀式",
       "lookahead": "CHAR_LITERAL",
-      "production": "P090"
+      "production": "P092"
     },
     {
       "nonterminal": "后缀式",
       "lookahead": "FLOAT_LITERAL",
-      "production": "P090"
+      "production": "P092"
     },
     {
       "nonterminal": "后缀式",
       "lookahead": "ID",
-      "production": "P090"
+      "production": "P092"
     },
     {
       "nonterminal": "后缀式",
       "lookahead": "INT_LITERAL",
-      "production": "P090"
+      "production": "P092"
     },
     {
       "nonterminal": "后缀式",
       "lookahead": "LPAREN",
-      "production": "P090"
+      "production": "P092"
     },
     {
       "nonterminal": "后缀式",
       "lookahead": "STRING_LITERAL",
-      "production": "P090"
+      "production": "P092"
     },
     {
       "nonterminal": "基本类型",
       "lookahead": "KW_CHAR",
+      "production": "P007"
+    },
+    {
+      "nonterminal": "基本类型",
+      "lookahead": "KW_FLOAT",
+      "production": "P006"
+    },
+    {
+      "nonterminal": "基本类型",
+      "lookahead": "KW_INT",
       "production": "P005"
     },
     {
-      "nonterminal": "基本类型",
-      "lookahead": "KW_FLOAT",
-      "production": "P004"
-    },
-    {
-      "nonterminal": "基本类型",
-      "lookahead": "KW_INT",
-      "production": "P003"
-    },
-    {
       "nonterminal": "外部定义",
       "lookahead": "KW_CHAR",
-      "production": "P008"
-    },
-    {
-      "nonterminal": "外部定义",
-      "lookahead": "KW_FLOAT",
-      "production": "P008"
-    },
-    {
-      "nonterminal": "外部定义",
-      "lookahead": "KW_INT",
-      "production": "P008"
-    },
-    {
-      "nonterminal": "外部定义",
-      "lookahead": "KW_STRUCT",
       "production": "P010"
     },
     {
       "nonterminal": "外部定义",
+      "lookahead": "KW_FLOAT",
+      "production": "P010"
+    },
+    {
+      "nonterminal": "外部定义",
+      "lookahead": "KW_INT",
+      "production": "P010"
+    },
+    {
+      "nonterminal": "外部定义",
+      "lookahead": "KW_STRUCT",
+      "production": "P012"
+    },
+    {
+      "nonterminal": "外部定义",
       "lookahead": "KW_VOID",
-      "production": "P009"
+      "production": "P011"
     },
     {
       "nonterminal": "外部定义后续",
       "lookahead": "ASSIGN",
-      "production": "P013"
+      "production": "P015"
     },
     {
       "nonterminal": "外部定义后续",
       "lookahead": "COMMA",
-      "production": "P013"
+      "production": "P015"
     },
     {
       "nonterminal": "外部定义后续",
       "lookahead": "LBRACKET",
-      "production": "P013"
+      "production": "P015"
     },
     {
       "nonterminal": "外部定义后续",
       "lookahead": "LPAREN",
-      "production": "P012"
+      "production": "P014"
     },
     {
       "nonterminal": "外部定义后续",
       "lookahead": "SEMI",
-      "production": "P013"
+      "production": "P015"
+    },
+    {
+      "nonterminal": "外部定义序列",
+      "lookahead": "END_OF_FILE",
+      "production": "P004"
+    },
+    {
+      "nonterminal": "外部定义序列",
+      "lookahead": "KW_CHAR",
+      "production": "P003"
+    },
+    {
+      "nonterminal": "外部定义序列",
+      "lookahead": "KW_FLOAT",
+      "production": "P003"
+    },
+    {
+      "nonterminal": "外部定义序列",
+      "lookahead": "KW_INT",
+      "production": "P003"
+    },
+    {
+      "nonterminal": "外部定义序列",
+      "lookahead": "KW_STRUCT",
+      "production": "P003"
+    },
+    {
+      "nonterminal": "外部定义序列",
+      "lookahead": "KW_VOID",
+      "production": "P003"
     },
     {
       "nonterminal": "字符串",
       "lookahead": "STRING_LITERAL",
-      "production": "P102"
+      "production": "P104"
     },
     {
       "nonterminal": "字符串2",
       "lookahead": "AND",
-      "production": "P104"
+      "production": "P106"
     },
     {
       "nonterminal": "字符串2",
       "lookahead": "ASSIGN",
-      "production": "P104"
+      "production": "P106"
     },
     {
       "nonterminal": "字符串2",
       "lookahead": "COMMA",
-      "production": "P104"
+      "production": "P106"
     },
     {
       "nonterminal": "字符串2",
       "lookahead": "DOT",
-      "production": "P104"
+      "production": "P106"
     },
     {
       "nonterminal": "字符串2",
       "lookahead": "EQ",
-      "production": "P104"
+      "production": "P106"
     },
     {
       "nonterminal": "字符串2",
       "lookahead": "GE",
-      "production": "P104"
+      "production": "P106"
     },
     {
       "nonterminal": "字符串2",
       "lookahead": "GT",
-      "production": "P104"
+      "production": "P106"
     },
     {
       "nonterminal": "字符串2",
       "lookahead": "LBRACKET",
-      "production": "P104"
+      "production": "P106"
     },
     {
       "nonterminal": "字符串2",
       "lookahead": "LE",
-      "production": "P104"
+      "production": "P106"
     },
     {
       "nonterminal": "字符串2",
       "lookahead": "LPAREN",
-      "production": "P104"
+      "production": "P106"
     },
     {
       "nonterminal": "字符串2",
       "lookahead": "LT",
-      "production": "P104"
+      "production": "P106"
     },
     {
       "nonterminal": "字符串2",
       "lookahead": "MINUS",
-      "production": "P104"
+      "production": "P106"
     },
     {
       "nonterminal": "字符串2",
       "lookahead": "NE",
-      "production": "P104"
+      "production": "P106"
     },
     {
       "nonterminal": "字符串2",
       "lookahead": "OR",
-      "production": "P104"
+      "production": "P106"
     },
     {
       "nonterminal": "字符串2",
       "lookahead": "PERCENT",
-      "production": "P104"
+      "production": "P106"
     },
     {
       "nonterminal": "字符串2",
       "lookahead": "PLUS",
-      "production": "P104"
+      "production": "P106"
     },
     {
       "nonterminal": "字符串2",
       "lookahead": "RBRACKET",
-      "production": "P104"
+      "production": "P106"
     },
     {
       "nonterminal": "字符串2",
       "lookahead": "RPAREN",
-      "production": "P104"
+      "production": "P106"
     },
     {
       "nonterminal": "字符串2",
       "lookahead": "SEMI",
-      "production": "P104"
+      "production": "P106"
     },
     {
       "nonterminal": "字符串2",
       "lookahead": "SLASH",
-      "production": "P104"
+      "production": "P106"
     },
     {
       "nonterminal": "字符串2",
       "lookahead": "STAR",
-      "production": "P104"
+      "production": "P106"
     },
     {
       "nonterminal": "字符串2",
       "lookahead": "STRING_LITERAL",
-      "production": "P103"
+      "production": "P105"
     },
     {
       "nonterminal": "局部声明",
       "lookahead": "KW_CHAR",
-      "production": "P037"
+      "production": "P039"
     },
     {
       "nonterminal": "局部声明",
       "lookahead": "KW_FLOAT",
-      "production": "P037"
+      "production": "P039"
     },
     {
       "nonterminal": "局部声明",
       "lookahead": "KW_INT",
-      "production": "P037"
+      "production": "P039"
     },
     {
       "nonterminal": "局部声明",
       "lookahead": "KW_STRUCT",
+      "production": "P040"
+    },
+    {
+      "nonterminal": "局部声明序列",
+      "lookahead": "AMP",
       "production": "P038"
     },
     {
       "nonterminal": "局部声明序列",
-      "lookahead": "AMP",
-      "production": "P036"
-    },
-    {
-      "nonterminal": "局部声明序列",
       "lookahead": "CHAR_LITERAL",
-      "production": "P036"
+      "production": "P038"
     },
     {
       "nonterminal": "局部声明序列",
       "lookahead": "FLOAT_LITERAL",
-      "production": "P036"
+      "production": "P038"
     },
     {
       "nonterminal": "局部声明序列",
       "lookahead": "ID",
-      "production": "P036"
+      "production": "P038"
     },
     {
       "nonterminal": "局部声明序列",
       "lookahead": "INT_LITERAL",
-      "production": "P036"
+      "production": "P038"
     },
     {
       "nonterminal": "局部声明序列",
       "lookahead": "KW_BREAK",
-      "production": "P036"
+      "production": "P038"
     },
     {
       "nonterminal": "局部声明序列",
       "lookahead": "KW_CHAR",
-      "production": "P035"
+      "production": "P037"
     },
     {
       "nonterminal": "局部声明序列",
       "lookahead": "KW_CONTINUE",
-      "production": "P036"
+      "production": "P038"
     },
     {
       "nonterminal": "局部声明序列",
       "lookahead": "KW_FLOAT",
-      "production": "P035"
+      "production": "P037"
     },
     {
       "nonterminal": "局部声明序列",
       "lookahead": "KW_FOR",
-      "production": "P036"
+      "production": "P038"
     },
     {
       "nonterminal": "局部声明序列",
       "lookahead": "KW_IF",
-      "production": "P036"
+      "production": "P038"
     },
     {
       "nonterminal": "局部声明序列",
       "lookahead": "KW_INT",
-      "production": "P035"
+      "production": "P037"
     },
     {
       "nonterminal": "局部声明序列",
       "lookahead": "KW_RETURN",
-      "production": "P036"
+      "production": "P038"
     },
     {
       "nonterminal": "局部声明序列",
       "lookahead": "KW_STRUCT",
-      "production": "P035"
+      "production": "P037"
     },
     {
       "nonterminal": "局部声明序列",
       "lookahead": "KW_WHILE",
-      "production": "P036"
+      "production": "P038"
     },
     {
       "nonterminal": "局部声明序列",
       "lookahead": "LBRACE",
-      "production": "P036"
+      "production": "P038"
     },
     {
       "nonterminal": "局部声明序列",
       "lookahead": "LPAREN",
-      "production": "P036"
+      "production": "P038"
     },
     {
       "nonterminal": "局部声明序列",
       "lookahead": "MINUS",
-      "production": "P036"
+      "production": "P038"
     },
     {
       "nonterminal": "局部声明序列",
       "lookahead": "NOT",
-      "production": "P036"
+      "production": "P038"
     },
     {
       "nonterminal": "局部声明序列",
       "lookahead": "PLUS",
-      "production": "P036"
+      "production": "P038"
     },
     {
       "nonterminal": "局部声明序列",
       "lookahead": "RBRACE",
-      "production": "P036"
+      "production": "P038"
     },
     {
       "nonterminal": "局部声明序列",
       "lookahead": "SEMI",
-      "production": "P036"
+      "production": "P038"
     },
     {
       "nonterminal": "局部声明序列",
       "lookahead": "STRING_LITERAL",
-      "production": "P036"
+      "production": "P038"
     },
     {
       "nonterminal": "形参",
       "lookahead": "KW_CHAR",
-      "production": "P019"
+      "production": "P021"
     },
     {
       "nonterminal": "形参",
       "lookahead": "KW_FLOAT",
-      "production": "P019"
+      "production": "P021"
     },
     {
       "nonterminal": "形参",
       "lookahead": "KW_INT",
-      "production": "P019"
+      "production": "P021"
     },
     {
       "nonterminal": "形参",
       "lookahead": "KW_STRUCT",
-      "production": "P019"
+      "production": "P021"
     },
     {
       "nonterminal": "数组定义",
       "lookahead": "ASSIGN",
-      "production": "P024"
+      "production": "P026"
     },
     {
       "nonterminal": "数组定义",
       "lookahead": "COMMA",
-      "production": "P024"
+      "production": "P026"
     },
     {
       "nonterminal": "数组定义",
       "lookahead": "LBRACKET",
-      "production": "P023"
+      "production": "P025"
     },
     {
       "nonterminal": "数组定义",
       "lookahead": "RPAREN",
-      "production": "P024"
+      "production": "P026"
     },
     {
       "nonterminal": "数组定义",
       "lookahead": "SEMI",
-      "production": "P024"
+      "production": "P026"
     },
     {
       "nonterminal": "数组长度",
       "lookahead": "INT_LITERAL",
-      "production": "P025"
+      "production": "P027"
     },
     {
       "nonterminal": "数组长度",
       "lookahead": "RBRACKET",
-      "production": "P026"
+      "production": "P028"
     },
     {
       "nonterminal": "相等式",
       "lookahead": "AMP",
-      "production": "P066"
+      "production": "P068"
     },
     {
       "nonterminal": "相等式",
       "lookahead": "CHAR_LITERAL",
-      "production": "P066"
+      "production": "P068"
     },
     {
       "nonterminal": "相等式",
       "lookahead": "FLOAT_LITERAL",
-      "production": "P066"
+      "production": "P068"
     },
     {
       "nonterminal": "相等式",
       "lookahead": "ID",
-      "production": "P066"
+      "production": "P068"
     },
     {
       "nonterminal": "相等式",
       "lookahead": "INT_LITERAL",
-      "production": "P066"
+      "production": "P068"
     },
     {
       "nonterminal": "相等式",
       "lookahead": "LPAREN",
-      "production": "P066"
+      "production": "P068"
     },
     {
       "nonterminal": "相等式",
       "lookahead": "MINUS",
-      "production": "P066"
+      "production": "P068"
     },
     {
       "nonterminal": "相等式",
       "lookahead": "NOT",
-      "production": "P066"
+      "production": "P068"
     },
     {
       "nonterminal": "相等式",
       "lookahead": "PLUS",
-      "production": "P066"
+      "production": "P068"
     },
     {
       "nonterminal": "相等式",
       "lookahead": "STRING_LITERAL",
-      "production": "P066"
-    },
-    {
-      "nonterminal": "相等式2",
-      "lookahead": "AND",
-      "production": "P069"
-    },
-    {
-      "nonterminal": "相等式2",
-      "lookahead": "ASSIGN",
-      "production": "P069"
-    },
-    {
-      "nonterminal": "相等式2",
-      "lookahead": "COMMA",
-      "production": "P069"
-    },
-    {
-      "nonterminal": "相等式2",
-      "lookahead": "EQ",
-      "production": "P067"
-    },
-    {
-      "nonterminal": "相等式2",
-      "lookahead": "NE",
       "production": "P068"
     },
     {
       "nonterminal": "相等式2",
-      "lookahead": "OR",
+      "lookahead": "AND",
+      "production": "P071"
+    },
+    {
+      "nonterminal": "相等式2",
+      "lookahead": "ASSIGN",
+      "production": "P071"
+    },
+    {
+      "nonterminal": "相等式2",
+      "lookahead": "COMMA",
+      "production": "P071"
+    },
+    {
+      "nonterminal": "相等式2",
+      "lookahead": "EQ",
       "production": "P069"
+    },
+    {
+      "nonterminal": "相等式2",
+      "lookahead": "NE",
+      "production": "P070"
+    },
+    {
+      "nonterminal": "相等式2",
+      "lookahead": "OR",
+      "production": "P071"
     },
     {
       "nonterminal": "相等式2",
       "lookahead": "RBRACKET",
-      "production": "P069"
+      "production": "P071"
     },
     {
       "nonterminal": "相等式2",
       "lookahead": "RPAREN",
-      "production": "P069"
+      "production": "P071"
     },
     {
       "nonterminal": "相等式2",
       "lookahead": "SEMI",
-      "production": "P069"
+      "production": "P071"
     },
     {
       "nonterminal": "程序",
@@ -4142,592 +4208,592 @@
     {
       "nonterminal": "结构体后续",
       "lookahead": "ID",
-      "production": "P016"
+      "production": "P018"
     },
     {
       "nonterminal": "结构体后续",
       "lookahead": "LBRACE",
-      "production": "P015"
+      "production": "P017"
     },
     {
       "nonterminal": "结构体声明",
       "lookahead": "KW_STRUCT",
-      "production": "P011"
+      "production": "P013"
     },
     {
       "nonterminal": "结构体定义后续",
       "lookahead": "ID",
-      "production": "P018"
+      "production": "P020"
     },
     {
       "nonterminal": "结构体定义后续",
       "lookahead": "SEMI",
-      "production": "P017"
+      "production": "P019"
     },
     {
       "nonterminal": "结构体成员声明",
       "lookahead": "KW_CHAR",
-      "production": "P112"
+      "production": "P114"
     },
     {
       "nonterminal": "结构体成员声明",
       "lookahead": "KW_FLOAT",
-      "production": "P112"
+      "production": "P114"
     },
     {
       "nonterminal": "结构体成员声明",
       "lookahead": "KW_INT",
-      "production": "P112"
+      "production": "P114"
     },
     {
       "nonterminal": "结构体成员声明",
       "lookahead": "KW_STRUCT",
-      "production": "P112"
+      "production": "P114"
     },
     {
       "nonterminal": "结构体成员声明2",
       "lookahead": "COMMA",
-      "production": "P113"
+      "production": "P115"
     },
     {
       "nonterminal": "结构体成员声明2",
       "lookahead": "SEMI",
-      "production": "P114"
+      "production": "P116"
     },
     {
       "nonterminal": "结构体成员声明序列",
       "lookahead": "KW_CHAR",
-      "production": "P109"
+      "production": "P111"
     },
     {
       "nonterminal": "结构体成员声明序列",
       "lookahead": "KW_FLOAT",
-      "production": "P109"
+      "production": "P111"
     },
     {
       "nonterminal": "结构体成员声明序列",
       "lookahead": "KW_INT",
-      "production": "P109"
+      "production": "P111"
     },
     {
       "nonterminal": "结构体成员声明序列",
       "lookahead": "KW_STRUCT",
-      "production": "P109"
+      "production": "P111"
     },
     {
       "nonterminal": "结构体成员声明序列2",
       "lookahead": "KW_CHAR",
-      "production": "P111"
+      "production": "P113"
     },
     {
       "nonterminal": "结构体成员声明序列2",
       "lookahead": "KW_FLOAT",
-      "production": "P111"
+      "production": "P113"
     },
     {
       "nonterminal": "结构体成员声明序列2",
       "lookahead": "KW_INT",
-      "production": "P111"
+      "production": "P113"
     },
     {
       "nonterminal": "结构体成员声明序列2",
       "lookahead": "KW_STRUCT",
-      "production": "P111"
+      "production": "P113"
     },
     {
       "nonterminal": "结构体成员声明序列2",
       "lookahead": "RBRACE",
-      "production": "P110"
+      "production": "P112"
     },
     {
       "nonterminal": "表达式",
       "lookahead": "AMP",
-      "production": "P059"
+      "production": "P061"
     },
     {
       "nonterminal": "表达式",
       "lookahead": "CHAR_LITERAL",
-      "production": "P059"
+      "production": "P061"
     },
     {
       "nonterminal": "表达式",
       "lookahead": "FLOAT_LITERAL",
-      "production": "P059"
+      "production": "P061"
     },
     {
       "nonterminal": "表达式",
       "lookahead": "ID",
-      "production": "P059"
+      "production": "P061"
     },
     {
       "nonterminal": "表达式",
       "lookahead": "INT_LITERAL",
-      "production": "P059"
+      "production": "P061"
     },
     {
       "nonterminal": "表达式",
       "lookahead": "LPAREN",
-      "production": "P059"
+      "production": "P061"
     },
     {
       "nonterminal": "表达式",
       "lookahead": "MINUS",
-      "production": "P059"
+      "production": "P061"
     },
     {
       "nonterminal": "表达式",
       "lookahead": "NOT",
-      "production": "P059"
+      "production": "P061"
     },
     {
       "nonterminal": "表达式",
       "lookahead": "PLUS",
-      "production": "P059"
+      "production": "P061"
     },
     {
       "nonterminal": "表达式",
       "lookahead": "STRING_LITERAL",
-      "production": "P059"
+      "production": "P061"
     },
     {
       "nonterminal": "表达式2",
       "lookahead": "AMP",
-      "production": "P050"
+      "production": "P052"
     },
     {
       "nonterminal": "表达式2",
       "lookahead": "CHAR_LITERAL",
-      "production": "P050"
+      "production": "P052"
     },
     {
       "nonterminal": "表达式2",
       "lookahead": "FLOAT_LITERAL",
-      "production": "P050"
+      "production": "P052"
     },
     {
       "nonterminal": "表达式2",
       "lookahead": "ID",
-      "production": "P050"
+      "production": "P052"
     },
     {
       "nonterminal": "表达式2",
       "lookahead": "INT_LITERAL",
-      "production": "P050"
+      "production": "P052"
     },
     {
       "nonterminal": "表达式2",
       "lookahead": "LPAREN",
-      "production": "P050"
+      "production": "P052"
     },
     {
       "nonterminal": "表达式2",
       "lookahead": "MINUS",
-      "production": "P050"
+      "production": "P052"
     },
     {
       "nonterminal": "表达式2",
       "lookahead": "NOT",
-      "production": "P050"
+      "production": "P052"
     },
     {
       "nonterminal": "表达式2",
       "lookahead": "PLUS",
-      "production": "P050"
+      "production": "P052"
     },
     {
       "nonterminal": "表达式2",
       "lookahead": "RPAREN",
-      "production": "P051"
+      "production": "P053"
     },
     {
       "nonterminal": "表达式2",
       "lookahead": "SEMI",
-      "production": "P051"
+      "production": "P053"
     },
     {
       "nonterminal": "表达式2",
       "lookahead": "STRING_LITERAL",
-      "production": "P050"
+      "production": "P052"
     },
     {
       "nonterminal": "语句",
       "lookahead": "AMP",
-      "production": "P041"
-    },
-    {
-      "nonterminal": "语句",
-      "lookahead": "CHAR_LITERAL",
-      "production": "P041"
-    },
-    {
-      "nonterminal": "语句",
-      "lookahead": "FLOAT_LITERAL",
-      "production": "P041"
-    },
-    {
-      "nonterminal": "语句",
-      "lookahead": "ID",
-      "production": "P041"
-    },
-    {
-      "nonterminal": "语句",
-      "lookahead": "INT_LITERAL",
-      "production": "P041"
-    },
-    {
-      "nonterminal": "语句",
-      "lookahead": "KW_BREAK",
-      "production": "P047"
-    },
-    {
-      "nonterminal": "语句",
-      "lookahead": "KW_CONTINUE",
-      "production": "P048"
-    },
-    {
-      "nonterminal": "语句",
-      "lookahead": "KW_FOR",
-      "production": "P046"
-    },
-    {
-      "nonterminal": "语句",
-      "lookahead": "KW_IF",
-      "production": "P044"
-    },
-    {
-      "nonterminal": "语句",
-      "lookahead": "KW_RETURN",
-      "production": "P042"
-    },
-    {
-      "nonterminal": "语句",
-      "lookahead": "KW_WHILE",
-      "production": "P045"
-    },
-    {
-      "nonterminal": "语句",
-      "lookahead": "LBRACE",
       "production": "P043"
     },
     {
       "nonterminal": "语句",
+      "lookahead": "CHAR_LITERAL",
+      "production": "P043"
+    },
+    {
+      "nonterminal": "语句",
+      "lookahead": "FLOAT_LITERAL",
+      "production": "P043"
+    },
+    {
+      "nonterminal": "语句",
+      "lookahead": "ID",
+      "production": "P043"
+    },
+    {
+      "nonterminal": "语句",
+      "lookahead": "INT_LITERAL",
+      "production": "P043"
+    },
+    {
+      "nonterminal": "语句",
+      "lookahead": "KW_BREAK",
+      "production": "P049"
+    },
+    {
+      "nonterminal": "语句",
+      "lookahead": "KW_CONTINUE",
+      "production": "P050"
+    },
+    {
+      "nonterminal": "语句",
+      "lookahead": "KW_FOR",
+      "production": "P048"
+    },
+    {
+      "nonterminal": "语句",
+      "lookahead": "KW_IF",
+      "production": "P046"
+    },
+    {
+      "nonterminal": "语句",
+      "lookahead": "KW_RETURN",
+      "production": "P044"
+    },
+    {
+      "nonterminal": "语句",
+      "lookahead": "KW_WHILE",
+      "production": "P047"
+    },
+    {
+      "nonterminal": "语句",
+      "lookahead": "LBRACE",
+      "production": "P045"
+    },
+    {
+      "nonterminal": "语句",
       "lookahead": "LPAREN",
-      "production": "P041"
+      "production": "P043"
     },
     {
       "nonterminal": "语句",
       "lookahead": "MINUS",
-      "production": "P041"
+      "production": "P043"
     },
     {
       "nonterminal": "语句",
       "lookahead": "NOT",
-      "production": "P041"
+      "production": "P043"
     },
     {
       "nonterminal": "语句",
       "lookahead": "PLUS",
-      "production": "P041"
+      "production": "P043"
     },
     {
       "nonterminal": "语句",
       "lookahead": "SEMI",
-      "production": "P041"
+      "production": "P043"
     },
     {
       "nonterminal": "语句",
       "lookahead": "STRING_LITERAL",
-      "production": "P041"
+      "production": "P043"
     },
     {
       "nonterminal": "语句序列",
       "lookahead": "AMP",
-      "production": "P039"
+      "production": "P041"
     },
     {
       "nonterminal": "语句序列",
       "lookahead": "CHAR_LITERAL",
-      "production": "P039"
+      "production": "P041"
     },
     {
       "nonterminal": "语句序列",
       "lookahead": "FLOAT_LITERAL",
-      "production": "P039"
+      "production": "P041"
     },
     {
       "nonterminal": "语句序列",
       "lookahead": "ID",
-      "production": "P039"
+      "production": "P041"
     },
     {
       "nonterminal": "语句序列",
       "lookahead": "INT_LITERAL",
-      "production": "P039"
+      "production": "P041"
     },
     {
       "nonterminal": "语句序列",
       "lookahead": "KW_BREAK",
-      "production": "P039"
+      "production": "P041"
     },
     {
       "nonterminal": "语句序列",
       "lookahead": "KW_CONTINUE",
-      "production": "P039"
+      "production": "P041"
     },
     {
       "nonterminal": "语句序列",
       "lookahead": "KW_FOR",
-      "production": "P039"
+      "production": "P041"
     },
     {
       "nonterminal": "语句序列",
       "lookahead": "KW_IF",
-      "production": "P039"
+      "production": "P041"
     },
     {
       "nonterminal": "语句序列",
       "lookahead": "KW_RETURN",
-      "production": "P039"
+      "production": "P041"
     },
     {
       "nonterminal": "语句序列",
       "lookahead": "KW_WHILE",
-      "production": "P039"
+      "production": "P041"
     },
     {
       "nonterminal": "语句序列",
       "lookahead": "LBRACE",
-      "production": "P039"
+      "production": "P041"
     },
     {
       "nonterminal": "语句序列",
       "lookahead": "LPAREN",
-      "production": "P039"
+      "production": "P041"
     },
     {
       "nonterminal": "语句序列",
       "lookahead": "MINUS",
-      "production": "P039"
+      "production": "P041"
     },
     {
       "nonterminal": "语句序列",
       "lookahead": "NOT",
-      "production": "P039"
+      "production": "P041"
     },
     {
       "nonterminal": "语句序列",
       "lookahead": "PLUS",
-      "production": "P039"
+      "production": "P041"
     },
     {
       "nonterminal": "语句序列",
       "lookahead": "RBRACE",
-      "production": "P040"
+      "production": "P042"
     },
     {
       "nonterminal": "语句序列",
       "lookahead": "SEMI",
-      "production": "P039"
+      "production": "P041"
     },
     {
       "nonterminal": "语句序列",
       "lookahead": "STRING_LITERAL",
-      "production": "P039"
+      "production": "P041"
     },
     {
       "nonterminal": "赋值",
       "lookahead": "ASSIGN",
-      "production": "P027"
+      "production": "P029"
     },
     {
       "nonterminal": "赋值",
       "lookahead": "COMMA",
-      "production": "P028"
+      "production": "P030"
     },
     {
       "nonterminal": "赋值",
       "lookahead": "RBRACKET",
-      "production": "P028"
+      "production": "P030"
     },
     {
       "nonterminal": "赋值",
       "lookahead": "RPAREN",
-      "production": "P028"
+      "production": "P030"
     },
     {
       "nonterminal": "赋值",
       "lookahead": "SEMI",
-      "production": "P028"
+      "production": "P030"
     },
     {
       "nonterminal": "返回语句",
       "lookahead": "KW_RETURN",
-      "production": "P049"
+      "production": "P051"
     },
     {
       "nonterminal": "逻辑与式",
       "lookahead": "AMP",
-      "production": "P063"
+      "production": "P065"
     },
     {
       "nonterminal": "逻辑与式",
       "lookahead": "CHAR_LITERAL",
-      "production": "P063"
+      "production": "P065"
     },
     {
       "nonterminal": "逻辑与式",
       "lookahead": "FLOAT_LITERAL",
-      "production": "P063"
+      "production": "P065"
     },
     {
       "nonterminal": "逻辑与式",
       "lookahead": "ID",
-      "production": "P063"
+      "production": "P065"
     },
     {
       "nonterminal": "逻辑与式",
       "lookahead": "INT_LITERAL",
-      "production": "P063"
+      "production": "P065"
     },
     {
       "nonterminal": "逻辑与式",
       "lookahead": "LPAREN",
-      "production": "P063"
+      "production": "P065"
     },
     {
       "nonterminal": "逻辑与式",
       "lookahead": "MINUS",
-      "production": "P063"
+      "production": "P065"
     },
     {
       "nonterminal": "逻辑与式",
       "lookahead": "NOT",
-      "production": "P063"
+      "production": "P065"
     },
     {
       "nonterminal": "逻辑与式",
       "lookahead": "PLUS",
-      "production": "P063"
+      "production": "P065"
     },
     {
       "nonterminal": "逻辑与式",
       "lookahead": "STRING_LITERAL",
-      "production": "P063"
+      "production": "P065"
     },
     {
       "nonterminal": "逻辑与式2",
       "lookahead": "AND",
-      "production": "P064"
+      "production": "P066"
     },
     {
       "nonterminal": "逻辑与式2",
       "lookahead": "ASSIGN",
-      "production": "P065"
+      "production": "P067"
     },
     {
       "nonterminal": "逻辑与式2",
       "lookahead": "COMMA",
-      "production": "P065"
+      "production": "P067"
     },
     {
       "nonterminal": "逻辑与式2",
       "lookahead": "OR",
-      "production": "P065"
+      "production": "P067"
     },
     {
       "nonterminal": "逻辑与式2",
       "lookahead": "RBRACKET",
-      "production": "P065"
+      "production": "P067"
     },
     {
       "nonterminal": "逻辑与式2",
       "lookahead": "RPAREN",
-      "production": "P065"
+      "production": "P067"
     },
     {
       "nonterminal": "逻辑与式2",
       "lookahead": "SEMI",
-      "production": "P065"
+      "production": "P067"
     },
     {
       "nonterminal": "逻辑或式",
       "lookahead": "AMP",
-      "production": "P060"
+      "production": "P062"
     },
     {
       "nonterminal": "逻辑或式",
       "lookahead": "CHAR_LITERAL",
-      "production": "P060"
+      "production": "P062"
     },
     {
       "nonterminal": "逻辑或式",
       "lookahead": "FLOAT_LITERAL",
-      "production": "P060"
+      "production": "P062"
     },
     {
       "nonterminal": "逻辑或式",
       "lookahead": "ID",
-      "production": "P060"
+      "production": "P062"
     },
     {
       "nonterminal": "逻辑或式",
       "lookahead": "INT_LITERAL",
-      "production": "P060"
+      "production": "P062"
     },
     {
       "nonterminal": "逻辑或式",
       "lookahead": "LPAREN",
-      "production": "P060"
+      "production": "P062"
     },
     {
       "nonterminal": "逻辑或式",
       "lookahead": "MINUS",
-      "production": "P060"
+      "production": "P062"
     },
     {
       "nonterminal": "逻辑或式",
       "lookahead": "NOT",
-      "production": "P060"
+      "production": "P062"
     },
     {
       "nonterminal": "逻辑或式",
       "lookahead": "PLUS",
-      "production": "P060"
+      "production": "P062"
     },
     {
       "nonterminal": "逻辑或式",
       "lookahead": "STRING_LITERAL",
-      "production": "P060"
+      "production": "P062"
     },
     {
       "nonterminal": "逻辑或式2",
       "lookahead": "ASSIGN",
-      "production": "P062"
+      "production": "P064"
     },
     {
       "nonterminal": "逻辑或式2",
       "lookahead": "COMMA",
-      "production": "P062"
+      "production": "P064"
     },
     {
       "nonterminal": "逻辑或式2",
       "lookahead": "OR",
-      "production": "P061"
+      "production": "P063"
     },
     {
       "nonterminal": "逻辑或式2",
       "lookahead": "RBRACKET",
-      "production": "P062"
+      "production": "P064"
     },
     {
       "nonterminal": "逻辑或式2",
       "lookahead": "RPAREN",
-      "production": "P062"
+      "production": "P064"
     },
     {
       "nonterminal": "逻辑或式2",
       "lookahead": "SEMI",
-      "production": "P062"
+      "production": "P064"
     }
   ],
   "cases": [

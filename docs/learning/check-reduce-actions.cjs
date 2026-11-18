@@ -10,7 +10,7 @@ const {chromium}=runtime('playwright');
  await page.goto(pathToFileURL(__dirname+'/reduce-actions.html').href);
  const report=await page.evaluate(()=>{
   const api=window.reduceDemo,data=api.data;let scenes=0,frames=0;
-  if(data.totalProductions!==114||data.groups.length!==115)throw Error('应覆盖 114 条产生式及收尾');
+  if(data.totalProductions!==116||data.groups.length!==117)throw Error('应覆盖 116 条产生式及收尾');
   const has=new Set(data.groups.map(g=>g.pid));
   for(let p=1;p<=data.totalProductions;p++)if(!has.has('P'+String(p).padStart(3,'0')))throw Error('缺产生式 '+p);
   function graphCheck(graph){for(const[id,n]of Object.entries(graph)){if(id!==n.id)throw Error('编号不符');for(const c of n.children)if(!graph[c])throw Error('孩子不存在 '+c);const seen=new Set();function visit(k){if(seen.has(k))throw Error('AST 成环');seen.add(k);graph[k].children.forEach(visit);seen.delete(k);}visit(id);}}
