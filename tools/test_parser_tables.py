@@ -151,8 +151,8 @@ def corpus_checks(driver):
         ('inline_member_record', 'struct S{struct T{int x;} t;};'),
         ('unnamed_parameter', 'int f(int){return 0;}'),
         ('function_parameter', 'int f(int callback()){return 0;}'),
-        ('record_parameter', 'struct S{int x;};int f(struct S s){return 0;}'),
         ('void_variable', 'void x;'),
+        ('address_unary', 'int f(){return &-a;}'),
         ('void_member', 'struct S{void x;};'),
     ]]
     sources += [(name, source, True, True) for name, source in [
@@ -160,6 +160,8 @@ def corpus_checks(driver):
         ('record_objects', 'struct S{int x;char c[4];} a,b[2];'),
         ('local_records', 'int main(void){struct S{int x;};struct S s;s.x=1;return s.x;}'),
         ('record_array_parameter', 'struct S{int x;};int f(struct S a[]){return a[0].x;}'),
+        ('record_parameter', 'struct S{int x;};int f(struct S s){return s.x;}'),
+        ('else_if', 'int f(int x){if(x) {return 1;}else if(x==0){return 2;}else{return 3;}}'),
         ('void_function', 'void f(void){return;}'),
         ('empty_parameters', 'int f(){return 1;}'),
         ('assignment_chain', 'int main(void){int a,b;a=b=3;return a+b;}'),

@@ -169,6 +169,16 @@ int main() {
         execute("int main(void){int a=0,b=0;a=b=7;return a+b;}", 14);
         execute("int sum(int a[],int n){int i=0,s=0;for(i=0;i<n;i=i+1){s=s+a[i];}return s;} int main(void){int a[3];a[0]=1;a[1]=2;a[2]=3;return sum(a,3);}", 6);
         execute("struct S{int x;};int main(void){struct S s;s.x=8;return s.x;}", 8);
+        execute("int pick(int x){if(x<0){return 1;}else if(x==0){return 2;}else if(x<4){return 3;}else{return 4;}}int main(){return pick(-1)+pick(0)+pick(3)+pick(9);}", 10);
+        execute("struct S{int x;int a[2];};int change(struct S s){s.x=9;s.a[0]=8;return s.x+s.a[0];}int main(){struct S s;s.x=1;s.a[0]=2;return change(s)+s.x+s.a[0];}", 20);
+        execute("struct S{int x;};int change(struct S s[]){s[0].x=7;return s[0].x;}int main(){struct S s[1];s[0].x=2;return change(s)+s[0].x;}", 14);
+        auto member_context = syntax("struct S{int a[2],b;};int f(struct S s,int a[],float b){struct T{char c,d[3];};return s.b;}");
+        require(member_context.ok() && member_context.root->children[0]->children[0]->kind == NodeType::MemberDecl &&
+                member_context.root->children[1]->children[0]->kind == NodeType::ParamDecl &&
+                member_context.root->children[1]->children[1]->kind == NodeType::ParamDecl &&
+                member_context.root->children[1]->children.back()->children[0]->children[0]->kind == NodeType::MemberDecl,
+                "形参规则根据直接外层创建参数或成员，嵌套声明不串种类");
+        rejects("int main(){return &-a;}");
         execute("int main(void){struct L{int x,y[2];} first,second[3];first.x=4;second[1].y[0]=5;return first.x+second[1].y[0];}", 9);
         execute("int main(void){int i=0,s=0;while(i<5){i=i+1;if(i==2){continue;}s=s+i;if(i==4){break;}}return s;}", 8);
         rejects("int *p;");

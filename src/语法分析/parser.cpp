@@ -25,6 +25,7 @@ class Parser {
         int symbol; // 待匹配的终结符或非终结符。
         int production = -1; // -1 表示匹配符号，否则完成该产生式的 AST 动作。
         std::size_t base = 0; // 产生式第一个右部符号在语义值栈中的位置。
+        NodeType declaration_kind = NodeType::ParamDecl; // 外层指定形参规则应创建参数还是成员。
     };
     const std::vector<Token>& tokens; // 词法阶段给出的单词表，末尾为 EOF。
     std::size_t pos = 0; // 下一个输入单词的下标。
@@ -106,14 +107,9 @@ class Parser {
         finish(n); return n;
     }
     // 完成声明：为对象补名字、基础类型和声明起点，或完成函数与结构体。
-    void declaration(Value& out, Value* v, int symbol) {
+    void declaration(Value& out, Value* v) {
         const auto begin = v[0].begin;
-        if (symbol == 成员声明) {
-            out = std::move(v[3]);
-            out.nodes.push_back(object(NodeType::MemberDecl, v[2]));
-            out.nodes.back()->name = tokens[v[1].begin].lexeme;
-            out.nodes.front()->range.end = tokens[v[4].begin].range.end;
-        } else out = std::move(v[2]);
+        out = std::move(v[2]);
         auto base = v[0].type ? v[0].type : specs(begin);
         for (auto n : out.nodes) {
             n->range.begin = tokens[begin].range.begin;
@@ -215,59 +211,78 @@ class Parser {
         out.nodes.push_back(n);
     }
     // 消费产生式右部的语义值，返回一个结果；不保存文法孩子或匹配树。
-    Value reduce(int symbol, Value* v, int count) {
+    Value reduce(int symbol, Value* v, int count, NodeType declaration_kind) {
         Value out;
         if (!count) return out;
         Node n = nullptr; // 本次新建的单节点；完成后统一加入结果列表。
         switch (symbol) {
-        case 程序: case 成员序列: case 局部声明序列: case 语句序列: case 表达后缀序列:
-        case 形参表可选: case 实参可选:
+        case 程序: case 结构体成员声明序列: case 结构体成员声明序列2:
+        case 局部声明序列: case 语句序列: case 后缀序列: case 函数形参: case 函数实参:
             if (count == 2) out = sequence(v[0], v[1]);
             break;
-        case 形参续: case 实参续: out = sequence(v[1], v[2]); break;
-        case 标量类型: case 成员类型: out.type = v[0].type ? v[0].type : specs(v[0].begin); break;
-        case 数组可选: out.type = declarator(v[0].begin, v[2].end); break;
-        case 对象续: case 成员续: {
-            const bool member = symbol == 成员续;
-            out = std::move(v[member ? 3 : 4]);
-            auto n = object(member ? NodeType::MemberDecl : NodeType::VarDecl, v[2], member || v[3].nodes.empty() ? nullptr : v[3].nodes[0],
-                            member ? v[2].end : v[3].end);
-            n->name = tokens[v[1].begin].lexeme; out.nodes.push_back(n); break;
-        }
-        case 对象尾:
-            out = std::move(v[2]); out.nodes.push_back(object(NodeType::VarDecl, v[0], v[1].nodes.empty() ? nullptr : v[1].nodes[0], v[1].end));
-            out.nodes.front()->range.end = tokens[v[3].begin].range.end; break;
-        case 定义后:
-            if (count == 2) { out = std::move(v[1]); out.nodes.back()->name = tokens[v[0].begin].lexeme; }
+        case 函数形参2: case 函数实参2: out = sequence(v[1], v[2]); break;
+        case 基本类型: case 变量类型: out.type = v[0].type ? v[0].type : specs(v[0].begin); break;
+        case 数组定义: out.type = declarator(v[0].begin, v[2].end); break;
+        case 变量声明后续2:
+            if (count == 3) { out = std::move(v[2]); out.nodes.back()->name = tokens[v[1].begin].lexeme; }
             break;
-        case 结构声明尾:
-            if (count == 2) { out = std::move(v[1]); out.nodes.back()->name = tokens[v[0].begin].lexeme; }
-            else {
-                auto members = sequence(v[1], v[2]); out = std::move(v[4]);
-                n = node(NodeType::StructDef, v[0].begin, out.nodes.empty() ? v[4].end : v[3].end,
-                               "", {members.nodes.rbegin(), members.nodes.rend()});
+        case 变量声明后续:
+            out = std::move(v[2]); out.nodes.push_back(object(NodeType::VarDecl, v[0], v[1].nodes.empty() ? nullptr : v[1].nodes[0], v[1].end));
+            out.nodes.front()->range.end = tokens[v[2].end - 1].range.end; break;
+        case 结构体成员声明2:
+            if (count == 4) {
+                out = std::move(v[3]); n = object(NodeType::MemberDecl, v[2]);
+                n->name = tokens[v[1].begin].lexeme;
             }
             break;
-        case 函数尾:
+        case 结构体成员声明:
+            out = std::move(v[1]);
+            for (auto member : out.nodes) {
+                bind_type(member, v[0].type); member->range.begin = tokens[v[0].begin].range.begin;
+            }
+            out.nodes.push_back(v[0].nodes[0]);
+            out.nodes.front()->range.end = tokens[v[1].end - 1].range.end; break;
+        case 结构体定义后续:
+            if (count == 2) { out = std::move(v[1]); out.nodes.back()->name = tokens[v[0].begin].lexeme; }
+            break;
+        case 结构体后续:
+            if (count == 2) { out = std::move(v[1]); out.nodes.back()->name = tokens[v[0].begin].lexeme; }
+            else {
+                out = std::move(v[3]);
+                n = node(NodeType::StructDef, v[0].begin, out.nodes.empty() ? v[3].end : v[2].end,
+                               "", {v[1].nodes.rbegin(), v[1].nodes.rend()});
+            }
+            break;
+        case 函数定义后续:
             n = node(NodeType::FunctionDef, v[0].begin, v[3].end, "", {v[1].nodes.rbegin(), v[1].nodes.rend()});
             n->children.push_back(v[3].nodes[0]); break;
-        case 外部声明: case 局部声明: case 成员声明: declaration(out, v, symbol); break;
+        case 外部定义: case 局部声明:
+            if (count == 1) out = std::move(v[0]); else declaration(out, v);
+            break;
+        case 结构体声明: declaration(out, v); break;
         case 形参:
-            n = node(NodeType::ParamDecl, v[0].begin, v[count - 1].end, tokens[v[count == 3 ? 1 : 2].begin].lexeme);
-            n->declared_type = count == 3 ? v[2].type : declarator(v[3].begin, v[5].end);
-            bind_type(n, v[0].type ? v[0].type : specs(v[0].begin)); break;
-        case 块: block(out, v); break;
-        case 语句: statement(out, v, count); break;
-        case 初值可选: case 否则可选: out.nodes = std::move(v[1].nodes); break;
-        case 表达式: case 逻辑或式: case 逻辑与式: case 相等式: case 关系式: case 加法式: case 乘法式:
+            n = node(declaration_kind, v[0].begin, v[2].end, tokens[v[1].begin].lexeme);
+            n->declared_type = v[2].type; out.type = v[0].type;
+            bind_type(n, v[0].type); break;
+        case 代码块: block(out, v); break;
+        case 语句:
+            if (count == 1) out = std::move(v[0]); else statement(out, v, count);
+            break;
+        case 条件语句: case 当型循环: case 计数循环: case 返回语句: statement(out, v, count); break;
+        case 赋值: case else2: out.nodes = std::move(v[1].nodes); break;
+        case 表达式:
+            if (v[1].nodes.empty()) out = std::move(v[0]);
+            else n = node(NodeType::Assign, v[0].begin, v[1].end, "=", {v[0].nodes[0], v[1].nodes[0]});
+            break;
+        case 逻辑或式: case 逻辑与式: case 相等式: case 关系式: case 加法式: case 乘法式:
             expression(out, v); break;
-        case 赋值续: case 逻辑或续: case 逻辑与续: case 相等续: case 关系续: case 加法续: case 乘法续:
+        case 逻辑或式2: case 逻辑与式2: case 相等式2: case 关系式2: case 加法式2: case 乘法式2:
             if (count == 3) out = std::move(v[2]);
-            out.nodes.push_back(node(symbol == 赋值续 ? NodeType::Assign : NodeType::BinaryOp,
+            out.nodes.push_back(node(NodeType::BinaryOp,
                                      v[0].begin, v[1].end, tokens[v[0].begin].lexeme, {v[1].nodes[0]})); break;
         case 一元式: case 主式: case 字符串: unary(out, v, symbol, count); break;
         case 后缀式: postfix(out, v); break;
-        case 表达后缀:
+        case 后缀:
             if (count == 2) n = node(NodeType::MemberAccess, v[0].begin, v[1].end, tokens[v[1].begin].lexeme);
             else if (tokens[v[0].begin].type == TT::LPAREN)
                 n = node(NodeType::Call, v[0].begin, v[2].end, "", {v[1].nodes.rbegin(), v[1].nodes.rend()});
@@ -297,7 +312,7 @@ public:
                     stack.pop_back();
                     const int count = productions[frame.production].length;
                     const auto begin = count ? values[frame.base].begin : pos;
-                    auto value = reduce(frame.symbol, count ? &values[frame.base] : nullptr, count);
+                    auto value = reduce(frame.symbol, count ? &values[frame.base] : nullptr, count, frame.declaration_kind);
                     value.begin = begin; value.end = pos;
                     values.resize(frame.base); values.push_back(std::move(value));
                 } else if (frame.symbol < terminal_count) {
@@ -313,9 +328,11 @@ public:
                 } else {
                     const int choice = table[frame.symbol - terminal_count][static_cast<int>(tokens[pos].type)];
                     if (choice < 0) expected(frame.symbol);
-                    stack.pop_back(); stack.push_back({frame.symbol, choice, values.size()});
+                    stack.pop_back(); stack.push_back({frame.symbol, choice, values.size(), frame.declaration_kind});
                     const auto& production = productions[choice];
-                    for (int i = production.length - 1; i >= 0; --i) stack.push_back({production.rhs[i]});
+                    for (int i = production.length - 1; i >= 0; --i)
+                        stack.push_back({production.rhs[i], -1, 0,
+                            frame.symbol == 结构体成员声明 ? NodeType::MemberDecl : NodeType::ParamDecl});
                 }
             }
             auto root = node(NodeType::Program, 0, pos, "", {values[0].nodes.rbegin(), values[0].nodes.rend()});

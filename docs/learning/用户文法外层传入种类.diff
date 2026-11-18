@@ -1,0 +1,60 @@
+--- 用户版（首次适配）
++++ context
+@@ -25,6 +25,7 @@
+         int symbol; // 待匹配的终结符或非终结符。
+         int production = -1; // -1 表示匹配符号，否则完成该产生式的 AST 动作。
+         std::size_t base = 0; // 产生式第一个右部符号在语义值栈中的位置。
++        NodeType declaration_kind = NodeType::ParamDecl; // 外层指定形参规则应创建参数还是成员。
+     };
+     const std::vector<Token>& tokens; // 词法阶段给出的单词表，末尾为 EOF。
+     std::size_t pos = 0; // 下一个输入单词的下标。
+@@ -210,7 +211,7 @@
+         out.nodes.push_back(n);
+     }
+     // 消费产生式右部的语义值，返回一个结果；不保存文法孩子或匹配树。
+-    Value reduce(int symbol, Value* v, int count) {
++    Value reduce(int symbol, Value* v, int count, NodeType declaration_kind) {
+         Value out;
+         if (!count) return out;
+         Node n = nullptr; // 本次新建的单节点；完成后统一加入结果列表。
+@@ -239,7 +240,7 @@
+             for (auto member : out.nodes) {
+                 bind_type(member, v[0].type); member->range.begin = tokens[v[0].begin].range.begin;
+             }
+-            n = v[0].nodes[0]; n->kind = NodeType::MemberDecl; out.nodes.push_back(n); n = nullptr;
++            out.nodes.push_back(v[0].nodes[0]);
+             out.nodes.front()->range.end = tokens[v[1].end - 1].range.end; break;
+         case 结构体定义后续:
+             if (count == 2) { out = std::move(v[1]); out.nodes.back()->name = tokens[v[0].begin].lexeme; }
+@@ -260,7 +261,7 @@
+             break;
+         case 结构体声明: declaration(out, v); break;
+         case 形参:
+-            n = node(NodeType::ParamDecl, v[0].begin, v[2].end, tokens[v[1].begin].lexeme);
++            n = node(declaration_kind, v[0].begin, v[2].end, tokens[v[1].begin].lexeme);
+             n->declared_type = v[2].type; out.type = v[0].type;
+             bind_type(n, v[0].type); break;
+         case 代码块: block(out, v); break;
+@@ -311,7 +312,7 @@
+                     stack.pop_back();
+                     const int count = productions[frame.production].length;
+                     const auto begin = count ? values[frame.base].begin : pos;
+-                    auto value = reduce(frame.symbol, count ? &values[frame.base] : nullptr, count);
++                    auto value = reduce(frame.symbol, count ? &values[frame.base] : nullptr, count, frame.declaration_kind);
+                     value.begin = begin; value.end = pos;
+                     values.resize(frame.base); values.push_back(std::move(value));
+                 } else if (frame.symbol < terminal_count) {
+@@ -327,9 +328,11 @@
+                 } else {
+                     const int choice = table[frame.symbol - terminal_count][static_cast<int>(tokens[pos].type)];
+                     if (choice < 0) expected(frame.symbol);
+-                    stack.pop_back(); stack.push_back({frame.symbol, choice, values.size()});
++                    stack.pop_back(); stack.push_back({frame.symbol, choice, values.size(), frame.declaration_kind});
+                     const auto& production = productions[choice];
+-                    for (int i = production.length - 1; i >= 0; --i) stack.push_back({production.rhs[i]});
++                    for (int i = production.length - 1; i >= 0; --i)
++                        stack.push_back({production.rhs[i], -1, 0,
++                            frame.symbol == 结构体成员声明 ? NodeType::MemberDecl : NodeType::ParamDecl});
+                 }
+             }
+             auto root = node(NodeType::Program, 0, pos, "", {values[0].nodes.rbegin(), values[0].nodes.rend()});

@@ -4,6 +4,9 @@ from copy import deepcopy
 import hashlib
 import json
 import re
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'tools'))
+from generate_parser_tables import derive, productions as grammar_productions
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
@@ -13,7 +16,7 @@ interface = (ROOT / 'include/minic/interface.hpp').read_text('utf-8')
 rules = json.loads((ROOT / 'src/词法分析/词法规则.json').read_text('utf-8'))
 enum = re.search(r'enum class TokenType\s*\{(.*?)\};', interface, re.S)[1]
 terminals = re.findall(r'\b[A-Z][A-Z_]+\b', enum)
-names = terminals + re.findall(r'^    (\S+) = \d+,', header, re.M)
+names = terminals + derive(grammar_productions())['names']
 productions = []
 for length, rhs, pid, lhs in re.findall(r'\{(\d+), \{([\d, ]+)\}\}, // (P\d+): (\S+) ->', header):
     productions.append(dict(lhs=lhs, rhs=[names[int(x)] for x in rhs.split(',')][:int(length)], id=pid))
@@ -34,14 +37,14 @@ char label[]="a" "b";
 float z=1.5;
 struct T {int a;} instance;
 '''),
-    ('函数与控制流', '''int f(int a,float b,char c,struct S s[]) {
+    ('函数与控制流', '''int f(int a,float b,char c,struct S s[],struct S item) {
  int x=1,y[3],z;
  struct S local;
  struct U { int p; } u;
  ;
  {}
  if(a) {break;} else {continue;}
- if(a) {}
+ if(a) {} else if(b) {}
  while(a) {break;}
  for(x=0; x<2; x=x+1) {continue;}
  for(;;) {}
@@ -103,16 +106,16 @@ def value(begin=0, end=0, typ=None, nodes=None):
     return dict(begin=begin, end=end, type=typ, nodes=nodes or [])
 
 
-SEQUENCES = {'程序', '成员序列', '局部声明序列', '语句序列', '表达后缀序列', '形参表可选', '实参可选'}
-EXPRESSIONS = {'表达式', '逻辑或式', '逻辑与式', '相等式', '关系式', '加法式', '乘法式'}
-TAILS = {'赋值续', '逻辑或续', '逻辑与续', '相等续', '关系续', '加法续', '乘法续'}
+SEQUENCES = {'结构体成员声明序列', '程序', '结构体成员声明序列2', '局部声明序列', '语句序列', '后缀序列', '函数形参', '函数实参'}
+EXPRESSIONS = { '逻辑或式', '逻辑与式', '相等式', '关系式', '加法式', '乘法式'}
+TAILS = { '逻辑或式2', '逻辑与式2', '相等式2', '关系式2', '加法式2', '乘法式2'}
 
 
 def category(lhs):
     if lhs == '收尾': return '程序收尾'
-    if lhs in SEQUENCES or lhs in {'形参续', '实参续'}: return '列表合并'
-    if lhs in EXPRESSIONS or lhs in TAILS or lhs in {'一元式', '后缀式', '主式', '字符串', '字符串续', '表达后缀'}: return '表达式'
-    if lhs in {'块', '语句', '否则可选', '表达式可选'}: return '块与语句'
+    if lhs in SEQUENCES or lhs in {'函数形参2', '函数实参2'}: return '列表合并'
+    if lhs in EXPRESSIONS or lhs in TAILS or lhs in {'一元式', '后缀式', '主式', '字符串', '字符串2', '后缀'}: return '表达式'
+    if lhs in {'代码块', '语句', 'if', 'else', 'else2', 'while', 'for', '返回语句', '表达式2'}: return '块与语句'
     return '声明与类型'
 
 
@@ -152,7 +155,7 @@ class Simulator:
         if n['type'] is None: n['type'] = deepcopy(base)
         else: n['type']['base'] = deepcopy(base)
 
-    def reduce(self, p, v, base, stack):
+    def reduce(self, p, v, base, stack, declaration_kind):
         lhs, count = p['lhs'], len(v)
         out, steps = value(), []
         input_values = deepcopy(v)
@@ -183,80 +186,92 @@ class Simulator:
                 sequence(v[0], v[1])
             else:
                 mark('void 表示没有形参，返回空结果；不创建 void 节点。', 'if (count == 2) out = sequence(v[0], v[1]);')
-        elif lhs in {'形参续', '实参续'}:
+        elif lhs in {'函数形参2', '函数实参2'}:
             sequence(v[1], v[2], 'out = sequence(v[1], v[2]);')
             steps[-1]['note'] += ' v[0] 是逗号；它只参与匹配，不进入节点列表。'
-        elif lhs in {'标量类型', '成员类型'}:
+        elif lhs in {'基本类型', '变量类型'}:
             out['type'] = deepcopy(v[0]['type'] or self.specs(v[0]['begin']))
             mark('只返回类型信息；nodes 为空，类型信息存在 out.type。', 'out.type = v[0].type ? v[0].type : specs(v[0].begin);')
-        elif lhs == '数组可选':
+        elif lhs == '数组定义':
             out['type'] = self.array(v[0]['begin'], v[2]['end'])
             mark('建立数组类型并记录长度；此时元素类型 base 为空，所属声明随后补上。', 'out.type = declarator(v[0].begin, v[2].end);')
-        elif lhs in {'对象续', '成员续'}:
-            member = lhs == '成员续'
-            i = 3 if member else 4
-            out = deepcopy(v[i])
-            mark('接过后面的对象列表；即将追加当前逗号后面的对象。', f'out = std::move(v[{i}]);')
-            init = None if member or not v[3]['nodes'] else v[3]['nodes'][0]
-            n = object_node('MemberDecl' if member else 'VarDecl', v[2], init, v[2]['end'] if member else v[3]['end'])
-            self.nodes[n]['name'] = self.tokens[v[1]['begin']]['text']
-            node_result(n, '创建当前对象，填入名字和数组信息；有初值时把初值节点接为孩子。基础类型留给声明补齐。', 'auto n = object(...);\nn->name = tokens[v[1].begin].lexeme;\nout.nodes.push_back(n);')
-        elif lhs == '对象尾':
+        elif lhs == '变量声明后续2':
+            if count == 3:
+                out = deepcopy(v[2])
+                self.nodes[out['nodes'][-1]]['name'] = self.tokens[v[1]['begin']]['text']
+                mark('接过完整声明后续，给首个变量补名字，不再重复创建变量节点。', 'out = std::move(v[2]);\nout.nodes.back()->name = tokens[v[1].begin].lexeme;')
+            else:
+                mark('分号结束本条声明，不产生节点。', 'break;')
+        elif lhs == '结构体成员声明2':
+            if count == 4:
+                out = deepcopy(v[3])
+                n = object_node('MemberDecl', v[2])
+                self.nodes[n]['name'] = self.tokens[v[1]['begin']]['text']
+                node_result(n, '创建逗号后的成员；基础类型由外层统一补全。', 'n = object(NodeType::MemberDecl, v[2]);\nn->name = tokens[v[1].begin].lexeme;')
+            else:
+                mark('分号结束成员声明，不产生节点。', 'break;')
+        elif lhs == '结构体成员声明':
+            out = deepcopy(v[1])
+            for nid in out['nodes']:
+                self.bind(nid, v[0]['type'])
+                self.nodes[nid]['begin'] = v[0]['begin']
+            out['nodes'] += v[0]['nodes']
+            self.nodes[out['nodes'][0]]['end'] = v[1]['end']
+            mark('首成员已由形参规则按外层指定的 MemberDecl 建立；补全后续成员类型并合并。', 'out.nodes.push_back(v[0].nodes[0]);')
+        elif lhs == '变量声明后续':
             out = deepcopy(v[2])
             mark('接过对象续的列表，其中已经有后面的变量。', 'out = std::move(v[2]);')
             n = object_node('VarDecl', v[0], v[1]['nodes'][0] if v[1]['nodes'] else None, v[1]['end'])
             node_result(n, '把第一个变量追加到逆序列表；它的名字和基础类型稍后由声明补齐。', 'out.nodes.push_back(object(NodeType::VarDecl, v[0], ..., v[1].end));')
-            self.nodes[out['nodes'][0]]['end'] = v[3]['end']
-        elif lhs in {'定义后', '结构声明尾'}:
+            self.nodes[out['nodes'][0]]['end'] = v[2]['end']
+        elif lhs in {'结构体定义后续', '结构体后续'}:
             if count == 2:
                 out = deepcopy(v[1])
                 self.nodes[out['nodes'][-1]]['name'] = self.tokens[v[0]['begin']]['text']
                 mark('传递对象尾的列表，并给其中第一个源码对象补名字。', 'out = std::move(v[1]);\nout.nodes.back()->name = tokens[v[0].begin].lexeme;')
-            elif lhs == '结构声明尾':
-                sequence(v[1], v[2], 'auto members = sequence(v[1], v[2]);')
-                steps[-1]['slot'] = 'members（临时列表）'
-                members = deepcopy(out)
-                out = deepcopy(v[4])
-                mark('保留定义后声明的对象列表，随后把结构体定义追加进去。', 'out = std::move(v[4]);')
-                n = self.node('StructDef', v[0]['begin'], v[4]['end'] if not out['nodes'] else v[3]['end'], children=list(reversed(members['nodes'])))
-                node_result(n, '新建 StructDef，成员列表倒回源码顺序后成为 children；结构体名稍后补上。', 'n = node(NodeType::StructDef, ...,\n    {members.nodes.rbegin(), members.nodes.rend()});\nout.nodes.push_back(n);')
+            elif lhs == '结构体后续':
+                out = deepcopy(v[3])
+                mark('接过定义后对象列表，成员列表已经由成员声明序列合并完成。', 'out = std::move(v[3]);')
+                n = self.node('StructDef', v[0]['begin'], v[3]['end'] if not out['nodes'] else v[2]['end'], children=list(reversed(v[1]['nodes'])))
+                node_result(n, '成员倒回源码顺序，创建结构体定义节点。', 'n = node(NodeType::StructDef, ...);')
             else:
                 mark('这里只有分号，返回空结果；结构体本身由上一层建立。', 'if (count == 2) { ... } // 此处分支不进入')
-        elif lhs == '函数尾':
+        elif lhs == '函数定义后续':
             children = list(reversed(v[1]['nodes'])) + v[3]['nodes']
             n = self.node('FunctionDef', v[0]['begin'], v[3]['end'], children=children)
             node_result(n, '形参倒回源码顺序，函数体 Block 接在最后；函数名和返回类型由外部声明补上。', 'n = node(NodeType::FunctionDef, ...,\n    {v[1].nodes.rbegin(), v[1].nodes.rend()});\nn->children.push_back(v[3].nodes[0]);\nout.nodes.push_back(n);')
-        elif lhs in {'外部声明', '局部声明', '成员声明'}:
-            if lhs == '成员声明':
-                out = deepcopy(v[3])
-                n = object_node('MemberDecl', v[2])
-                self.nodes[n]['name'] = self.tokens[v[1]['begin']]['text']
-                out['nodes'].append(n)
-                self.nodes[out['nodes'][0]]['end'] = v[4]['end']
-            else: out = deepcopy(v[2])
-            mark('接过声明尾的节点列表；成员声明还要把首个成员追加进去。', 'declaration(out, v, symbol);\n// out = std::move(v[2]);（成员声明使用 v[3]）')
-            typ = v[0]['type'] or self.specs(v[0]['begin'])
-            for nid in out['nodes']:
-                n = self.nodes[nid]
-                n['begin'] = v[0]['begin']
-                if n['kind'] == 'FunctionDef':
-                    n['name'] = self.tokens[v[1]['begin']]['text']
-                    n['type'] = dict(kind='function', base=deepcopy(typ), params=[deepcopy(self.nodes[c]['type']) for c in n['children'][:-1]])
-                elif n['kind'] == 'StructDef':
-                    n['name'] = self.tokens[v[1]['begin']]['text']
-                else:
-                    if not n['name']: n['name'] = self.tokens[v[1]['begin']]['text']
-                    self.bind(nid, typ)
-            mark('给原节点补名字、基础类型及源码起点；数组补元素类型，函数补返回类型和形参类型。节点编号不变。', 'for (auto n : out.nodes) {\n    // 补名字；bind_type(n, base)；或完成 Function 类型\n}')
+        elif lhs in {'外部定义', '局部声明', '结构体声明'}:
+            if count == 1:
+                out = deepcopy(v[0])
+                mark('转交结构体声明已经完成的结果，不重复补类型。', 'out = std::move(v[0]);')
+            else:
+                out = deepcopy(v[2])
+                mark('接过声明后续列表，补名字、基础类型和声明起点。', 'declaration(out, v);')
+                typ = v[0]['type'] or self.specs(v[0]['begin'])
+                for nid in out['nodes']:
+                    n = self.nodes[nid]
+                    n['begin'] = v[0]['begin']
+                    if n['kind'] == 'FunctionDef':
+                        n['name'] = self.tokens[v[1]['begin']]['text']
+                        n['type'] = dict(kind='function', base=deepcopy(typ), params=[deepcopy(self.nodes[c]['type']) for c in n['children'][:-1]])
+                    elif n['kind'] == 'StructDef':
+                        n['name'] = self.tokens[v[1]['begin']]['text']
+                    else:
+                        if not n['name']: n['name'] = self.tokens[v[1]['begin']]['text']
+                        self.bind(nid, typ)
+                mark('给原节点补名字、基础类型及源码起点；数组补元素类型，函数补返回类型和形参类型。节点编号不变。', 'for (auto n : out.nodes) {\n    // 补名字；bind_type(n, base)；或完成 Function 类型\n}')
         elif lhs == '形参':
-            typ = v[2]['type'] if count == 3 else self.array(v[3]['begin'], v[5]['end'])
-            n = self.node('ParamDecl', v[0]['begin'], v[-1]['end'], self.tokens[v[1 if count == 3 else 2]['begin']]['text'], typ=typ)
-            self.bind(n, v[0]['type'] or self.specs(v[0]['begin']))
-            node_result(n, '创建一个完整形参，填名字和类型；结构体数组的类型为 array → struct。', 'n = node(NodeType::ParamDecl, ...);\nn->declared_type = ...;\nbind_type(n, ...);\nout.nodes.push_back(n);')
-        elif lhs == '块':
+            out['type'] = deepcopy(v[0]['type'])
+            n = self.node(declaration_kind, v[0]['begin'], v[2]['end'], self.tokens[v[1]['begin']]['text'], typ=v[2]['type'])
+            self.bind(n, v[0]['type'])
+            node_result(n, '根据直接外层指定的种类创建参数或成员，不转换已建节点种类。', 'n = node(declaration_kind, ...);\nbind_type(n, v[0].type);')
+        elif lhs == '代码块':
             n = self.node('Block', v[0]['begin'], v[3]['end'], children=list(reversed(v[1]['nodes'])) + list(reversed(v[2]['nodes'])))
             node_result(n, '局部声明和语句分别倒回源码顺序，先声明、后语句，全部接到一个 Block 下。', 'block(out, v);\n// children = reverse(v[1].nodes) + reverse(v[2].nodes)')
-        elif lhs == '语句':
+        elif lhs == '语句' and count == 1:
+            out = deepcopy(v[0])
+            mark('子规则已经完成节点，直接转交。', 'out = std::move(v[0]);')
+        elif lhs in {'语句', 'if', 'while', 'for', '返回语句'}:
             token = self.tokens[v[0]['begin']]['kind']
             if token == 'LBRACE':
                 out['nodes'] = list(v[0]['nodes'])
@@ -274,11 +289,18 @@ class Simulator:
                 elif kind == 'Return': children = list(v[1]['nodes'])
                 elif kind == 'ExprStmt': children = list(v[0]['nodes'])
                 n = self.node(kind, v[0]['begin'], v[-1]['end'], children=children)
-                order = {'If': '条件、then 块、可选 else 块', 'While': '条件、循环体', 'For': '初始化、条件、更新、循环体', 'Return': '可选返回表达式', 'ExprStmt': '表达式'}.get(kind, '没有孩子')
+                order = {'If': '条件、then 代码块、可选 else 代码块', 'While': '条件、循环体', 'For': '初始化、条件、更新、循环体', 'Return': '可选返回表达式', 'ExprStmt': '表达式'}.get(kind, '没有孩子')
                 node_result(n, f'建立 {kind}，孩子顺序是：{order}。' + ('缺省的三个表达式各补一个 Empty 占位节点。' if kind == 'For' and any(not v[i]['nodes'] for i in (2,4,6)) else ''), 'statement(out, v, count);\n// 建立节点，按固定顺序填写 children\nout.nodes.push_back(n);')
-        elif lhs in {'初值可选', '否则可选'}:
+        elif lhs in {'赋值', 'else2'}:
             out['nodes'] = list(v[1]['nodes'])
             mark('丢开用于匹配的 = 或 else，只传递第二个右部符号的节点结果。', 'out.nodes = std::move(v[1].nodes);')
+        elif lhs == '表达式':
+            if not v[1]['nodes']:
+                out = deepcopy(v[0])
+                mark('没有等号后缀，直接返回逻辑或式根。', 'out = std::move(v[0]);')
+            else:
+                n = self.node('Assign', v[0]['begin'], v[1]['end'], '=', [v[0]['nodes'][0], v[1]['nodes'][0]])
+                node_result(n, '赋值后缀只交付右侧表达式，这里直接创建完整赋值节点。', 'n = node(NodeType::Assign, ..., {v[0].nodes[0], v[1].nodes[0]});')
         elif lhs in EXPRESSIONS:
             n = v[0]['nodes'][0]
             mark('先取左边已经完成的表达式；尾表按源码逆序保存，接下来反向遍历。赋值目标是否可修改由语义分析检查。', 'auto n = v[0].nodes[0];', working=n)
@@ -291,8 +313,8 @@ class Simulator:
             node_result(n, '循环结束，把工作根 n 放进 out.nodes；返回结果只有这一个根。', 'out.nodes.push_back(n);')
         elif lhs in TAILS:
             if count == 3: out = deepcopy(v[2])
-            n = self.node('Assign' if lhs == '赋值续' else 'BinaryOp', v[0]['begin'], v[1]['end'], self.tokens[v[0]['begin']]['text'], v[1]['nodes'])
-            node_result(n, '建立暂缺左孩子的运算节点，先接上右孩子，再追加到逆序尾表。上层 expression() 才接入左孩子。' + ('赋值的右边已是完整表达式，所以赋值按右结合构树。' if lhs == '赋值续' else ''), 'if (count == 3) out = std::move(v[2]);\nout.nodes.push_back(node(..., {v[1].nodes[0]}));')
+            n = self.node('Assign' if lhs == '赋值' else 'BinaryOp', v[0]['begin'], v[1]['end'], self.tokens[v[0]['begin']]['text'], v[1]['nodes'])
+            node_result(n, '建立暂缺左孩子的运算节点，先接上右孩子，再追加到逆序尾表。上层 expression() 才接入左孩子。' + ('赋值的右边已是完整表达式，所以赋值按右结合构树。' if lhs == '赋值' else ''), 'if (count == 3) out = std::move(v[2]);\nout.nodes.push_back(node(..., {v[1].nodes[0]}));')
         elif lhs in {'一元式', '主式', '字符串'}:
             begin, end = v[0]['begin'], v[-1]['end']
             token = self.tokens[begin]
@@ -325,7 +347,7 @@ class Simulator:
                 mark('把前一步结果插成后缀节点的第一个孩子；新根变成这个后缀节点。', 'suffix->children.insert(suffix->children.begin(), n);\nn = suffix;', working=n)
             if not v[1]['nodes']: steps[-1]['note'] = '没有后缀，直接返回主式根；不新建节点。'
             node_result(n, '把最终的后缀式根放进 out.nodes。', 'out.nodes.push_back(n);')
-        elif lhs == '表达后缀':
+        elif lhs == '后缀':
             if count == 2:
                 kind, name, children = 'MemberAccess', self.tokens[v[1]['begin']]['text'], []
                 note = '先建成员访问节点，记录成员名；被访问的对象由后缀式补成第一个孩子。'
@@ -359,15 +381,15 @@ class Simulator:
         return out
 
     def run(self):
-        stack = [('END_OF_FILE', None, 0), ('程序', None, 0)]
+        stack = [('END_OF_FILE', None, 0, 'ParamDecl'), ('程序', None, 0, 'ParamDecl')]
         values = []
         while stack:
-            symbol, production, base = stack.pop()
+            symbol, production, base, declaration_kind = stack.pop()
             if production is not None:
                 p = productions[production]
                 assert len(values) - base == len(p['rhs'])
                 remaining = [f'完成 {productions[x[1]]["id"]}' if x[1] is not None else spellings.get(x[0], x[0]) for x in stack]
-                out = self.reduce(p, values[base:], base, remaining)
+                out = self.reduce(p, values[base:], base, remaining, declaration_kind)
                 values[base:] = [out]
             elif symbol in terminals:
                 assert self.tokens[self.pos]['kind'] == symbol, (symbol, self.tokens[self.pos], self.title)
@@ -376,8 +398,8 @@ class Simulator:
             else:
                 choice = table[symbol][self.tokens[self.pos]['kind']]
                 assert choice >= 0, (self.title, symbol, self.tokens[self.pos], self.source[max(0,self.tokens[self.pos]['start']-60):self.tokens[self.pos]['start']+40])
-                stack.append((symbol, choice, len(values)))
-                stack.extend((s, None, 0) for s in reversed(productions[choice]['rhs']))
+                stack.append((symbol, choice, len(values), declaration_kind))
+                stack.extend((s, None, 0, 'MemberDecl' if symbol == '结构体成员声明' else 'ParamDecl') for s in reversed(productions[choice]['rhs']))
         assert len(values) == 2 and values[1]['begin'] == values[1]['end']
         input_roots = values[0]['nodes']
         before = self.graph(input_roots)

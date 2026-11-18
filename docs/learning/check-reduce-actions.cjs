@@ -10,9 +10,9 @@ const {chromium}=runtime('playwright');
  await page.goto(pathToFileURL(__dirname+'/reduce-actions.html').href);
  const report=await page.evaluate(()=>{
   const api=window.reduceDemo,data=api.data;let scenes=0,frames=0;
-  if(data.groups.length!==111)throw Error('应覆盖 110 条产生式及收尾');
+  if(data.totalProductions!==114||data.groups.length!==115)throw Error('应覆盖 114 条产生式及收尾');
   const has=new Set(data.groups.map(g=>g.pid));
-  for(let p=1;p<=110;p++)if(!has.has('P'+String(p).padStart(3,'0')))throw Error('缺产生式 '+p);
+  for(let p=1;p<=data.totalProductions;p++)if(!has.has('P'+String(p).padStart(3,'0')))throw Error('缺产生式 '+p);
   function graphCheck(graph){for(const[id,n]of Object.entries(graph)){if(id!==n.id)throw Error('编号不符');for(const c of n.children)if(!graph[c])throw Error('孩子不存在 '+c);const seen=new Set();function visit(k){if(seen.has(k))throw Error('AST 成环');seen.add(k);graph[k].children.forEach(visit);seen.delete(k);}visit(id);}}
   data.groups.forEach((g,gi)=>g.scenes.forEach((s,vi)=>{
    scenes++;if(s.inputs.length!==s.count)throw Error('右部 Value 数不符');
@@ -44,7 +44,7 @@ const {chromium}=runtime('playwright');
  await page.locator('#speed').selectOption('650');await page.locator('#play').click();await page.waitForTimeout(750);
  assert.ok((await page.evaluate(()=>reduceDemo.getState())).stepIndex>=1);await page.locator('#play').click();
  const paused=(await page.evaluate(()=>reduceDemo.getState())).stepIndex;await page.waitForTimeout(750);assert.equal((await page.evaluate(()=>reduceDemo.getState())).stepIndex,paused);
- await page.locator('#search').fill('形参续');assert.equal(await page.locator('#nav .nav-item').count(),3);
+ await page.locator('#search').fill('函数形参2');assert.equal(await page.locator('#nav .nav-item').count(),3);
  await page.locator('#search').fill('P079');assert.equal(await page.locator('#nav .nav-item').count(),1);
  await page.locator('#search').fill('');await page.locator('#category').selectOption('程序收尾');assert.equal(await page.locator('#nav .nav-item').count(),1);
  await page.locator('#category').selectOption('全部');
