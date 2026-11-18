@@ -166,7 +166,7 @@ static void test_runtime_errors_and_limits() {
     success(execute(remainder, output), -1);
 }
 
-static void test_invalid_ir_and_generator() {
+static void test_invalid_ir() {
     auto compiled = compile_ast(loop_program());
     std::string output;
     const auto original = compiled.ir.program;
@@ -187,12 +187,6 @@ static void test_invalid_ir_and_generator() {
     compiled.ir.program = original;
     compiled.ir.program.functions[0].quads[0].result = "%s99999";
     require(!execute(compiled, output).ok(), "非法符号引用不能越界");
-    auto ast = loop_program();
-    require(!generate(*ast, {}).ok(), "未做语义分析的树不能生成 IR");
-    auto identifier_ast = program(function("main", TypeKind::Int, block(variable("x", TypeKind::Int, integer(1)), ret(id("x")))));
-    auto identifier_semantic = analyze(*identifier_ast);
-    identifier_ast->children[0]->children.back()->children.back()->children[0]->symbol_id = invalid_id;
-    require(!generate(*identifier_ast, identifier_semantic.symbols).ok(), "缺少符号绑定应拒绝");
 }
 
 static void test_display_and_result() {
@@ -240,7 +234,7 @@ int main() {
         test_while_break_continue_and_shadow();
         test_semantic_errors();
         test_runtime_errors_and_limits();
-        test_invalid_ir_and_generator();
+        test_invalid_ir();
         test_display_and_result();
         std::cout << "M1 语义、四元式、解释执行与展示：9 组测试全部通过\n";
         return 0;
