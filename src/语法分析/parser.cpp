@@ -216,7 +216,7 @@ class Parser {
         if (!count) return out;
         Node n = nullptr; // 本次新建的单节点；完成后统一加入结果列表。
         switch (symbol) {
-        case 程序: case 结构体成员声明序列: case 结构体成员声明序列2:
+        case 程序: case 外部定义序列: case 结构体成员声明序列: case 结构体成员声明序列2:
         case 局部声明序列: case 语句序列: case 后缀序列: case 函数形参: case 函数实参:
             if (count == 2) out = sequence(v[0], v[1]);
             break;

@@ -79,9 +79,13 @@ def runtime_table():
 # 每组记录实现函数；固定符号使用带双引号的半角拼写，其他终结符使用 TokenType 名字。
 # 声明形状直接由产生式限制；类型检查、词法值和 AST 交接见 CONSTRAINTS。
 GRAMMAR = '''@run
-程序 -> 外部定义 程序
+程序 -> 外部定义 外部定义序列
 @run
 程序 -> ε
+@reduce
+外部定义序列 -> 外部定义 外部定义序列
+@reduce
+外部定义序列 -> ε
 @reduce
 基本类型 -> KW_INT
 @reduce
