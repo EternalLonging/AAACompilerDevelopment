@@ -91,14 +91,15 @@
       }
     }
   },
-  "ast_matches": 68,
+  "ast_matches": 94,
   "both_rejected": 47,
   "language_differences": [
     "elseif链",
     "按值结构体形参的形状",
-    "取地址后直接负号"
+    "取地址后直接负号",
+    "形参组合/struct S/a"
   ],
-  "cases": 118,
+  "cases": 145,
   "matched_case_names": [
     "空程序",
     "简单变量",
@@ -167,7 +168,33 @@
     "成员长度24",
     "声明长度24",
     "表达式长度24",
-    "完整类型与范围"
+    "完整类型与范围",
+    "成员组合/int/a",
+    "形参组合/int/a",
+    "成员组合/int/a[2]",
+    "形参组合/int/a[2]",
+    "成员组合/int/a[]",
+    "形参组合/int/a[]",
+    "成员组合/float/a",
+    "形参组合/float/a",
+    "成员组合/float/a[2]",
+    "形参组合/float/a[2]",
+    "成员组合/float/a[]",
+    "形参组合/float/a[]",
+    "成员组合/char/a",
+    "形参组合/char/a",
+    "成员组合/char/a[2]",
+    "形参组合/char/a[2]",
+    "成员组合/char/a[]",
+    "形参组合/char/a[]",
+    "成员组合/struct S/a",
+    "成员组合/struct S/a[2]",
+    "形参组合/struct S/a[2]",
+    "成员组合/struct S/a[]",
+    "形参组合/struct S/a[]",
+    "局部结构体交接",
+    "后缀与字符串范围",
+    "右结合与左结合"
   ],
   "rejected_case_names": [
     "零数组长度值留给后续",
@@ -218,5 +245,181 @@
     "联调/e04_mixed_declaration",
     "联调/e05_unbraced_if"
   ],
-  "neutral_matches_adapted": 118
+  "neutral_matches_adapted": 145,
+  "variants": {
+    "adapted": {
+      "lines": 358,
+      "code_lines": 333,
+      "functions": {
+        "declaration": {
+          "lines": 19,
+          "code_lines": 19
+        },
+        "statement": {
+          "lines": 26,
+          "code_lines": 26
+        },
+        "expression": {
+          "lines": 9,
+          "code_lines": 9
+        },
+        "reduce": {
+          "lines": 82,
+          "code_lines": 82
+        },
+        "run": {
+          "lines": 36,
+          "code_lines": 36
+        }
+      },
+      "matches_adapted": 145
+    },
+    "candidate": {
+      "lines": 371,
+      "code_lines": 345,
+      "functions": {
+        "declaration": {
+          "lines": 19,
+          "code_lines": 19
+        },
+        "named_object": {
+          "lines": 6,
+          "code_lines": 6
+        },
+        "statement": {
+          "lines": 26,
+          "code_lines": 26
+        },
+        "expression": {
+          "lines": 9,
+          "code_lines": 9
+        },
+        "reduce": {
+          "lines": 86,
+          "code_lines": 86
+        },
+        "run": {
+          "lines": 36,
+          "code_lines": 36
+        }
+      },
+      "matches_adapted": 145
+    },
+    "reused": {
+      "lines": 371,
+      "code_lines": 345,
+      "functions": {
+        "declaration": {
+          "lines": 19,
+          "code_lines": 19
+        },
+        "named_object": {
+          "lines": 6,
+          "code_lines": 6
+        },
+        "statement": {
+          "lines": 26,
+          "code_lines": 26
+        },
+        "expression": {
+          "lines": 9,
+          "code_lines": 9
+        },
+        "reduce": {
+          "lines": 88,
+          "code_lines": 88
+        },
+        "run": {
+          "lines": 36,
+          "code_lines": 36
+        }
+      },
+      "matches_adapted": 145
+    },
+    "ranged": {
+      "lines": 372,
+      "code_lines": 346,
+      "functions": {
+        "declaration": {
+          "lines": 19,
+          "code_lines": 19
+        },
+        "named_object": {
+          "lines": 7,
+          "code_lines": 7
+        },
+        "statement": {
+          "lines": 26,
+          "code_lines": 26
+        },
+        "expression": {
+          "lines": 9,
+          "code_lines": 9
+        },
+        "reduce": {
+          "lines": 88,
+          "code_lines": 88
+        },
+        "run": {
+          "lines": 36,
+          "code_lines": 36
+        }
+      },
+      "matches_adapted": 145
+    },
+    "delayed": {
+      "lines": 364,
+      "code_lines": 339,
+      "functions": {
+        "declaration": {
+          "lines": 19,
+          "code_lines": 19
+        },
+        "statement": {
+          "lines": 26,
+          "code_lines": 26
+        },
+        "expression": {
+          "lines": 9,
+          "code_lines": 9
+        },
+        "reduce": {
+          "lines": 88,
+          "code_lines": 88
+        },
+        "run": {
+          "lines": 36,
+          "code_lines": 36
+        }
+      },
+      "matches_adapted": 145
+    },
+    "context": {
+      "lines": 361,
+      "code_lines": 336,
+      "functions": {
+        "declaration": {
+          "lines": 19,
+          "code_lines": 19
+        },
+        "statement": {
+          "lines": 26,
+          "code_lines": 26
+        },
+        "expression": {
+          "lines": 9,
+          "code_lines": 9
+        },
+        "reduce": {
+          "lines": 82,
+          "code_lines": 82
+        },
+        "run": {
+          "lines": 38,
+          "code_lines": 38
+        }
+      },
+      "matches_adapted": 145
+    }
+  }
 }

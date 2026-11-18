@@ -1,0 +1,55 @@
+--- 用户版（首次适配）
++++ delayed
+@@ -216,10 +216,25 @@
+         Node n = nullptr; // 本次新建的单节点；完成后统一加入结果列表。
+         switch (symbol) {
+         case 程序: case 结构体成员声明序列: case 结构体成员声明序列2:
+-        case 局部声明序列: case 语句序列: case 后缀序列: case 函数形参: case 函数实参:
++        case 局部声明序列: case 语句序列: case 后缀序列: case 函数实参:
+             if (count == 2) out = sequence(v[0], v[1]);
+             break;
+-        case 函数形参2: case 函数实参2: out = sequence(v[1], v[2]); break;
++        case 函数实参2: out = sequence(v[1], v[2]); break;
++        case 函数形参: case 函数形参2: case 结构体成员声明: {
++            if (count == 1) break; // 函数形参为 void；空产生式已提前返回。
++            const bool member = symbol == 结构体成员声明;
++            auto& item = v[count - 2];
++            auto base = specs(item.begin);
++            out = std::move(v[count - 1]);
++            if (member) for (auto child : out.nodes) {
++                bind_type(child, base); child->range.begin = tokens[item.begin].range.begin;
++            }
++            n = object(member ? NodeType::MemberDecl : NodeType::ParamDecl, item);
++            n->name = tokens[item.begin + (tokens[item.begin].type == TT::KW_STRUCT ? 2 : 1)].lexeme;
++            bind_type(n, base); out.nodes.push_back(n); n = nullptr;
++            if (member) out.nodes.front()->range.end = tokens[v[1].end - 1].range.end;
++            break;
++        }
+         case 基本类型: case 变量类型: out.type = v[0].type ? v[0].type : specs(v[0].begin); break;
+         case 数组定义: out.type = declarator(v[0].begin, v[2].end); break;
+         case 变量声明后续2:
+@@ -234,13 +249,6 @@
+                 n->name = tokens[v[1].begin].lexeme;
+             }
+             break;
+-        case 结构体成员声明:
+-            out = std::move(v[1]);
+-            for (auto member : out.nodes) {
+-                bind_type(member, v[0].type); member->range.begin = tokens[v[0].begin].range.begin;
+-            }
+-            n = v[0].nodes[0]; n->kind = NodeType::MemberDecl; out.nodes.push_back(n); n = nullptr;
+-            out.nodes.front()->range.end = tokens[v[1].end - 1].range.end; break;
+         case 结构体定义后续:
+             if (count == 2) { out = std::move(v[1]); out.nodes.back()->name = tokens[v[0].begin].lexeme; }
+             break;
+@@ -260,9 +268,7 @@
+             break;
+         case 结构体声明: declaration(out, v); break;
+         case 形参:
+-            n = node(NodeType::ParamDecl, v[0].begin, v[2].end, tokens[v[1].begin].lexeme);
+-            n->declared_type = v[2].type; out.type = v[0].type;
+-            bind_type(n, v[0].type); break;
++            out.type = v[2].type; break;
+         case 代码块: block(out, v); break;
+         case 语句:
+             if (count == 1) out = std::move(v[0]); else statement(out, v, count);
