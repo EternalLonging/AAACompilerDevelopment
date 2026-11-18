@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 from pathlib import Path
 import re
@@ -16,6 +17,21 @@ from test_parser_tables import accepts
 
 GRAMMAR = FOLDER / '用户文法整理版.bnf'
 OUTPUT = FOLDER / '用户文法验证数据.json'
+BASELINE_REF = '9251b89'
+
+
+def baseline_source(path):
+    """读取迁移前的 Git 快照，让历史比较不受正式解析器更新影响。"""
+    return subprocess.run(['git', 'show', f'{BASELINE_REF}:{path}'], cwd=ROOT,
+                          stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                          check=True, encoding='utf-8', timeout=20).stdout
+
+
+def baseline_productions():
+    tree = ast.parse(baseline_source('tools/generate_parser_tables.py'))
+    value = next(node.value for node in tree.body if isinstance(node, ast.Assign)
+                 and any(isinstance(target, ast.Name) and target.id == 'GRAMMAR' for target in node.targets))
+    return productions(ast.literal_eval(value))
 
 # 此处只验证文法形状。名字、类型、数组长度值等仍由后续阶段检查。
 VALID = [
@@ -192,7 +208,7 @@ def main():
     token_names = re.findall(r'\b[A-Z][A-Z_]+\b', enum)
     rows = load(GRAMMAR)
     sets = structural_checks(rows, token_names)
-    current = productions()
+    current = baseline_productions()
 
     cases = [(name, source, True) for name, source in VALID]
     cases += [(name, source, False) for name, source in INVALID]
@@ -233,6 +249,7 @@ def main():
     assert any(item.get('accepted') and item['name'] == '初始化复用赋值' for item in results)
     assert any(item.get('accepted') and item['name'] == '局部定义结构体' for item in results)
     output = {
+        'comparison_baseline': BASELINE_REF,
         'grammar': GRAMMAR.name,
         'production_count': len(rows), 'nonterminal_count': len(sets['names']),
         'prediction_cells': len(sets['table']), 'conflict_count': 0,

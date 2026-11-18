@@ -366,13 +366,13 @@ def main():
     build = args.build_dir.resolve()
     experiment = build / 'user-grammar-comparison'
     experiment.mkdir(exist_ok=True)
-    original = (ROOT / 'src/语法分析/parser.cpp').read_text(encoding='utf-8')
+    original = grammar.baseline_source('src/语法分析/parser.cpp')
     adapted = adapted_parser(original)
     candidate = candidate_parser(original)
     variants = {'original': original, 'adapted': adapted, 'candidate': candidate,
                 'reused': reused_parser(original), 'ranged': ranged_parser(original),
                 'delayed': delayed_parser(original), 'context': context_parser(original)}
-    current_rows = tables.productions()
+    current_rows = grammar.baseline_productions()
     user_rows = grammar.load(grammar.GRAMMAR)
     cpp_rows = [{**row, 'lhs': CPP_NAMES.get(row['lhs'], row['lhs']),
                  'rhs': [CPP_NAMES.get(s, s) for s in row['rhs']]} for row in user_rows]
@@ -383,6 +383,8 @@ def main():
     finally:
         tables.productions = original_productions
     (experiment / 'user-predictive-table.hpp').write_text(generated_table, encoding='utf-8')
+    (experiment / 'predictive_table.hpp').write_text(
+        grammar.baseline_source('src/语法分析/predictive_table.hpp'), encoding='utf-8')
     for name, source in variants.items():
         (experiment / (name + '.cpp')).write_text(source, encoding='utf-8')
     (experiment / 'probe.cpp').write_text(PROBE, encoding='utf-8')
@@ -455,7 +457,8 @@ def main():
         raise AssertionError(('出现未预期的接受范围差别', differences))
     enum = re.search(r'enum class TokenType\s*\{(.*?)\};', (ROOT / 'include/minic/interface.hpp').read_text(encoding='utf-8'), re.S)[1]
     terminals = len(re.findall(r'\b[A-Z][A-Z_]+\b', enum))
-    output = {'current': {**grammar_metrics(current_rows, terminals), **metrics(original),
+    output = {'comparison_baseline': grammar.BASELINE_REF,
+              'current': {**grammar_metrics(current_rows, terminals), **metrics(original),
                           'functions': function_metrics(original)},
               'adapted': {**metrics(adapted), 'functions': function_metrics(adapted)},
               'candidate': {**grammar_metrics(user_rows, terminals), **metrics(candidate),

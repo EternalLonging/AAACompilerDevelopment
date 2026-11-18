@@ -1,4 +1,5 @@
 {
+  "comparison_baseline": "9251b89",
   "grammar": "用户文法整理版.bnf",
   "production_count": 114,
   "nonterminal_count": 55,

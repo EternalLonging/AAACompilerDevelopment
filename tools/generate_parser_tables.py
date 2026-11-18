@@ -19,6 +19,8 @@ GRAMMAR_TARGET = OUTPUT / '文法表.xlsx'
 PARSER = ROOT / 'src/语法分析/parser.cpp'
 EPSILON = 'ε'
 END = 'END_OF_FILE'
+# 文法保留用户命名；C++ 枚举避开 if/else/while/for 关键字。
+CPP_IDENTIFIERS = {'if': '条件语句', 'else': '否则分支', 'while': '当型循环', 'for': '计数循环'}
 RUNTIME_TABLE = ROOT / 'src/语法分析/predictive_table.hpp'
 
 # 固定符号的拼写直接取自词法规则，不另外维护一份符号清单。
@@ -50,7 +52,7 @@ def runtime_table():
              '#pragma once', '#include "minic/interface.hpp"', '', 'namespace minic { namespace predictive {',
              f'inline constexpr int terminal_count = {len(terminals)}; // 终结符数量，编号与 TokenType 一致。',
              'enum Nonterminal {']
-    lines += [f'    {name} = {symbols.index(name)},' for name in sets['names']]
+    lines += [f'    {CPP_IDENTIFIERS.get(name, name)} = {symbols.index(name)},' for name in sets['names']]
     lines += ['};', 'struct Production {', '    int length; // 右部符号个数，0 表示空产生式。',
               f'    int rhs[{width}]; // 右部符号编号，保持文法顺序。', '};',
               'inline constexpr Production productions[] = {']
@@ -77,64 +79,233 @@ def runtime_table():
 # 每组记录实现函数；固定符号使用带双引号的半角拼写，其他终结符使用 TokenType 名字。
 # 声明形状直接由产生式限制；类型检查、词法值和 AST 交接见 CONSTRAINTS。
 GRAMMAR = '''@run
-程序 -> 外部声明 程序 | ε
+程序 -> 外部定义 程序
+@run
+程序 -> ε
+@reduce
+基本类型 -> KW_INT
+@reduce
+基本类型 -> KW_FLOAT
+@reduce
+基本类型 -> KW_CHAR
+@reduce
+变量类型 -> 基本类型
+@reduce
+变量类型 -> KW_STRUCT ID
 @declaration
-外部声明 -> 标量类型 ID 外部声明尾 | KW_VOID ID 函数尾 | KW_STRUCT ID 结构声明尾
-外部声明尾 -> 函数尾 | 对象尾
-函数尾 -> "(" 形参表可选 ")" 块
-局部声明 -> 标量类型 ID 对象尾 | KW_STRUCT ID 结构声明尾
-结构声明尾 -> "{" 成员声明 成员序列 "}" 定义后 | ID 对象尾
-定义后 -> ID 对象尾 | ";"
-对象尾 -> 数组可选 初值可选 对象续 ";"
-对象续 -> "," ID 数组可选 初值可选 对象续 | ε
-初值可选 -> "=" 表达式 | ε
-@specs
-标量类型 -> KW_CHAR | KW_INT | KW_FLOAT
-成员序列 -> 成员声明 成员序列 | ε
+外部定义 -> 基本类型 ID 外部定义后续
 @declaration
-成员声明 -> 成员类型 ID 数组可选 成员续 ";"
-成员类型 -> 标量类型 | KW_STRUCT ID
-成员续 -> "," ID 数组可选 成员续 | ε
-@declarator
-数组可选 -> "[" 界限可选 "]" | ε
-界限可选 -> INT_LITERAL | ε
-形参表可选 -> KW_VOID | 形参 形参续 | ε
-形参续 -> "," 形参 形参续 | ε
-形参 -> 标量类型 ID 数组可选 | KW_STRUCT ID ID "[" 界限可选 "]"
+外部定义 -> KW_VOID ID 函数定义后续
+@declaration
+外部定义 -> 结构体声明
+@declaration
+结构体声明 -> KW_STRUCT ID 结构体后续
+@reduce
+外部定义后续 -> 函数定义后续
+@reduce
+外部定义后续 -> 变量声明后续
+@reduce
+函数定义后续 -> "(" 函数形参 ")" 代码块
+@reduce
+结构体后续 -> "{" 结构体成员声明序列 "}" 结构体定义后续
+@reduce
+结构体后续 -> ID 变量声明后续
+@reduce
+结构体定义后续 -> ";"
+@reduce
+结构体定义后续 -> ID 变量声明后续
+@reduce
+形参 -> 变量类型 ID 数组定义
+@reduce
+变量声明后续 -> 数组定义 赋值 变量声明后续2
+@reduce
+变量声明后续2 -> "," ID 变量声明后续
+@reduce
+变量声明后续2 -> ";"
+@reduce
+数组定义 -> "[" 数组长度 "]"
+@reduce
+数组定义 -> ε
+@reduce
+数组长度 -> INT_LITERAL
+@reduce
+数组长度 -> ε
+@reduce
+赋值 -> "=" 表达式
+@reduce
+赋值 -> ε
+@reduce
+函数形参 -> 形参 函数形参2
+@reduce
+函数形参 -> KW_VOID
+@reduce
+函数形参 -> ε
+@reduce
+函数形参2 -> "," 形参 函数形参2
+@reduce
+函数形参2 -> ε
 @block
-块 -> "{" 局部声明序列 语句序列 "}"
-局部声明序列 -> 局部声明 局部声明序列 | ε
-语句序列 -> 语句 语句序列 | ε
+代码块 -> "{" 局部声明序列 语句序列 "}"
+@reduce
+局部声明序列 -> 局部声明 局部声明序列
+@reduce
+局部声明序列 -> ε
+@declaration
+局部声明 -> 基本类型 ID 变量声明后续
+@declaration
+局部声明 -> 结构体声明
+@reduce
+语句序列 -> 语句 语句序列
+@reduce
+语句序列 -> ε
 @statement
-语句 -> 块 | ";" | KW_IF "(" 表达式 ")" 块 否则可选 | KW_WHILE "(" 表达式 ")" 块 | KW_FOR "(" 表达式可选 ";" 表达式可选 ";" 表达式可选 ")" 块 | KW_RETURN 表达式可选 ";" | KW_BREAK ";" | KW_CONTINUE ";" | 表达式 ";"
-否则可选 -> KW_ELSE 块 | ε
-表达式可选 -> 表达式 | ε
+语句 -> 表达式2 ";"
+@statement
+语句 -> 返回语句
+@statement
+语句 -> 代码块
+@statement
+语句 -> if
+@statement
+语句 -> while
+@statement
+语句 -> for
+@statement
+语句 -> KW_BREAK ";"
+@statement
+语句 -> KW_CONTINUE ";"
+@statement
+返回语句 -> KW_RETURN 表达式2 ";"
+@reduce
+表达式2 -> 表达式
+@reduce
+表达式2 -> ε
+@statement
+if -> KW_IF "(" 表达式 ")" 代码块 else2
+@reduce
+else2 -> KW_ELSE else
+@reduce
+else2 -> ε
+@reduce
+else -> 代码块
+@reduce
+else -> if
+@statement
+while -> KW_WHILE "(" 表达式 ")" 代码块
+@statement
+for -> KW_FOR "(" 表达式2 ";" 表达式2 ";" 表达式2 ")" 代码块
 @expression
-表达式 -> 逻辑或式 赋值续
-赋值续 -> "=" 表达式 | ε
-逻辑或式 -> 逻辑与式 逻辑或续
-逻辑或续 -> "||" 逻辑与式 逻辑或续 | ε
-逻辑与式 -> 相等式 逻辑与续
-逻辑与续 -> "&&" 相等式 逻辑与续 | ε
-相等式 -> 关系式 相等续
-相等续 -> "==" 关系式 相等续 | "!=" 关系式 相等续 | ε
-关系式 -> 加法式 关系续
-关系续 -> "<" 加法式 关系续 | "<=" 加法式 关系续 | ">" 加法式 关系续 | ">=" 加法式 关系续 | ε
-加法式 -> 乘法式 加法续
-加法续 -> "+" 乘法式 加法续 | "-" 乘法式 加法续 | ε
-乘法式 -> 一元式 乘法续
-乘法续 -> "*" 一元式 乘法续 | "/" 一元式 乘法续 | "%" 一元式 乘法续 | ε
+表达式 -> 逻辑或式 赋值
+@expression
+逻辑或式 -> 逻辑与式 逻辑或式2
+@reduce
+逻辑或式2 -> "||" 逻辑与式 逻辑或式2
+@reduce
+逻辑或式2 -> ε
+@expression
+逻辑与式 -> 相等式 逻辑与式2
+@reduce
+逻辑与式2 -> "&&" 相等式 逻辑与式2
+@reduce
+逻辑与式2 -> ε
+@expression
+相等式 -> 关系式 相等式2
+@reduce
+相等式2 -> "==" 关系式 相等式2
+@reduce
+相等式2 -> "!=" 关系式 相等式2
+@reduce
+相等式2 -> ε
+@expression
+关系式 -> 加法式 关系式2
+@reduce
+关系式2 -> "<" 加法式 关系式2
+@reduce
+关系式2 -> "<=" 加法式 关系式2
+@reduce
+关系式2 -> ">" 加法式 关系式2
+@reduce
+关系式2 -> ">=" 加法式 关系式2
+@reduce
+关系式2 -> ε
+@expression
+加法式 -> 乘法式 加法式2
+@reduce
+加法式2 -> "+" 乘法式 加法式2
+@reduce
+加法式2 -> "-" 乘法式 加法式2
+@reduce
+加法式2 -> ε
+@expression
+乘法式 -> 一元式 乘法式2
+@reduce
+乘法式2 -> "*" 一元式 乘法式2
+@reduce
+乘法式2 -> "/" 一元式 乘法式2
+@reduce
+乘法式2 -> "%" 一元式 乘法式2
+@reduce
+乘法式2 -> ε
 @unary
-一元式 -> "+" 一元式 | "-" 一元式 | "!" 一元式 | "&" 一元式 | 后缀式
-后缀式 -> 主式 表达后缀序列
-主式 -> ID | INT_LITERAL | FLOAT_LITERAL | CHAR_LITERAL | 字符串 | "(" 表达式 ")"
-字符串 -> STRING_LITERAL 字符串续
-字符串续 -> STRING_LITERAL 字符串续 | ε
+一元式 -> "+" 一元式
+@unary
+一元式 -> "-" 一元式
+@unary
+一元式 -> "!" 一元式
+@unary
+一元式 -> "&" 后缀式
+@unary
+一元式 -> 后缀式
 @postfix
-表达后缀序列 -> 表达后缀 表达后缀序列 | ε
-表达后缀 -> "(" 实参可选 ")" | "[" 表达式 "]" | "." ID
-实参可选 -> 表达式 实参续 | ε
-实参续 -> "," 表达式 实参续 | ε
+后缀式 -> 主式 后缀序列
+@reduce
+后缀序列 -> 后缀 后缀序列
+@reduce
+后缀序列 -> ε
+@postfix
+后缀 -> "(" 函数实参 ")"
+@postfix
+后缀 -> "[" 表达式 "]"
+@postfix
+后缀 -> "." ID
+@unary
+主式 -> "(" 表达式 ")"
+@unary
+主式 -> ID
+@unary
+主式 -> INT_LITERAL
+@unary
+主式 -> FLOAT_LITERAL
+@unary
+主式 -> CHAR_LITERAL
+@unary
+主式 -> 字符串
+@unary
+字符串 -> STRING_LITERAL 字符串2
+@reduce
+字符串2 -> STRING_LITERAL 字符串2
+@reduce
+字符串2 -> ε
+@reduce
+函数实参 -> ε
+@reduce
+函数实参 -> 表达式 函数实参2
+@reduce
+函数实参2 -> "," 表达式 函数实参2
+@reduce
+函数实参2 -> ε
+@reduce
+结构体成员声明序列 -> 结构体成员声明 结构体成员声明序列2
+@reduce
+结构体成员声明序列2 -> ε
+@reduce
+结构体成员声明序列2 -> 结构体成员声明 结构体成员声明序列2
+@reduce
+结构体成员声明 -> 形参 结构体成员声明2
+@reduce
+结构体成员声明2 -> "," ID 数组定义 结构体成员声明2
+@reduce
+结构体成员声明2 -> ";"
 '''
 
 # 编号用于定位仍需程序检查的规则，语义检查不能由 FIRST/FOLLOW 代替。
@@ -157,7 +328,7 @@ AST = [
     ('StructDef', 'reduce', '结构体标签名', 'MemberDecl，按声明顺序', '一个或多个'),
     ('Block', 'block', '—', '先声明再语句，均按源码顺序', '零个或多个'),
     ('ExprStmt', 'statement', '—', '表达式', '一个'),
-    ('If', 'statement', '—', '条件、真分支块、可选的假分支块', '两个或三个'),
+    ('If', 'statement', '—', '条件、真分支块、可选的假分支块或 If', '两个或三个'),
     ('While', 'statement', '—', '条件、循环体块', '两个'),
     ('For', 'statement', '—', '初始化、条件、更新、循环体块；缺失分量用 Empty', '固定四个'),
     ('Return', 'statement', '—', '可选返回表达式', '零个或一个'),
@@ -323,7 +494,7 @@ def build_payload():
         if len(choices) > 1:
             raise ValueError(f'文法不是 LL(1)：M[{name}, {token}] = {choices}')
     priority_rows = []
-    layers = ['赋值续', '逻辑或续', '逻辑与续', '相等续', '关系续', '加法续', '乘法续']
+    layers = ['赋值', '逻辑或式2', '逻辑与式2', '相等式2', '关系式2', '加法式2', '乘法式2']
     for value, layer in enumerate(layers, 1):
         names = [row['rhs'][0] for row in rows if row['lhs'] == layer and row['rhs']]
         priority_rows.append([value, ' '.join(spelling[name] for name in names), '、'.join(names),

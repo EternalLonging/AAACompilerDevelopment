@@ -1,4 +1,5 @@
 {
+  "comparison_baseline": "9251b89",
   "current": {
     "productions": 110,
     "nonterminals": 49,
