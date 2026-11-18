@@ -6,7 +6,6 @@
 
 #include <utility>
 #include <algorithm>
-#include <unordered_map>
 
 namespace minic {
 namespace {
@@ -22,25 +21,14 @@ class Generator {
     std::vector<TemporaryEntry>* temporaries_ = &program_.global_temporaries;
     std::vector<std::pair<std::string, std::string>> loops_; // 循环结束和继续标号。
     std::size_t next_label_ = 0;
-    std::size_t depth_ = 0;
     SourceRange current_range_; // 生成失败时的源码位置。
 
     const ASTNode& child(const ASTNode& node, std::size_t index) const {
-        if (index >= node.children.size() || !node.children[index]) throw std::runtime_error("语法树孩子缺失");
         return *node.children[index];
     }
 
-    void count(const ASTNode& node, std::size_t low, std::size_t high) const {
-        if (node.children.size() < low || node.children.size() > high) throw std::runtime_error("语法树孩子数量不正确");
-        for (std::size_t i = 0; i < node.children.size(); ++i) child(node, i);
-    }
-
     const SymbolEntry& binding(const ASTNode& node) const {
-        if (node.symbol_id >= symbols_.symbols.size()) throw std::runtime_error("语法树缺少有效符号编号");
-        const auto& entry = symbols_.symbols[node.symbol_id];
-        if (entry.id != node.symbol_id || entry.name != node.name || !same_type(entry.type, node.type))
-            throw std::runtime_error("语法树与符号表不属于同一次成功的语义分析");
-        return entry;
+        return symbols_.symbols[node.symbol_id];
     }
 
     void emit(const std::string& op, const std::string& first, const std::string& second,
@@ -50,7 +38,6 @@ class Generator {
     }
 
     std::string temporary(TypePtr type) {
-        if (!type || type->kind == TypeKind::Error) throw std::runtime_error("临时量类型尚未检查");
         const auto name = "%t" + std::to_string(temporaries_->size());
         temporaries_->push_back({name, std::move(type)});
         return name;
@@ -70,24 +57,18 @@ class Generator {
     }
 
     // 左值求地址，赋值不提前读取尚未初始化的目标。
-    std::string address(const ASTNode& node, std::size_t depth = 0) {
-        if (depth > 128 || !node.type) throw std::runtime_error("地址表达式类型无效或过深");
+    std::string address(const ASTNode& node) {
         const auto result = temporary(detail::address_type(node.type));
         if (node.kind == NodeType::Identifier) {
-            binding(node); emit("addr", detail::symbol_name(node.symbol_id), "-", result, node.range);
+            emit("addr", detail::symbol_name(node.symbol_id), "-", result, node.range);
         } else if (node.kind == NodeType::ArrayAccess) {
-            count(node, 2, 2);
             const bool array_parameter = child(node, 0).type->kind == TypeKind::Address;
-            const auto base = array_parameter ? snapshot(expression(child(node, 0)), detail::value_type(child(node, 0)), node.range) : address(child(node, 0), depth + 1);
+            const auto base = array_parameter ? snapshot(expression(child(node, 0)), detail::value_type(child(node, 0)), node.range) : address(child(node, 0));
             const auto index = expression(child(node, 1));
             emit(array_parameter ? "offsetaddr" : "indexaddr", base, index, result, node.range);
         } else if (node.kind == NodeType::MemberAccess) {
-            count(node, 1, 1);
-            if (node.record_id >= symbols_.records.size() || !node.member_index ||
-                *node.member_index >= symbols_.records[node.record_id].members.size()) throw std::runtime_error("成员绑定无效");
             const auto& member = symbols_.records[node.record_id].members[*node.member_index];
-            if (member.name != node.name || !member.offset) throw std::runtime_error("成员名字或布局无效");
-            const auto base = address(child(node, 0), depth + 1);
+            const auto base = address(child(node, 0));
             emit("memberaddr", base, std::to_string(*member.offset), result, node.range);
         } else if (detail::aggregate(node.type) && node.category == ValueCategory::RValue) {
             const auto value = snapshot(expression_value(node), node.type, node.range);
@@ -113,7 +94,7 @@ class Generator {
     }
     // 先生成原表达式，再按节点上的目标类型生成转换；数组取首元素地址。
     std::string expression(const ASTNode& node) {
-        if (node.converted_type && node.type && node.type->kind == TypeKind::Array &&
+        if (node.converted_type && node.type->kind == TypeKind::Array &&
             node.kind != NodeType::StringLiteral) {
             current_range_ = node.range;
             const auto result = temporary(node.converted_type);
@@ -134,14 +115,10 @@ class Generator {
     // 按原类型生成表达式值；不修改 AST，也不在这里应用本节点的转换目标。
     std::string expression_value(const ASTNode& node) {
         current_range_ = node.range;
-        if (++depth_ > 512) throw std::runtime_error("语法树嵌套过深");
-        if (!node.type || node.type->kind == TypeKind::Unknown || node.type->kind == TypeKind::Error ||
-            node.scope_id >= symbols_.scopes.size()) throw std::runtime_error("表达式尚未通过语义检查");
         std::string result;
         // 仅折叠无副作用且不会溢出/除零的数值常量表达式。
         if (options_.constant_folding && (node.kind == NodeType::BinaryOp || node.kind == NodeType::UnaryOp)) {
             if (const auto value = detail::folded_value(node, 0, false)) {
-                --depth_;
                 return constant_operand(constants_.intern(node.type, *value, "<折叠常量>", node.range));
             }
         }
@@ -151,20 +128,14 @@ class Generator {
             emit("load", address(node), "-", result, node.range);
             break;
         case NodeType::Identifier:
-            count(node, 0, 0);
-            binding(node);
-            if (node.type->kind == TypeKind::Function) throw std::runtime_error("函数名字不能作为值生成四元式");
             result = detail::symbol_name(node.symbol_id);
             break;
         case NodeType::IntLiteral: case NodeType::FloatLiteral:
         case NodeType::CharLiteral: case NodeType::StringLiteral:
-            count(node, 0, 0);
             result = constant_operand(constants_.intern(node.type, node.value, node.name, node.range));
             break;
         case NodeType::BinaryOp: {
-            count(node, 2, 2);
             const auto left = expression(child(node, 0));
-            if (node.name == ",") { result = expression(child(node, 1)); break; }
             result = temporary(node.type);
             if (node.name == "&&" || node.name == "||") {
                 const auto branch = label();
@@ -186,9 +157,7 @@ class Generator {
             break;
         }
         case NodeType::Assign: {
-            count(node, 2, 2);
             const auto& target = child(node, 0);
-            if (target.category != ValueCategory::LValue) throw std::runtime_error("赋值目标必须是左值");
             const auto destination = address(target);
             const auto source = expression(child(node, 1));
             emit("store", source, "-", destination, node.range);
@@ -197,31 +166,15 @@ class Generator {
             break;
         }
         case NodeType::UnaryOp: {
-            count(node, 1, 1);
             const auto& operand = child(node, 0);
             if (node.name == "&") { result = address(operand); break; }
-            const bool update = node.name == "pre++" || node.name == "post++" || node.name == "pre--" || node.name == "post--";
-            if (update) {
-                const auto destination = address(operand);
-                const auto original = temporary(operand.type);
-                emit("load", destination, "-", original, node.range);
-                const auto updated = temporary(node.type);
-                const bool increment = node.name.find("++") != std::string::npos;
-                emit(increment ? "+" : "-", original, integer(1), updated, node.range);
-                emit("store", updated, "-", destination, node.range);
-                result = node.name.compare(0, 4, "post") == 0 ? original : updated;
-                break;
-            }
             const auto source = expression(operand);
             if (node.name == "+") { result = source; break; }
             result = temporary(node.type);
-            if (node.name == "-" || node.name == "!" || node.name == "~")
-                emit(node.name == "-" ? "neg" : node.name == "!" ? "not" : "bnot", source, "-", result, node.range);
-            else throw std::runtime_error("不支持的一元运算");
+            emit(node.name == "-" ? "neg" : "not", source, "-", result, node.range);
             break;
         }
         case NodeType::Call: {
-            count(node, 1, invalid_id);
             const auto& callee = child(node, 0);
             const auto target = detail::symbol_name(binding(callee).id);
             std::vector<std::string> arguments;
@@ -237,21 +190,16 @@ class Generator {
         }
         default: throw std::runtime_error("此表达式不能生成 M1 四元式");
         }
-        --depth_;
         return result;
     }
 
     void statement(const ASTNode& node) {
         current_range_ = node.range;
-        if (++depth_ > 512) throw std::runtime_error("语法树嵌套过深");
-        if (node.scope_id >= symbols_.scopes.size()) throw std::runtime_error("语句缺少作用域标注");
         switch (node.kind) {
         case NodeType::Block:
-            count(node, 0, invalid_id);
             for (const auto& value : node.children) statement(*value);
             break;
         case NodeType::VarDecl: {
-            count(node, 0, 1);
             const auto& entry = binding(node);
             const auto destination = detail::symbol_name(entry.id);
             if (entry.scope != 0) emit("local", "-", "-", destination, node.range);
@@ -266,13 +214,11 @@ class Generator {
         }
         case NodeType::StructDef: break;
         case NodeType::ExprStmt:
-            count(node, 1, 1); expression(child(node, 0)); break;
+            expression(child(node, 0)); break;
         case NodeType::Return:
-            count(node, 0, 1);
             emit("ret", node.children.empty() ? "-" : expression(child(node, 0)), "-", "-", node.range);
             break;
         case NodeType::If: {
-            count(node, 2, 3);
             const auto no = label();
             const auto end = label();
             emit("jz", expression(child(node, 0)), "-", no, node.range);
@@ -285,7 +231,6 @@ class Generator {
         }
         case NodeType::While: case NodeType::For: {
             const bool for_loop = node.kind == NodeType::For;
-            count(node, for_loop ? 4 : 2, for_loop ? 4 : 2);
             const auto start = label();
             const auto update = label();
             const auto end = label();
@@ -303,15 +248,12 @@ class Generator {
             break;
         }
         case NodeType::Break: case NodeType::Continue:
-            count(node, 0, 0);
-            if (loops_.empty()) throw std::runtime_error("循环跳转缺少循环上下文");
             if (node.kind == NodeType::Break) emit("jmp", "-", "-", loops_.back().first, node.range);
             else emit("jmp", "-", "-", loops_.back().second, node.range);
             break;
-        case NodeType::Empty: count(node, 0, 0); break;
+        case NodeType::Empty: break;
         default: throw std::runtime_error("此语句不能生成 M1 四元式");
         }
-        --depth_;
     }
 
     void component(const ASTNode& node) {
@@ -326,34 +268,25 @@ public:
     IRResult generate(const Program& root) {
         try {
             current_range_ = root.range;
-            if (root.kind != NodeType::Program || root.scope_id != 0 || symbols_.scopes.empty())
-                throw std::runtime_error("IR 生成需要已检查的 Program 和符号表");
-            count(root, 0, invalid_id);
             for (const auto& child_node : root.children) {
                 const auto& node = *child_node;
                 current_range_ = node.range;
                 if (node.kind == NodeType::VarDecl) {
-                    if (binding(node).scope != 0) throw std::runtime_error("顶层变量不属于全局作用域");
                     if (std::find(program_.globals.begin(), program_.globals.end(), node.symbol_id) == program_.globals.end()) program_.globals.push_back(node.symbol_id);
                     statement(node);
                 } else if (node.kind == NodeType::StructDef) {
-                    if (node.record_id >= symbols_.records.size()) throw std::runtime_error("结构体缺少记录绑定");
+                    continue; // 成员布局已由语义分析保存，不生成运行指令。
                 } else if (node.kind == NodeType::FunctionDef) {
                     const auto& entry = binding(node);
-                    if (!entry.is_defined || entry.kind != SymbolKind::Function) throw std::runtime_error("函数定义绑定无效");
-                    count(node, entry.type->params.size() + 1, entry.type->params.size() + 1);
                     IRFunction function;
                     function.symbol_id = node.symbol_id;
                     for (std::size_t i = 0; i < entry.type->params.size(); ++i) {
                         const auto& parameter = child(node, i);
-                        if (parameter.kind != NodeType::ParamDecl || binding(parameter).kind != SymbolKind::Parameter)
-                            throw std::runtime_error("形参符号绑定无效");
                         function.parameters.push_back(parameter.symbol_id);
                     }
                     quads_ = &function.quads;
                     locations_ = &function.locations;
                     temporaries_ = &function.temporaries;
-                    if (node.children.back()->kind != NodeType::Block) throw std::runtime_error("函数体必须是 Block");
                     statement(*node.children.back());
                     if (entry.type->base->kind == TypeKind::Void) emit("ret", "-", "-", "-", node.range);
                     program_.functions.push_back(std::move(function));
